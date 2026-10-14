@@ -152,19 +152,18 @@ function BrowseInner() {
           Browse verified workers
         </h1>
         <p className="mt-3 text-[16px] leading-[1.4] text-stone-600">
-          Every profile below has cleared a background check. Filter by trade,
-          barangay, and rating. Contact details unlock only once a request is
-          formally accepted.
+          {firebaseConfigured
+            ? "Every profile below has cleared a background check. Filter by trade, barangay, and rating. Contact details unlock only once a request is formally accepted."
+            : "The directory needs a configured Firebase project before it can list verified workers."}
         </p>
       </header>
 
+      {/* Unconfigured: one explanation, not a filter rail plus an empty state
+          plus a setup card all saying the same thing at once. */}
+      {!firebaseConfigured ? (
+        <FirebaseSetupNotice className="mt-8" />
+      ) : (
       <div className="mt-8 grid gap-6 lg:grid-cols-[260px_1fr] lg:items-start">
-        {!firebaseConfigured ? (
-          <div className="lg:col-span-2">
-            <FirebaseSetupNotice />
-          </div>
-        ) : null}
-
         {/* Filters */}
         <Card className="flex flex-col gap-5 p-5 lg:sticky lg:top-20">
           <div className="flex items-center justify-between">
@@ -311,21 +310,17 @@ function BrowseInner() {
           ) : filtered.length === 0 ? (
             <EmptyState
               title={
-                !firebaseConfigured
-                  ? "Directory unavailable"
-                  : loadError
-                    ? "Directory not readable"
-                    : workers.length === 0
-                      ? "No workers listed yet"
-                      : "No matches"
+                loadError
+                  ? "Directory not readable"
+                  : workers.length === 0
+                    ? "No workers listed yet"
+                    : "No matches"
               }
               description={
-                !firebaseConfigured
-                  ? "The worker directory needs Firebase. Add the environment variables to this deployment, then reload."
-                  : loadError
-                    ? "This usually means the Firestore rules for this project have not been deployed. Run: npx firebase-tools deploy --only firestore:rules — then reload."
-                    : workers.length === 0
-                      ? "The directory is empty. Run the seed script to load demo workers, or wait for the first registration to clear verification."
+                loadError
+                  ? "This usually means the Firestore rules for this project have not been deployed. Run: npx firebase-tools deploy --only firestore:rules — then reload."
+                  : workers.length === 0
+                    ? "The directory is empty. Run the seed script to load demo workers, or wait for the first registration to clear verification."
                       : "Try widening your filters — clearing the barangay or rating constraint usually helps."
               }
               action={
@@ -343,6 +338,7 @@ function BrowseInner() {
           )}
         </div>
       </div>
+      )}
     </section>
   );
 }

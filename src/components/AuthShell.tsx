@@ -26,10 +26,12 @@ export function AuthShell({
             {eyebrow}
           </p>
           <h1 className="text-[24px] leading-[1.2] font-medium tracking-[-0.48px] text-ink-black">
-            {title}
+            {firebaseConfigured ? title : "Accounts unavailable"}
           </h1>
           <p className="text-[14px] leading-[1.45] text-stone-600">
-            {description}
+            {firebaseConfigured
+              ? description
+              : "Accounts are unavailable until this deployment has Firebase configured."}
           </p>
         </header>
 
