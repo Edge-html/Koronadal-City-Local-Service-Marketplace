@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     template: "%s · Koronadal Local Service Marketplace",
   },
   description:
-    "A verified marketplace connecting Koronadal City households with vetted, accountable blue-collar trade professionals across ten essential service categories.",
+    "A verified marketplace connecting Koronadal City households with vetted, accountable blue-collar service professionals across ten essential service categories.",
   keywords: [
     "Koronadal",
     "local services",

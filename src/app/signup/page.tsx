@@ -65,7 +65,7 @@ function SignUpForm() {
             {(
               [
                 { id: "customer", label: "Household", note: "I need work done" },
-                { id: "worker", label: "Trade worker", note: "I offer services" },
+                { id: "worker", label: "Service provider", note: "I offer services" },
               ] as const
             ).map((option) => (
               <button

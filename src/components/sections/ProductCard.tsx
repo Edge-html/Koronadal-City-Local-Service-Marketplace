@@ -2,12 +2,12 @@ import { Badge, Card, SectionHeader, StatCard } from "@/components/ui";
 import { formatPeso } from "@/lib/commission";
 
 const DEMO_ROWS = [
-  { name: "Rodrigo A.", trade: "Carpentry", place: "Baras", tone: "amber" },
-  { name: "Marisol T.", trade: "Plumbing", place: "Banga", tone: "coral" },
-  { name: "Jomar P.", trade: "Electrical", place: "Gabi", tone: "ember" },
-  { name: "Elena C.", trade: "Roofing", place: "Lemoy", tone: "violet" },
-  { name: "Danilo R.", trade: "Welding", place: "Ecol", tone: "neutral" },
-  { name: "Rodel M.", trade: "Painting", place: "Saravia", tone: "amber" },
+  { name: "Rodrigo A.", service: "Carpentry", place: "Baras", tone: "amber" },
+  { name: "Marisol T.", service: "Plumbing", place: "Banga", tone: "coral" },
+  { name: "Jomar P.", service: "Electrical", place: "Gabi", tone: "ember" },
+  { name: "Elena C.", service: "Roofing", place: "Lemoy", tone: "violet" },
+  { name: "Danilo R.", service: "Welding", place: "Ecol", tone: "neutral" },
+  { name: "Rodel M.", service: "Painting", place: "Saravia", tone: "amber" },
 ] as const;
 
 export function LiveProductCard() {
@@ -58,7 +58,7 @@ export function LiveProductCard() {
               </caption>
               <thead>
                 <tr className="bg-bone text-left">
-                  {["Request", "Trade", "Barangay", "Status"].map((h) => (
+                  {["Request", "Service", "Barangay", "Status"].map((h) => (
                     <th
                       key={h}
                       scope="col"
@@ -83,7 +83,7 @@ export function LiveProductCard() {
                       </span>
                     </td>
                     <td className="border-b border-stone-200 px-4 py-3 text-[12px] text-stone-500">
-                      {row.trade}
+                      {row.service}
                     </td>
                     <td className="border-b border-stone-200 px-4 py-3 text-[12px] text-stone-500">
                       {row.place}

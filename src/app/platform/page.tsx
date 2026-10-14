@@ -47,7 +47,7 @@ function PlatformHeader() {
           How the marketplace actually runs.
         </h1>
         <p className="mt-4 max-w-[64ch] text-[17px] leading-[1.45] text-stone-600">
-          The transaction lifecycle, the money model, how trade professionals
+          The transaction lifecycle, the money model, how service professionals
           are verified, and the framework the platform operates inside. The
           details behind the promise on the{" "}
           <Link href="/" className="text-ink-black underline underline-offset-2">

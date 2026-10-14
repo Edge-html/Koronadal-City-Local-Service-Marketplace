@@ -153,7 +153,7 @@ function BrowseInner() {
         </h1>
         <p className="mt-3 text-[16px] leading-[1.4] text-stone-600">
           {firebaseConfigured
-            ? "Every profile below has cleared a background check. Filter by trade, barangay, and rating. Contact details unlock only once a request is formally accepted."
+            ? "Every profile below has cleared a background check. Filter by service, barangay, and rating. Contact details unlock only once a request is formally accepted."
             : "The directory needs a configured Firebase project before it can list verified workers."}
         </p>
       </header>
@@ -199,7 +199,7 @@ function BrowseInner() {
                 className="field pl-8"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Name, trade, or keyword"
+                placeholder="Name, service, or keyword"
               />
             </div>
           </div>

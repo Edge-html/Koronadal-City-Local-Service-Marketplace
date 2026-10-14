@@ -50,7 +50,7 @@ export function Referrals() {
             K7M2QP
           </p>
           <p className="mt-4 text-[13px] leading-[1.45] text-stone-600">
-            Share this code with a fellow trade professional. When their first job
+            Share this code with a fellow service professional. When their first job
             is completed and settled, credits post automatically.
           </p>
 

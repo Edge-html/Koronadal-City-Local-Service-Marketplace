@@ -97,10 +97,10 @@ export default function WorkerProfilePage() {
             {saved ? <Notice>Profile saved.</Notice> : null}
 
             <div>
-              <label className="label" htmlFor="pf-trade">
-                Primary trade
+              <label className="label" htmlFor="pf-service">
+                Primary service
               </label>
-              <select id="pf-trade" className="field" defaultValue={worker.categoryId} disabled>
+              <select id="pf-service" className="field" defaultValue={worker.categoryId} disabled>
                 {CATEGORIES.map((c) => (
                   <option key={c.id} value={c.id}>
                     {c.name}
@@ -108,7 +108,7 @@ export default function WorkerProfilePage() {
                 ))}
               </select>
               <p className="caption mt-1">
-                Trade changes require admin review. Contact support to switch
+                Service changes require admin review. Contact support to switch
                 disciplines.
               </p>
             </div>
@@ -192,7 +192,7 @@ export default function WorkerProfilePage() {
               </div>
               <dl className="grid grid-cols-2 gap-3 border-t border-stone-200 pt-3">
                 <div>
-                  <dt className="caption">Trade</dt>
+                  <dt className="caption">Service</dt>
                   <dd className="mt-0.5 text-[13px] text-stone-700">
                     {trade?.name ?? "—"}
                   </dd>

@@ -10,7 +10,7 @@ export function Categories() {
       <SectionHeader
         eyebrow="Scope of work"
         title="Ten essential household service categories"
-        description="Each trade carries its own scope of work, typical use cases, and a monitored price floor that keeps quoting fair on both sides of the transaction."
+        description="Each service carries its own scope of work, typical use cases, and a monitored price floor that keeps quoting fair on both sides of the transaction."
       />
 
       <div className="mt-10 grid gap-px overflow-hidden rounded-xl border border-stone-200 bg-stone-200 sm:grid-cols-2">

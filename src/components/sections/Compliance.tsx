@@ -62,7 +62,7 @@ export function Compliance() {
           </p>
         </div>
         <div>
-          <p className="caption">Trade categories</p>
+          <p className="caption">Service categories</p>
           <p className="mt-1 text-[24px] leading-[1.2] font-medium tracking-[-0.48px] text-ink-black tabular-nums">
             {CATEGORIES.length}
           </p>

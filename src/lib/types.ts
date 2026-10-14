@@ -106,7 +106,7 @@ export const DOC_TYPES: Record<
     label: "TESDA National Certificate (NC II/III)",
     requirement: "optional",
     purpose:
-      'Trade skills certification; grants an official "TESDA Certified" badge on the profile.',
+      'Skills certification; grants an official "TESDA Certified" badge on the profile.',
   },
 };
 

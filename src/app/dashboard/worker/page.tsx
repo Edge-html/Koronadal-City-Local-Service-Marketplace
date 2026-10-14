@@ -443,7 +443,7 @@ function QuoteForm({
 
       {totals.belowFloor ? (
         <Notice tone="alert">
-          This labor fee sits below the monitored floor for the trade. Quotes
+          This labor fee sits below the monitored floor for this service. Quotes
           under floor can be flagged during admin review.
         </Notice>
       ) : null}

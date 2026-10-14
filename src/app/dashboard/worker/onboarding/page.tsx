@@ -163,7 +163,7 @@ export default function WorkerOnboardingPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="ob-cat">
-                    Primary trade
+                    Primary service
                   </label>
                   <select
                     id="ob-cat"
@@ -171,7 +171,7 @@ export default function WorkerOnboardingPage() {
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
                   >
-                    <option value="">Select a trade</option>
+                    <option value="">Select a service</option>
                     {CATEGORIES.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
@@ -409,13 +409,13 @@ export default function WorkerOnboardingPage() {
 
               <dl className="grid gap-4 border-y border-stone-200 py-5 sm:grid-cols-3">
                 {[
-                  ["Trade", CATEGORIES.find((c) => c.id === categoryId)?.name ?? "—"],
+                  ["Service", CATEGORIES.find((c) => c.id === categoryId)?.name ?? "—"],
                   ["Barangay", barangay],
                   ["Experience", `${years || 0} years`],
                   ["Reference rate", `${formatPeso(Number(hourly) || 0)}/hr`],
                   ["Mobile", phone || "—"],
                   [
-                    "Trade floor",
+                    "Service floor",
                     formatPeso(
                       CATEGORIES.find((c) => c.id === categoryId)?.floor ?? 0,
                     ),

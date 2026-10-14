@@ -144,7 +144,7 @@ export function WorkerProfile({ id }: { id: string }) {
                 ["Reference rate", `${formatPeso(worker.hourlyRate)}/hr`],
                 ["Jobs completed", String(worker.jobsCompleted)],
                 ["Reviews", String(worker.reviewCount)],
-                ["Trade floor", trade ? formatPeso(trade.floor) : "—"],
+                ["Service floor", trade ? formatPeso(trade.floor) : "—"],
               ].map(([label, value]) => (
                 <div key={label}>
                   <dt className="caption">{label}</dt>

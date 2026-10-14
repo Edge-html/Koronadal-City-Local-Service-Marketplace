@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Badge, Card, SectionHeader } from "@/components/ui";
 import { ONBOARDING_PATHWAYS } from "@/lib/constants";
+import { DOC_TYPES, type DocType } from "@/lib/types";
 
 export function Onboarding() {
   return (
@@ -76,42 +77,34 @@ export function Onboarding() {
               </tr>
             </thead>
             <tbody>
-              {[
-                {
-                  label: "Standard Government Photo ID",
-                  level: "mandatory",
-                  note: "Verification of legal identity (UMID, Driver's License, PhilID, Voter's ID).",
-                },
-                {
-                  label: "Barangay or Police Clearance",
-                  level: "mandatory",
-                  note: "Screening for legal records and neighborhood standing within the past 6 months.",
-                },
-                {
-                  label: "Letter of Recommendation",
-                  level: "mandatory",
-                  note: "Written endorsement from a former employer, local community leader, or Barangay Official.",
-                },
-                {
-                  label: "TESDA National Certificate (NC II/III)",
-                  level: "optional",
-                  note: 'Trade skills certification; grants an official "TESDA Certified" badge on the profile.',
-                },
-              ].map((row) => (
-                <tr key={row.label}>
-                  <td className="border-b border-stone-200 px-6 py-4 text-[14px] font-medium tracking-[-0.02em] text-ink-black">
-                    {row.label}
-                  </td>
-                  <td className="border-b border-stone-200 px-6 py-4">
-                    <Badge tone={row.level === "mandatory" ? "neutral" : "muted"}>
-                      {row.level === "mandatory" ? "Mandatory" : "Optional"}
-                    </Badge>
-                  </td>
-                  <td className="border-b border-stone-200 px-6 py-4 text-[13px] leading-[1.45] text-stone-600">
-                    {row.note}
-                  </td>
-                </tr>
-              ))}
+              {/* Read from DOC_TYPES rather than an inline copy: the two had
+                  already drifted apart, which is how the credential wording
+                  ended up inconsistent between this table and the onboarding
+                  form. */}
+              {(Object.keys(DOC_TYPES) as DocType[]).map((type) => {
+                const meta = DOC_TYPES[type];
+                return (
+                  <tr key={type}>
+                    <td className="border-b border-stone-200 px-6 py-4 text-[14px] font-medium tracking-[-0.02em] text-ink-black">
+                      {meta.label}
+                    </td>
+                    <td className="border-b border-stone-200 px-6 py-4">
+                      <Badge
+                        tone={
+                          meta.requirement === "mandatory" ? "neutral" : "muted"
+                        }
+                      >
+                        {meta.requirement === "mandatory"
+                          ? "Mandatory"
+                          : "Optional"}
+                      </Badge>
+                    </td>
+                    <td className="border-b border-stone-200 px-6 py-4 text-[13px] leading-[1.45] text-stone-600">
+                      {meta.purpose}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -39,7 +39,7 @@ export function SiteFooter() {
             <Wordmark />
             <p className="max-w-[34ch] text-[14px] leading-[1.4] text-stone-600">
               A verified marketplace connecting Koronadal City households with
-              vetted, accountable blue-collar trade professionals.
+              vetted, accountable blue-collar service professionals.
             </p>
             <p className="caption">Koronadal City, South Cotabato</p>
           </div>
