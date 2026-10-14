@@ -20,7 +20,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { auth, db } from "@/lib/firebase";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 import type { Role } from "@/lib/types";
 
 interface AuthContextValue {
@@ -52,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   /** Mirror the Firestore user document into React state. */
   const attachProfile = useCallback((uid: string) => {
-    const ref = doc(db, "users", uid);
+    const ref = doc(getFirebaseDb(), "users", uid);
     return onSnapshot(ref, (snap) => {
       if (snap.exists()) {
         const data = snap.data() as Record<string, unknown>;
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let detach: (() => void) | undefined;
 
-    const unsubscribe = onAuthStateChanged(auth, async (next) => {
+    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (next) => {
       if (next) {
         detach?.();
         detach = attachProfile(next.uid);
@@ -94,9 +94,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       nextRole: Role,
       phone?: string,
     ) => {
+      const auth = getFirebaseAuth();
       const cred = await createUserWithEmailAndPassword(auth, email, password);
       await updateProfile(cred.user, { displayName: fullName });
-      await setDoc(doc(db, "users", cred.user.uid), {
+      await setDoc(doc(getFirebaseDb(), "users", cred.user.uid), {
         uid: cred.user.uid,
         fullName,
         email,
@@ -110,17 +111,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const cred = await signInWithEmailAndPassword(auth, email, password);
+    const cred = await signInWithEmailAndPassword(
+      getFirebaseAuth(),
+      email,
+      password,
+    );
     return cred.user;
   }, []);
 
   const logout = useCallback(async () => {
-    await signOut(auth);
+    await signOut(getFirebaseAuth());
     router.push("/");
   }, [router]);
 
   const resetPassword = useCallback(async (email: string) => {
-    await sendPasswordResetEmail(auth, email);
+    await sendPasswordResetEmail(getFirebaseAuth(), email);
   }, []);
 
   const refreshProfile = useCallback(async () => {

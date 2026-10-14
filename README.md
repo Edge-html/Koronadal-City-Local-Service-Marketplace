@@ -190,12 +190,45 @@ of JavaScript.
 
 ## Deploying to Vercel
 
-The repository is connected to Vercel. Add the `NEXT_PUBLIC_FIREBASE_*`
-variables under **Project → Settings → Environment Variables** and deploy.
+The repository is connected to Vercel.
 
-```bash
-npm run build
+1. **Project → Settings → Environment Variables**
+2. Add each variable below for **all three** environments (Production,
+   Preview, Development). Ticking only "Production" is the usual cause of a
+   build that succeeds locally and fails in CI.
+
+   | Key | Value |
+   | --- | --- |
+   | `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyBG1wcxGu6blff0neiewvqWraKQzOssJdU` |
+   | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `cycu-trip-planner.firebaseapp.com` |
+   | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `cycu-trip-planner` |
+   | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `cycu-trip-planner.firebasestorage.app` |
+   | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `173000508891` |
+   | `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:173000508891:web:eab4e1b8b120b70a8693fe` |
+   | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | `G-4MF8DRVBVR` |
+
+3. Redeploy — **Deployments → ⋯ → Redeploy**. Environment changes only apply
+   to new builds, so an existing failed build will not self-heal.
+
+> These are Firebase **client** keys. They are designed to be public and are
+> already in `.env.local`; access is governed by `firestore.rules`, not by
+> keeping them secret. Never put a service account key in Vercel.
+
+### If the build fails with `auth/invalid-api-key`
+
+Firebase is initialized lazily, so a missing variable no longer takes the build
+down. You will instead get a runtime error naming the exact missing keys:
+
 ```
+Firebase is not configured in this deployment.
+
+Missing environment variables:
+  - NEXT_PUBLIC_FIREBASE_API_KEY
+  ...
+```
+
+Add them in Vercel and redeploy. If the build itself still fails, check that
+every variable is scoped to the environment you are deploying.
 
 ---
 

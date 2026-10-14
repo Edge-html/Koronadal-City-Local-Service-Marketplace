@@ -27,7 +27,10 @@ import {
   type DocumentData,
   type QueryConstraint,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { getFirebaseDb } from "@/lib/firebase";
+
+/** Resolved per call so an unconfigured environment fails at use, not import. */
+const db = getFirebaseDb;
 import { commissionOn, computeTotals, pesos } from "@/lib/commission";
 import { makeReferralCode } from "@/lib/utils";
 import type {
@@ -40,10 +43,10 @@ import type {
   Worker,
 } from "@/lib/types";
 
-const workersCol = () => collection(db, "workers");
-const jobsCol = () => collection(db, "jobs");
-const reviewsCol = () => collection(db, "reviews");
-const ledgerCol = () => collection(db, "ledger");
+const workersCol = () => collection(db(), "workers");
+const jobsCol = () => collection(db(), "jobs");
+const reviewsCol = () => collection(db(), "reviews");
+const ledgerCol = () => collection(db(), "ledger");
 
 const byNewest = (a: string, b: string) =>
   new Date(b).getTime() - new Date(a).getTime();
@@ -102,7 +105,7 @@ export async function listDirectoryWorkers() {
 }
 
 export async function getWorker(id: string): Promise<Worker | null> {
-  const snap = await getDoc(doc(db, "workers", id));
+  const snap = await getDoc(doc(db(), "workers", id));
   return snap.exists() ? toWorker(id, snap.data()) : null;
 }
 
@@ -150,7 +153,7 @@ export async function updateWorker(
   id: string,
   patch: Partial<Worker> & Record<string, unknown>,
 ) {
-  await updateDoc(doc(db, "workers", id), {
+  await updateDoc(doc(db(), "workers", id), {
     ...patch,
     updatedAt: serverTimestamp(),
   });
@@ -206,7 +209,7 @@ export async function listJobsForWorker(workerId: string) {
 }
 
 export async function getJob(id: string): Promise<Job | null> {
-  const snap = await getDoc(doc(db, "jobs", id));
+  const snap = await getDoc(doc(db(), "jobs", id));
   return snap.exists() ? toJob(id, snap.data()) : null;
 }
 
@@ -243,7 +246,7 @@ export async function createJobRequest(input: NewJob) {
 
 /** Stage 3. Accepting is what unlocks the parties' contact details. */
 export async function acceptJob(jobId: string, worker: Worker) {
-  await updateDoc(doc(db, "jobs", jobId), {
+  await updateDoc(doc(db(), "jobs", jobId), {
     status: "accepted",
     acceptedAt: new Date().toISOString(),
   });
@@ -251,7 +254,7 @@ export async function acceptJob(jobId: string, worker: Worker) {
 }
 
 export async function declineJob(jobId: string, reason: string) {
-  await updateDoc(doc(db, "jobs", jobId), {
+  await updateDoc(doc(db(), "jobs", jobId), {
     status: "cancelled",
     cancelledAt: new Date().toISOString(),
     cancelReason: reason,
@@ -260,7 +263,7 @@ export async function declineJob(jobId: string, reason: string) {
 
 /** Stage 4. Worker submits the mandatory two-part quote. */
 export async function submitQuote(jobId: string, quote: NonNullable<Job["quote"]>) {
-  await updateDoc(doc(db, "jobs", jobId), {
+  await updateDoc(doc(db(), "jobs", jobId), {
     quote,
     status: "quoted",
     quotedAt: new Date().toISOString(),
@@ -278,12 +281,12 @@ export async function approveQuote(job: Job, worker: Worker) {
   const nextBalance = pesos(worker.walletBalance + commission);
   const nextLocked = pesos(worker.walletLocked + commission);
 
-  await updateDoc(doc(db, "jobs", job.id), {
+  await updateDoc(doc(db(), "jobs", job.id), {
     status: "in_progress",
     quoteApprovedAt: new Date().toISOString(),
   });
 
-  await updateDoc(doc(db, "workers", worker.id), {
+  await updateDoc(doc(db(), "workers", worker.id), {
     walletBalance: nextBalance,
     walletLocked: nextLocked,
   });
@@ -301,7 +304,7 @@ export async function approveQuote(job: Job, worker: Worker) {
 
 /** Stage 5. Worker marks the job complete. */
 export async function completeJob(jobId: string) {
-  await updateDoc(doc(db, "jobs", jobId), {
+  await updateDoc(doc(db(), "jobs", jobId), {
     status: "completed",
     completedAt: new Date().toISOString(),
   });
@@ -322,7 +325,7 @@ export async function settleJob(job: Job, worker: Worker) {
   const nextLocked = pesos(Math.max(0, worker.walletLocked - commission));
   const breached = nextBalance < 0;
 
-  await updateDoc(doc(db, "workers", worker.id), {
+  await updateDoc(doc(db(), "workers", worker.id), {
     walletBalance: nextBalance,
     walletLocked: nextLocked,
     jobsCompleted: (worker.jobsCompleted ?? 0) + 1,
@@ -346,7 +349,7 @@ export async function settleJob(job: Job, worker: Worker) {
 
 async function releasePausedIfCleared(worker: Worker) {
   if (worker.status === "paused_wallet" && worker.walletBalance >= 0) {
-    await updateDoc(doc(db, "workers", worker.id), { status: "active" });
+    await updateDoc(doc(db(), "workers", worker.id), { status: "active" });
   }
 }
 
@@ -370,7 +373,7 @@ export async function submitReview(
     createdAt: new Date().toISOString(),
   });
 
-  await updateDoc(doc(db, "jobs", job.id), {
+  await updateDoc(doc(db(), "jobs", job.id), {
     status: "reviewed",
     rating,
     reviewText: text,
@@ -383,7 +386,7 @@ export async function submitReview(
   const total = rows.reduce((sum, r) => sum + (r.rating ?? 0), 0);
   const count = rows.length;
 
-  await updateDoc(doc(db, "workers", worker.id), {
+  await updateDoc(doc(db(), "workers", worker.id), {
     rating: count ? pesos(total / count) : 0,
     reviewCount: count,
   });
@@ -393,7 +396,7 @@ export async function addPortfolioEntry(
   workerId: string,
   entry: PortfolioEntry,
 ) {
-  await updateDoc(doc(db, "workers", workerId), {
+  await updateDoc(doc(db(), "workers", workerId), {
     portfolio: arrayUnion(entry),
   });
 }
@@ -416,7 +419,7 @@ export async function topUpWallet(
 ) {
   const nextBalance = pesos(worker.walletBalance + amount);
 
-  await updateDoc(doc(db, "workers", worker.id), {
+  await updateDoc(doc(db(), "workers", worker.id), {
     walletBalance: nextBalance,
     // A top-up clears a breach and returns the worker to the active pool.
     status: worker.status === "paused_wallet" ? "active" : worker.status,
@@ -511,7 +514,7 @@ export async function decideVerification(
     reviewState: approve ? ("approved" as const) : ("rejected" as const),
   }));
 
-  await updateDoc(doc(db, "workers", worker.id), {
+  await updateDoc(doc(db(), "workers", worker.id), {
     verificationDocs: docs,
     verificationNotes: notes,
     verified: approve,
@@ -531,7 +534,7 @@ export async function listAllJobs(max = 200) {
 
 /** Built-in dispute logging, required by RA 7394 recourse obligations. */
 export async function logDispute(job: Job, reason: string, raisedBy: string) {
-  await addDoc(collection(db, "disputes"), {
+  await addDoc(collection(db(), "disputes"), {
     jobId: job.id,
     workerId: job.workerId,
     workerUid: job.workerUid,
@@ -544,7 +547,7 @@ export async function logDispute(job: Job, reason: string, raisedBy: string) {
     status: "open",
     createdAt: new Date().toISOString(),
   });
-  await updateDoc(doc(db, "jobs", job.id), { status: "disputed" });
+  await updateDoc(doc(db(), "jobs", job.id), { status: "disputed" });
 }
 
 /* ------------------------------------------------------------------ */
