@@ -113,10 +113,19 @@ service cloud.firestore {
 
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
 
-      // Edit your own record, but never escalate your own role.
+      // Edit your own record. The role may never change arbitrarily: a
+      // household upgrading itself to offer services is the one legitimate
+      // transition, and admin remains unreachable from the client because it
+      // is not in the allowed source or target set.
       allow update: if isSignedIn()
         && request.auth.uid == uid
-        && request.resource.data.role == resource.data.role;
+        && (
+          request.resource.data.role == resource.data.role
+          || (
+            resource.data.role == 'customer'
+            && request.resource.data.role == 'worker'
+          )
+        );
 
       allow delete: if isAdmin();
     }

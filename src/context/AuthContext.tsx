@@ -8,7 +8,7 @@ import {
   signOut,
   updateProfile,
 } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, updateDoc } from "firebase/firestore";
 import type { User } from "firebase/auth";
 import { useRouter } from "next/navigation";
 import {
@@ -44,6 +44,8 @@ interface AuthContextValue {
     phone?: string,
   ) => Promise<User>;
   signIn: (email: string, password: string) => Promise<User>;
+  /** Upgrade the signed-in household account to a worker account. */
+  becomeWorker: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
@@ -181,6 +183,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return cred.user;
   }, []);
 
+  /**
+   * Convert the signed-in household account into a worker account.
+   *
+   * People start here to hire services and some later decide to offer them.
+   * Forcing a second account would split their history in two, so the role on
+   * the existing user document is upgraded in place. Firestore rules permit
+   * exactly this transition and nothing else.
+   */
+  const becomeWorker = useCallback(async () => {
+    const uid = getFirebaseAuth().currentUser?.uid;
+    if (!uid) throw new Error("Not signed in.");
+    await updateDoc(doc(getFirebaseDb(), "users", uid), {
+      role: "worker",
+      upgradedAt: new Date().toISOString(),
+    });
+    // The profile snapshot listener picks the new role up on its own.
+  }, []);
+
   const logout = useCallback(async () => {
     await signOut(getFirebaseAuth());
     setProfileError(null);
@@ -205,6 +225,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileError,
       signUp,
       signIn,
+      becomeWorker,
       logout,
       resetPassword,
       refreshProfile,
@@ -218,6 +239,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profileError,
       signUp,
       signIn,
+      becomeWorker,
       logout,
       resetPassword,
       refreshProfile,

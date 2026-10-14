@@ -2,16 +2,17 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { AuthShell, friendlyAuthError } from "@/components/AuthShell";
-import { Notice } from "@/components/ui";
+import { Card, Notice, safeAsync } from "@/components/ui";
+import { getWorkerByUid } from "@/lib/data";
 
 type RoleChoice = "customer" | "worker";
 
 function SignUpForm() {
-  const { signUp } = useAuth();
+  const { user, role: accountRole, signUp, becomeWorker, loading: authLoading } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -24,12 +25,25 @@ function SignUpForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+
+  // Someone who already has an account should upgrade it, not create a second
+  // one. People start here to hire services and some later offer them.
+  const signedInAsCustomer = !!user && accountRole === "customer";
 
   // Philippine mobile numbers are the SMS fallback channel, so validate loosely.
   const phoneValid = useMemo(
     () => phone.trim() === "" || /^(09\d{9}|\+639\d{9})$/.test(phone.trim()),
     [phone],
   );
+
+  // Already a worker (or admin): there is nothing to register, send them on.
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (accountRole === "admin") router.replace("/admin");
+    else if (accountRole === "worker")
+      router.replace("/dashboard/worker");
+  }, [authLoading, user, accountRole, router]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -45,6 +59,101 @@ function SignUpForm() {
       setBusy(false);
     }
   }
+
+  /** Upgrade in place, then continue into onboarding or the jobs console. */
+  const upgrade = safeAsync(async () => {
+    setUpgrading(true);
+    setError("");
+    try {
+      await becomeWorker();
+
+      // If they already have a worker profile, onboarding would bounce them
+      // straight back out; go to the console instead.
+      const existing = await getWorkerByUid(user!.uid);
+      router.push(existing ? "/dashboard/worker" : "/dashboard/worker/onboarding");
+    } catch (err) {
+      setError(
+        friendlyAuthError(err) === "Something went wrong. Please try again."
+          ? "Could not upgrade your account. Please try again."
+          : friendlyAuthError(err),
+      );
+    } finally {
+      setUpgrading(false);
+    }
+  }, "become-worker");
+
+  // Wait for the session before choosing a view. Otherwise the signed-out
+  // registration form paints first and is swapped for the upgrade panel a
+  // frame later, which reads as a glitch.
+  if (authLoading) {
+    return (
+      <AuthShell
+        eyebrow="Checking your session"
+        title="One moment"
+        description="Working out whether you are already signed in."
+      >
+        <Card className="p-6">
+          <p className="meta">Checking your account</p>
+        </Card>
+      </AuthShell>
+    );
+  }
+
+  /* ---- Already signed in: offer the upgrade, not a signup form ---- */
+  if (signedInAsCustomer) {
+    return (
+      <AuthShell
+        eyebrow="Already registered"
+        title="Start offering your services"
+        description={`You&rsquo;re signed in${user.displayName ? ` as ${user.displayName}` : ""}. Your account is currently set up to hire services.`}
+      >
+        <Card className="flex flex-col gap-4 p-6">
+          {error ? <Notice tone="alert">{error}</Notice> : null}
+
+          <p className="text-[14px] leading-[1.5] text-stone-600">
+            Upgrade this account to a service provider instead of creating a
+            second one. Your existing requests and history stay exactly where
+            they are.
+          </p>
+
+          <p className="rounded-md border border-stone-200 bg-bone px-4 py-3 text-[13px] leading-[1.45] text-stone-600">
+            You&rsquo;ll then complete three steps of onboarding: identity, documents,
+            and a background check that clears within 24 to 48 hours.
+          </p>
+
+          <button type="button" className="btn-primary w-full" onClick={upgrade} disabled={upgrading}>
+            {upgrading ? (
+              <>
+                <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
+                Upgrading
+              </>
+            ) : (
+              <>
+                Become a service provider
+                <ArrowRight size={14} strokeWidth={1.5} />
+              </>
+            )}
+          </button>
+
+          <div className="flex items-center justify-between gap-3 border-t border-stone-200 pt-4">
+            <Link href="/dashboard/customer" className="btn-ghost px-0">
+              Not now
+            </Link>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="btn-ghost"
+            >
+              Go to dashboard
+            </button>
+          </div>
+        </Card>
+      </AuthShell>
+    );
+  }
+
+  /* ---- Signed out, or worker/admin: the normal form or a redirect ---- */
+  if (user) return null;
 
   return (
     <AuthShell
