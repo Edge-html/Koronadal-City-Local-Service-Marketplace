@@ -12,9 +12,9 @@ import { cx, initials } from "@/lib/utils";
 const LINKS = [
   { href: "/browse", label: "Find a worker" },
   { href: "/#categories", label: "Services" },
-  { href: "/#workflow", label: "How it works" },
-  { href: "/#commission", label: "Commission" },
-  { href: "/#compliance", label: "Compliance" },
+  { href: "/platform", label: "How it works" },
+  { href: "/platform#commission", label: "Commission" },
+  { href: "/platform#compliance", label: "Compliance" },
 ];
 
 export function SiteNav() {
@@ -33,8 +33,16 @@ export function SiteNav() {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
-  const isActive = (href: string) =>
-    href !== "/" && pathname === href ? true : pathname.startsWith(href);
+  /**
+   * Anchor links to the same parent share one active state — lighting up
+   * "Commission", "Compliance" and "How it works" all at once on /platform
+   * would be noise. Only the parent-level link lights up.
+   */
+  const isActive = (href: string) => {
+    const [path, hash] = href.split("#");
+    if (path === "/" || pathname !== path) return false;
+    return !hash;
+  };
 
   return (
     <>

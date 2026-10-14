@@ -7,25 +7,25 @@ const COLUMNS = [
     links: [
       { href: "/browse", label: "Browse workers" },
       { href: "/#categories", label: "Service categories" },
-      { href: "/#workflow", label: "How it works" },
-      { href: "/#commission", label: "Pricing & commission" },
+      { href: "/platform#workflow", label: "How it works" },
+      { href: "/platform#commission", label: "Pricing & commission" },
     ],
   },
   {
     title: "For workers",
     links: [
-      { href: "/signup", label: "Create a profile" },
-      { href: "/#onboarding", label: "Onboarding pathways" },
+      { href: "/signup?role=worker", label: "Create a profile" },
+      { href: "/platform#onboarding", label: "Onboarding pathways" },
       { href: "/dashboard/worker", label: "Worker dashboard" },
-      { href: "/#referrals", label: "Referral program" },
+      { href: "/platform#referrals", label: "Referral program" },
     ],
   },
   {
     title: "Legal",
     links: [
-      { href: "/#compliance", label: "Regulatory alignment" },
-      { href: "/#fairness", label: "Fair competition" },
-      { href: "/#privacy", label: "Data privacy" },
+      { href: "/platform#compliance", label: "Regulatory alignment" },
+      { href: "/platform#fairness", label: "Fair competition" },
+      { href: "/platform#privacy", label: "Data privacy" },
     ],
   },
 ];
