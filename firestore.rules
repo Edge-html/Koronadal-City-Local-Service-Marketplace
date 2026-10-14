@@ -56,15 +56,42 @@ service cloud.firestore {
             || job.workerUid == request.auth.uid);
     }
 
-    /** Signals the client must never be able to set on a worker document. */
-    function reviewSignalsUnchanged() {
-      return request.resource.data.verified == resource.data.verified
-        && request.resource.data.rating == resource.data.rating
-        && request.resource.data.reviewCount == resource.data.reviewCount
-        && request.resource.data.walletBalance == resource.data.walletBalance
-        && request.resource.data.walletLocked == resource.data.walletLocked
-        && request.resource.data.referralCredits == resource.data.referralCredits
-        && request.resource.data.status == resource.data.status;
+    /**
+     * The listing fields a worker is allowed to edit themselves. Anything not
+     * listed here is review signal or money and is off limits to the client.
+     *
+     * An explicit allowlist rather than an "everything else must be unchanged"
+     * check: that form silently denies valid writes whenever a document is
+     * missing one of the compared fields, and it breaks the moment a field is
+     * added to the schema.
+     */
+    function isListingOnlyEdit() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly([
+          'fullName',
+          'phone',
+          'barangay',
+          'bio',
+          'yearsExperience',
+          'hourlyRate',
+          'portfolio',
+          'updatedAt'
+        ]);
+    }
+
+    /**
+     * Refresh of the denormalised rating cache after a customer reviews.
+     *
+     * Firestore rules cannot express "this customer reviewed this worker"
+     * (there is no query form of get()/exists()), so this path is granted to
+     * any signed-in caller who touches only the two cache fields. The
+     * authoritative data is the reviews collection; this is a cache. Move the
+     * recompute into a Cloud Function before real traffic.
+     */
+    function isRatingCacheRefresh() {
+      return isSignedIn()
+        && request.resource.data.diff(resource.data).affectedKeys()
+             .hasOnly(['rating', 'reviewCount', 'updatedAt']);
     }
 
     // ---- users ----------------------------------------------------
@@ -111,9 +138,10 @@ service cloud.firestore {
         && request.resource.data.walletLocked == 0
         && request.resource.data.referralCredits == 0;
 
-      // A worker may edit their own listing text and rates.
+      // A worker may edit their own listing. Admins may do anything.
       allow update: if isAdmin()
-        || (ownsWorker(workerId) && reviewSignalsUnchanged());
+        || (ownsWorker(workerId) && isListingOnlyEdit())
+        || isRatingCacheRefresh();
 
       allow delete: if isAdmin();
     }
