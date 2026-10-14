@@ -13,6 +13,8 @@ import {
   StarRating,
 } from "@/components/ui";
 import { BARANGAYS, CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
+import { firebaseConfigured } from "@/lib/firebase";
+import { FirebaseSetupNotice } from "@/components/FirebaseSetupNotice";
 import { listDirectoryWorkers } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
 import { normalize } from "@/lib/utils";
@@ -56,6 +58,7 @@ function BrowseInner() {
   const categoryParam = params.get("category") ?? "";
 
   const [workers, setWorkers] = useState<Worker[] | null>(null);
+  const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState(categoryParam);
   const [barangay, setBarangay] = useState("");
@@ -68,13 +71,30 @@ function BrowseInner() {
   }, [categoryParam]);
 
   useEffect(() => {
+    if (!firebaseConfigured) {
+      setWorkers([]);
+      return;
+    }
     let cancelled = false;
     listDirectoryWorkers()
       .then((rows) => {
-        if (!cancelled) setWorkers(rows);
+        if (!cancelled) {
+          setWorkers(rows);
+          setLoadError("");
+        }
       })
-      .catch(() => {
-        if (!cancelled) setWorkers([]);
+      .catch((err) => {
+        if (cancelled) return;
+        // A rejected read is almost always deployed rules, not an empty
+        // database. Reporting "no workers" here would send the operator
+        // looking for data that is present but unreadable.
+        console.error("[browse] directory read failed:", err);
+        setWorkers([]);
+        setLoadError(
+          /permission|insufficient/i.test(String(err?.message ?? ""))
+            ? "The worker directory is not readable with the current Firestore rules."
+            : "Could not load the worker directory.",
+        );
       });
     return () => {
       cancelled = true;
@@ -139,6 +159,12 @@ function BrowseInner() {
       </header>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[260px_1fr] lg:items-start">
+        {!firebaseConfigured ? (
+          <div className="lg:col-span-2">
+            <FirebaseSetupNotice />
+          </div>
+        ) : null}
+
         {/* Filters */}
         <Card className="flex flex-col gap-5 p-5 lg:sticky lg:top-20">
           <div className="flex items-center justify-between">
@@ -284,14 +310,26 @@ function BrowseInner() {
             <WorkerSkeletons />
           ) : filtered.length === 0 ? (
             <EmptyState
-              title={workers.length === 0 ? "No workers listed yet" : "No matches"}
+              title={
+                !firebaseConfigured
+                  ? "Directory unavailable"
+                  : loadError
+                    ? "Directory not readable"
+                    : workers.length === 0
+                      ? "No workers listed yet"
+                      : "No matches"
+              }
               description={
-                workers.length === 0
-                  ? "The directory is empty. Run the seed script to load demo workers, or wait for the first registration to clear verification."
-                  : "Try widening your filters — clearing the barangay or rating constraint usually helps."
+                !firebaseConfigured
+                  ? "The worker directory needs Firebase. Add the environment variables to this deployment, then reload."
+                  : loadError
+                    ? "This usually means the Firestore rules for this project have not been deployed. Run: npx firebase-tools deploy --only firestore:rules — then reload."
+                    : workers.length === 0
+                      ? "The directory is empty. Run the seed script to load demo workers, or wait for the first registration to clear verification."
+                      : "Try widening your filters — clearing the barangay or rating constraint usually helps."
               }
               action={
-                workers.length === 0
+                workers.length === 0 && firebaseConfigured && !loadError
                   ? { label: "Join as a worker", href: "/signup?role=worker" }
                   : undefined
               }

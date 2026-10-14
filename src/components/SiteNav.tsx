@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { LayoutGrid, LogOut, Menu, User, X } from "lucide-react";
 import { Wordmark } from "@/components/Wordmark";
 import { useAuth } from "@/context/AuthContext";
+import { firebaseConfigured } from "@/lib/firebase";
 import { cx, initials } from "@/lib/utils";
 
 const LINKS = [
@@ -36,14 +37,29 @@ export function SiteNav() {
     href !== "/" && pathname === href ? true : pathname.startsWith(href);
 
   return (
-    <header
-      className={cx(
-        "sticky top-0 z-50 border-b transition-colors duration-200",
-        scrolled
-          ? "border-stone-200 bg-newsprint/90 backdrop-blur-sm"
-          : "border-transparent bg-newsprint",
-      )}
-    >
+    <>
+      {!firebaseConfigured ? (
+        <div className="border-b border-stone-200 bg-bone no-print">
+          <div className="container-page flex items-center justify-between gap-4 py-2">
+            <p className="font-[family-name:var(--font-system-ui)] text-[11px] leading-[1.4] tracking-[-0.36px] text-stone-700">
+              Preview mode — Firebase is not configured, so accounts and live
+              data are unavailable.
+            </p>
+            <Link href="/browse" className="shrink-0 text-[11px] tracking-[-0.02em] text-ink-black underline underline-offset-2">
+              What&apos;s needed
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      <header
+        className={cx(
+          "sticky top-0 z-50 border-b transition-colors duration-200",
+          scrolled
+            ? "border-stone-200 bg-newsprint/90 backdrop-blur-sm"
+            : "border-transparent bg-newsprint",
+        )}
+      >
       <div className="container-page flex h-16 items-center justify-between gap-6">
         <div className="flex items-center gap-8">
           <Wordmark />
@@ -185,6 +201,7 @@ export function SiteNav() {
           </nav>
         </div>
       ) : null}
-    </header>
+      </header>
+    </>
   );
 }

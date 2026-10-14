@@ -217,18 +217,22 @@ The repository is connected to Vercel.
 ### If the build fails with `auth/invalid-api-key`
 
 Firebase is initialized lazily, so a missing variable no longer takes the build
-down. You will instead get a runtime error naming the exact missing keys:
+down. Instead the deployment renders a **Preview mode** banner and a panel
+listing the exact keys to set, rather than a blank page. If the build itself
+still fails, check that every variable is scoped to the environment you are
+deploying.
 
-```
-Firebase is not configured in this deployment.
+### Post-deploy checklist
 
-Missing environment variables:
-  - NEXT_PUBLIC_FIREBASE_API_KEY
-  ...
-```
+The app degrades gracefully when Firebase is absent, so a green build is not
+the same as a working marketplace. Work through these in order:
 
-Add them in Vercel and redeploy. If the build itself still fails, check that
-every variable is scoped to the environment you are deploying.
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| "Preview mode" banner | `NEXT_PUBLIC_FIREBASE_*` unset | Add in Vercel, redeploy |
+| "Directory not readable" | Firestore rules not deployed | `npx firebase-tools deploy --only firestore:rules` |
+| "No workers listed yet" | Database genuinely empty | `npm run seed` (needs a service account key) |
+| Sign-up `operation-not-allowed` | Email/Password provider disabled | Firebase console -> Authentication -> Sign-in method |
 
 ---
 

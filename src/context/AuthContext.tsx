@@ -20,7 +20,11 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import {
+  firebaseConfigured,
+  getFirebaseAuth,
+  getFirebaseDb,
+} from "@/lib/firebase";
 import type { Role } from "@/lib/types";
 
 interface AuthContextValue {
@@ -28,6 +32,8 @@ interface AuthContextValue {
   role: Role | null;
   profile: Record<string, unknown> | null;
   loading: boolean;
+  /** True when the deployment is missing its NEXT_PUBLIC_FIREBASE_* values. */
+  unconfigured: boolean;
   signUp: (
     email: string,
     password: string,
@@ -48,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [role, setRole] = useState<Role | null>(null);
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
+  const [unconfigured, setUnconfigured] = useState(!firebaseConfigured);
   const router = useRouter();
 
   /** Mirror the Firestore user document into React state. */
@@ -68,20 +75,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     let detach: (() => void) | undefined;
 
-    const unsubscribe = onAuthStateChanged(getFirebaseAuth(), async (next) => {
-      if (next) {
-        detach?.();
-        detach = attachProfile(next.uid);
-      } else {
-        setProfile(null);
-        setRole(null);
-      }
-      setUser(next);
+    // An unconfigured deployment must not throw inside an effect: React treats
+    // that as an unhandled render error and unmounts the whole tree, so a
+    // missing env var would white-screen the marketing site rather than just
+    // disabling sign-in.
+    let unsubscribe: (() => void) | undefined;
+    try {
+      unsubscribe = onAuthStateChanged(getFirebaseAuth(), (next) => {
+        if (next) {
+          detach?.();
+          detach = attachProfile(next.uid);
+        } else {
+          setProfile(null);
+          setRole(null);
+        }
+        setUser(next);
+        setLoading(false);
+      });
+    } catch (err) {
+      // Expected and handled: the UI switches to preview mode. Logged as a
+      // warning so the console carries the diagnosis without implying a fault.
+      console.warn("[auth] Firebase unavailable, continuing without auth:", err);
+      setUnconfigured(true);
       setLoading(false);
-    });
+      return;
+    }
 
     return () => {
-      unsubscribe();
+      unsubscribe?.();
       detach?.();
     };
   }, [attachProfile]);
@@ -138,13 +159,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role,
       profile,
       loading,
+      unconfigured,
       signUp,
       signIn,
       logout,
       resetPassword,
       refreshProfile,
     }),
-    [user, role, profile, loading, signUp, signIn, logout, resetPassword, refreshProfile],
+    [
+      user,
+      role,
+      profile,
+      loading,
+      unconfigured,
+      signUp,
+      signIn,
+      logout,
+      resetPassword,
+      refreshProfile,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

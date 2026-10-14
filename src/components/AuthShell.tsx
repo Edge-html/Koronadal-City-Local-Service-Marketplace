@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { Card } from "@/components/ui";
+import { firebaseConfigured } from "@/lib/firebase";
+import { FirebaseSetupNotice } from "@/components/FirebaseSetupNotice";
 
 /**
  * Shared frame for the sign-in / sign-up screens. Deliberately narrow and
@@ -31,7 +33,11 @@ export function AuthShell({
           </p>
         </header>
 
-        <Card className="p-6">{children}</Card>
+        {firebaseConfigured ? (
+          <Card className="p-6">{children}</Card>
+        ) : (
+          <FirebaseSetupNotice />
+        )}
 
         <p className="meta mt-6 text-center leading-[1.5]">
           Contact details stay masked until a job request is formally accepted,
