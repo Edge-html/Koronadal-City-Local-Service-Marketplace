@@ -22,6 +22,7 @@ import {
   limit,
   query,
   serverTimestamp,
+  setDoc,
   updateDoc,
   where,
   type DocumentData,
@@ -363,7 +364,10 @@ export async function submitReview(
   rating: number,
   text: string,
 ) {
-  await addDoc(reviewsCol(), {
+  // Keyed by jobId rather than auto-id: this is what lets the security rules
+  // enforce one review per job with a plain exists() probe, and it makes a
+  // duplicate submission fail loudly instead of silently double-rating.
+  await setDoc(doc(db(), "reviews", job.id), {
     jobId: job.id,
     workerId: worker.id,
     consumerId: job.consumerId,

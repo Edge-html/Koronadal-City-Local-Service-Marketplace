@@ -587,7 +587,9 @@ async function main() {
     });
 
     if (settled) {
-      batch.set(db.collection("reviews").doc(), {
+      // Keyed by jobId, matching submitReview in src/lib/data.ts so the
+      // one-review-per-job rule holds for seeded data too.
+      batch.set(db.collection("reviews").doc(jobRef.id), {
         jobId: jobRef.id,
         workerId,
         consumerId: customerUids[j.consumer],

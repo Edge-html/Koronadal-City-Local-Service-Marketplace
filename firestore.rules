@@ -70,10 +70,14 @@ service cloud.firestore {
     // ---- users ----------------------------------------------------
 
     match /users/{uid} {
-      // A user creates their own record during signup.
+      // A user creates their own record during signup. Admin is NOT in this
+      // list on purpose: 'admin' is the platform-wide override that unlocks
+      // every collection, so allowing it here would let anyone self-promote
+      // simply by posting their own user document. Admins are provisioned by
+      // the Admin SDK in scripts/seed.mjs, which bypasses these rules.
       allow create: if isSignedIn()
         && request.auth.uid == uid
-        && request.resource.data.role in ['customer', 'worker', 'admin'];
+        && request.resource.data.role in ['customer', 'worker'];
 
       allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
 
@@ -143,16 +147,24 @@ service cloud.firestore {
       // Readable by anyone browsing a profile.
       allow read: if true;
 
-      // One review per job, from the household that paid for it, 1–5 stars.
+      // Review documents are keyed by jobId (see submitReview in
+      // src/lib/data.ts), so this id IS the job id. That is what makes the
+      // one-review-per-job check below actually enforceable — with random ids
+      // the exists() probe would never match and every household could post
+      // unlimited reviews for the same job.
+      //
+      // Written by the household that paid for the job, 1-5 stars.
       allow create: if isSignedIn()
         && myRole() == 'customer'
+        && request.resource.data.jobId == reviewId
         && request.resource.data.consumerId == request.auth.uid
         && request.resource.data.rating is number
         && request.resource.data.rating >= 1
         && request.resource.data.rating <= 5
-        && !exists(/databases/$(database)/documents/reviews/$(request.resource.data.jobId));
+        && !exists(/databases/$(database)/documents/reviews/$(reviewId));
 
-      // Immutable once submitted.
+      // Immutable once submitted, so feedback cannot be rewritten to launder
+      // a rating. RA 7394 recourse depends on that.
       allow update, delete: if isAdmin();
     }
 
