@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 import { LogOut } from "lucide-react";
+import { Notice } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
 import { LoadingBlock } from "@/components/ui";
 import { cx, initials } from "@/lib/utils";
@@ -30,7 +31,7 @@ export function DashboardShell({
   eyebrow?: string;
   children: ReactNode;
 }) {
-  const { user, role, loading, logout } = useAuth();
+  const { user, role, loading, logout, profileError } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -57,6 +58,7 @@ export function DashboardShell({
           { href: "/dashboard", label: "My account" },
         ]}
         pathname={pathname}
+        profileError={profileError}
       >
         {children}
       </DashboardFrame>
@@ -87,6 +89,7 @@ export function DashboardShell({
       onSignOut={logout}
       tabs={allTabs}
       pathname={pathname}
+      profileError={profileError}
     >
       {children}
     </DashboardFrame>
@@ -102,6 +105,7 @@ function DashboardFrame({
   onSignOut,
   tabs,
   pathname,
+  profileError,
   children,
 }: {
   title: string;
@@ -112,6 +116,7 @@ function DashboardFrame({
   onSignOut: () => void;
   tabs: Tab[];
   pathname: string;
+  profileError: string | null;
   children: ReactNode;
 }) {
   return (
@@ -179,7 +184,14 @@ function DashboardFrame({
         })}
       </nav>
 
-      <div className="mt-8">{children}</div>
+      <div className="mt-8">
+        {profileError ? (
+          <div className="mb-4">
+            <Notice tone="alert">{profileError}</Notice>
+          </div>
+        ) : null}
+        {children}
+      </div>
     </section>
   );
 }

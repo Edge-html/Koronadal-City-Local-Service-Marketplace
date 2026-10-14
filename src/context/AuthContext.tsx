@@ -34,6 +34,8 @@ interface AuthContextValue {
   loading: boolean;
   /** True when the deployment is missing its NEXT_PUBLIC_FIREBASE_* values. */
   unconfigured: boolean;
+  /** Set when the session is valid but its profile record could not be read. */
+  profileError: string | null;
   signUp: (
     email: string,
     password: string,
@@ -55,21 +57,59 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [unconfigured, setUnconfigured] = useState(!firebaseConfigured);
+  const [profileError, setProfileError] = useState<string | null>(null);
   const router = useRouter();
 
-  /** Mirror the Firestore user document into React state. */
+  /**
+   * Mirror the Firestore user document into React state.
+   *
+   * The error callback is not optional. Firestore reports listener failures
+   * through this third argument; with only a success handler the rejection
+   * escapes as an uncaught error, React unmounts the tree, and a denied read
+   * takes down the entire app instead of merely leaving the session without a
+   * role.
+   */
   const attachProfile = useCallback((uid: string) => {
-    const ref = doc(getFirebaseDb(), "users", uid);
-    return onSnapshot(ref, (snap) => {
-      if (snap.exists()) {
-        const data = snap.data() as Record<string, unknown>;
-        setProfile(data);
-        setRole((data.role as Role) ?? null);
-      } else {
+    let ref;
+    try {
+      ref = doc(getFirebaseDb(), "users", uid);
+    } catch (err) {
+      // Unconfigured deployment; preview mode already covers the UI.
+      console.warn("[auth] Firestore unavailable:", err);
+      setUnconfigured(true);
+      return undefined;
+    }
+
+    return onSnapshot(
+      ref,
+      (snap) => {
+        setProfileError(null);
+        if (snap.exists()) {
+          const data = snap.data() as Record<string, unknown>;
+          setProfile(data);
+          setRole((data.role as Role) ?? null);
+        } else {
+          setProfile(null);
+          setRole(null);
+        }
+      },
+      (err) => {
+        console.warn("[auth] profile read failed:", err);
         setProfile(null);
         setRole(null);
-      }
-    });
+
+        const code = (err as { code?: string })?.code ?? "";
+        if (code === "permission-denied") {
+          setProfileError(
+            "Signed in, but this account's profile record could not be read. The Firestore rules deployed for this project may not match this app.",
+          );
+        } else if (code === "unavailable") {
+          setProfileError(
+            "Could not reach the database. Check your connection.",
+          );
+        }
+      },
+    );
   }, []);
 
   useEffect(() => {
@@ -82,12 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let unsubscribe: (() => void) | undefined;
     try {
       unsubscribe = onAuthStateChanged(getFirebaseAuth(), (next) => {
+        detach?.();
         if (next) {
-          detach?.();
           detach = attachProfile(next.uid);
         } else {
           setProfile(null);
           setRole(null);
+          setProfileError(null);
         }
         setUser(next);
         setLoading(false);
@@ -142,6 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(async () => {
     await signOut(getFirebaseAuth());
+    setProfileError(null);
     router.push("/");
   }, [router]);
 
@@ -160,6 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       unconfigured,
+      profileError,
       signUp,
       signIn,
       logout,
@@ -172,6 +215,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       profile,
       loading,
       unconfigured,
+      profileError,
       signUp,
       signIn,
       logout,
