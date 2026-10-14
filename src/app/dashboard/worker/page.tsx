@@ -9,7 +9,7 @@ import {
   Badge,
   Card,
   EmptyState,
-  Notice,
+  Notice, safeAsync,
   StatCard,
 } from "@/components/ui";
 import {
@@ -209,7 +209,7 @@ export default function WorkerDashboardPage() {
                       <>
                         <ActionButton
                           busy={busyId === job.id}
-                          onClick={async () => {
+                          onClick={safeAsync(async () => {
                             setBusyId(job.id);
                             try {
                               await acceptJob(job.id, worker!);
@@ -217,7 +217,7 @@ export default function WorkerDashboardPage() {
                             } finally {
                               setBusyId(null);
                             }
-                          }}
+                          })}
                           icon={<Check size={13} strokeWidth={2} />}
                         >
                           Accept request
@@ -225,7 +225,7 @@ export default function WorkerDashboardPage() {
                         <ActionButton
                           variant="neutral"
                           busy={busyId === job.id}
-                          onClick={async () => {
+                          onClick={safeAsync(async () => {
                             setBusyId(job.id);
                             try {
                               await declineJob(job.id, "Worker unavailable");
@@ -233,7 +233,7 @@ export default function WorkerDashboardPage() {
                             } finally {
                               setBusyId(null);
                             }
-                          }}
+                          })}
                         >
                           Decline
                         </ActionButton>
@@ -252,7 +252,7 @@ export default function WorkerDashboardPage() {
                     {job.status === "in_progress" ? (
                       <ActionButton
                         busy={busyId === job.id}
-                        onClick={async () => {
+                        onClick={safeAsync(async () => {
                           setBusyId(job.id);
                           try {
                             await completeJob(job.id);
@@ -260,7 +260,7 @@ export default function WorkerDashboardPage() {
                           } finally {
                             setBusyId(null);
                           }
-                        }}
+                        })}
                       >
                         Mark complete
                       </ActionButton>
@@ -269,7 +269,7 @@ export default function WorkerDashboardPage() {
                     {job.status === "completed" ? (
                       <ActionButton
                         busy={busyId === job.id}
-                        onClick={async () => {
+                        onClick={safeAsync(async () => {
                           setBusyId(job.id);
                           try {
                             await settleJob(job, worker!);
@@ -277,7 +277,7 @@ export default function WorkerDashboardPage() {
                           } finally {
                             setBusyId(null);
                           }
-                        }}
+                        })}
                       >
                         Settle commission
                       </ActionButton>

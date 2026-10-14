@@ -254,6 +254,25 @@ export function JobCard({
   );
 }
 
+/**
+ * Handlers passed to these buttons are async and guard their own state with
+ * try/finally but no catch. A rejected Firestore call would escape as an
+ * unhandled promise rejection ("Uncaught (in promise)") with nothing telling
+ * the user the action failed. Settling the promise here means the rejection is
+ * always observed.
+ */
+function settle(fn: () => void | Promise<void>, label: string) {
+  return () => {
+    try {
+      Promise.resolve(fn()).catch((error) => {
+        console.error(`[${label}] action failed:`, error);
+      });
+    } catch (error) {
+      console.error(`[${label}] action failed:`, error);
+    }
+  };
+}
+
 export function ActionButton({
   busy,
   onClick,
@@ -263,7 +282,7 @@ export function ActionButton({
   icon,
 }: {
   busy?: boolean;
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
   children: React.ReactNode;
   variant?: "primary" | "neutral";
   disabled?: boolean;
@@ -272,7 +291,7 @@ export function ActionButton({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={settle(onClick, "ActionButton")}
       disabled={busy || disabled}
       className={variant === "primary" ? "btn-primary btn-sm" : "btn-neutral btn-sm"}
     >
@@ -295,13 +314,13 @@ export function DeclineButton({
   onClick,
   busy,
 }: {
-  onClick: () => void;
+  onClick: () => void | Promise<void>;
   busy?: boolean;
 }) {
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={settle(onClick, "DeclineButton")}
       disabled={busy}
       className="btn-neutral btn-sm"
     >

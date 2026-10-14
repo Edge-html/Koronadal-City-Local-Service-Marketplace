@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, ExternalLink } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
-import { Badge, Card, Notice, StarRating, StatCard } from "@/components/ui";
+import { Badge, Card, Notice, safeAsync, StarRating, StatCard } from "@/components/ui";
 import { CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
 import { getWorkerByUid, listReviews, updateWorker } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
@@ -167,11 +167,11 @@ export default function WorkerProfilePage() {
               <button
                 type="button"
                 className="btn-neutral btn-sm self-start"
-                onClick={async () => {
+                onClick={safeAsync(async () => {
                   await navigator.clipboard.writeText(worker.referralCode);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
-                }}
+                })}
               >
                 <Copy size={13} strokeWidth={1.5} />
                 {copied ? "Copied" : "Copy code"}

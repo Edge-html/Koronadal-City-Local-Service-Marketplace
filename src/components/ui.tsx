@@ -215,6 +215,33 @@ export function Avatar({
 }
 
 /* ------------------------------------------------------------------ */
+/* Async handlers                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Wraps an async event handler so its rejection is always observed.
+ *
+ * Handlers that reset state in `finally` without a `catch` let a rejected
+ * Firestore call escape as an unhandled promise rejection — visible in the
+ * console as "Uncaught (in promise)" with no indication that the user's action
+ * silently did nothing. This settles the promise at the boundary.
+ */
+export function safeAsync(
+  fn: () => void | Promise<void>,
+  label = "action",
+): () => void {
+  return () => {
+    try {
+      Promise.resolve(fn()).catch((error) => {
+        console.error(`[${label}] failed:`, error);
+      });
+    } catch (error) {
+      console.error(`[${label}] failed:`, error);
+    }
+  };
+}
+
+/* ------------------------------------------------------------------ */
 /* Empty & loading states                                              */
 /* ------------------------------------------------------------------ */
 

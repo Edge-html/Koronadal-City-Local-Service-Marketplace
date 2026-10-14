@@ -41,11 +41,16 @@ service cloud.firestore {
       return myRole() == 'worker' || myRole() == 'admin';
     }
 
-    /** The caller owns this worker document. */
-    function ownsWorker(workerId) {
-      return isSignedIn()
-        && get(/databases/$(database)/documents/workers/$(workerId)).data.uid
-           == request.auth.uid;
+    /**
+     * True when the worker document being evaluated belongs to the caller.
+     *
+     * Reads resource.data directly instead of calling get() on the same
+     * document id. A self-referential get() inside the very match block that
+     * is already evaluating that document is a circular call, which Firestore
+     * fails with a bare permission error rather than a usable diagnostic.
+     */
+    function isOwnWorkerDoc() {
+      return isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
     /** The caller is the household or the assigned worker on this job. */
@@ -123,7 +128,7 @@ service cloud.firestore {
       // are never listed.
       allow read: if resource.data.verified == true
                   || isAdmin()
-                  || ownsWorker(workerId);
+                  || isOwnWorkerDoc();
 
       // Registration creates the applicant's own profile, unverified, with a
       // clean slate for every review signal.
@@ -140,7 +145,7 @@ service cloud.firestore {
 
       // A worker may edit their own listing. Admins may do anything.
       allow update: if isAdmin()
-        || (ownsWorker(workerId) && isListingOnlyEdit())
+        || (isOwnWorkerDoc() && isListingOnlyEdit())
         || isRatingCacheRefresh();
 
       allow delete: if isAdmin();
