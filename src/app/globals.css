@@ -1,0 +1,442 @@
+﻿@import "tailwindcss";
+
+@theme {
+  /* Colors */
+  --color-newsprint: #ececea;
+  --color-bright-white: #ffffff;
+  --color-bone: #f5f5f4;
+  --color-stone-200: #d4d2d1;
+  --color-stone-400: #a6a09b;
+  --color-stone-500: #87827d;
+  --color-stone-600: #57534d;
+  --color-stone-700: #44403b;
+  --color-stone-800: #292524;
+  --color-ink-black: #1c1917;
+  --color-char: #0c0a09;
+  --color-volt-blue: #0b64e9;
+  --color-amber-signal: #f9b703;
+  --color-alert-coral: #f24149;
+  --color-ember-orange: #f97006;
+  --color-iris-violet: #6b4aff;
+
+  /* Typography.
+     Face variables are injected by next/font in the root layout:
+       --font-display-face : Playfair Display (substitute for FH Total Display)
+       --font-ui-face      : Inter (substitute for Geist)
+       --font-system-face  : native system stack, used for dense captions */
+  --font-sans-serif: var(--font-ui-face), ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-display-face), "Playfair Display", ui-serif,
+    Georgia, Cambria, "Times New Roman", serif;
+  --font-geist: var(--font-ui-face), "Inter", ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-system-ui: var(--font-system-face), ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Type scale */
+  --text-caption: 10px;
+  --leading-caption: 1.3;
+  --tracking-caption: -0.3px;
+  --text-body: 14px;
+  --leading-body: 1.3;
+  --tracking-body: -0.42px;
+  --text-heading-sm: 18px;
+  --leading-heading-sm: 1.3;
+  --tracking-heading-sm: -0.36px;
+  --text-heading: 20px;
+  --leading-heading: 1.2;
+  --tracking-heading: -0.4px;
+  --text-heading-lg: 24px;
+  --leading-heading-lg: 1.2;
+  --tracking-heading-lg: -0.48px;
+  --text-display: 106px;
+  --leading-display: 0.8;
+  --tracking-display: 0px;
+
+  /* Spacing: intentionally not redeclared. The 4px base unit and every step
+     of the density scale (4/8/12/16/20/24/32/36/40/44/80/120/140) map exactly
+     onto Tailwind v4's default 0.25rem-based scale: 1,2,3,4,5,6,8,9,10,11,
+     20,30,35. Restating --spacing-* here would shadow those defaults and
+     silently break every spacing utility in the app. */
+
+  /* Radius: the two-tier hierarchy separating surface from control */
+  --radius-md: 6px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 30px;
+
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.06) 0px 2px 4px 0px;
+  --shadow-subtle: rgba(0, 0, 0, 0.1) 0px 1px 2px 0px;
+  --shadow-subtle-2: rgba(0, 0, 0, 0.04) 0px 1px 2px 0px;
+  --shadow-subtle-3: rgba(0, 0, 0, 0.08) 0px 2px 3px 0px;
+  --shadow-xl: rgba(0, 0, 0, 0.25) 0px 14px 32px 0px;
+}
+
+@layer base {
+  :root {
+    /* Layout */
+    --page-max-width: 1200px;
+    --section-gap: 80px;
+    --card-padding: 24px;
+    --element-gap: 8px;
+
+    /* Named radii */
+    --radius-cards: 12px;
+    --radius-badges: 4px;
+    --radius-buttons: 6px;
+
+    /* Surfaces */
+    --surface-canvas: #ececea;
+    --surface-subtle-wash: #f5f5f4;
+    --surface-card: #ffffff;
+    --surface-elevated: #ffffff;
+
+    /* Hairline */
+    --border-hairline: 1px solid #d4d2d1;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-newsprint);
+    color: var(--color-ink-black);
+    font-family: var(--font-geist);
+    font-size: 14px;
+    line-height: 1.3;
+    letter-spacing: -0.42px;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* The display serif is a one-time-per-page signature. Never letter-spaced. */
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: normal;
+  }
+
+  ::selection {
+    background: var(--color-ink-black);
+    color: var(--color-newsprint);
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+    letter-spacing: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-stone-400);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink-black);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: var(--color-bone);
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-stone-200);
+    border: 3px solid var(--color-bone);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-stone-400);
+  }
+}
+
+@layer components {
+  /* ---- Layout --------------------------------------------------- */
+
+  .container-page {
+    width: 100%;
+    max-width: var(--page-max-width);
+    margin-inline: auto;
+    padding-inline: 24px;
+  }
+
+  .section {
+    padding-block: var(--section-gap);
+  }
+
+  /* ---- Surfaces -------------------------------------------------- */
+
+  .card {
+    background: var(--surface-card);
+    border: var(--border-hairline);
+    border-radius: var(--radius-cards);
+    box-shadow: rgba(0, 0, 0, 0.06) 0 2px 4px 0;
+  }
+
+  .card-flat {
+    background: var(--surface-card);
+    border: var(--border-hairline);
+    border-radius: var(--radius-cards);
+  }
+
+  .card-wash {
+    background: var(--surface-subtle-wash);
+    border: var(--border-hairline);
+    border-radius: var(--radius-cards);
+  }
+
+  /* ---- Buttons --------------------------------------------------- */
+
+  /* The one filled chromatic button in the system. */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--color-volt-blue);
+    color: #ffffff;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    padding: 10px 20px;
+    border: none;
+    border-radius: var(--radius-buttons);
+    box-shadow: rgba(0, 0, 0, 0.04) 0 1px 2px 0;
+    cursor: pointer;
+    transition: background-color 140ms ease, opacity 140ms ease;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: #0a56c9;
+  }
+  .btn-primary:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* Neutral controls: every other action in the system. */
+  .btn-neutral {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: var(--surface-card);
+    color: var(--color-ink-black);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    padding: 10px 20px;
+    border: var(--border-hairline);
+    border-radius: var(--radius-buttons);
+    cursor: pointer;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+  .btn-neutral:hover:not(:disabled) {
+    background: var(--color-bone);
+  }
+  .btn-neutral:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: transparent;
+    color: var(--color-ink-black);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.3;
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius-buttons);
+    cursor: pointer;
+    transition: background-color 140ms ease;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--color-bone);
+  }
+
+  .btn-sm {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  /* ---- Badges ----------------------------------------------------- */
+
+  /* The only place multiple chromatic colors appear. 11px or smaller, always. */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-badges);
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1.45;
+    white-space: nowrap;
+  }
+
+  .badge-amber {
+    background: #f9b70310;
+    color: #8a6300;
+  }
+  .badge-coral {
+    background: #f2414910;
+    color: #a81219;
+  }
+  .badge-ember {
+    background: #f9700610;
+    color: #a13c00;
+  }
+  .badge-violet {
+    background: #6b4aff10;
+    color: #3f22b8;
+  }
+  .badge-neutral {
+    background: var(--surface-subtle-wash);
+    color: var(--color-stone-700);
+  }
+  .badge-muted {
+    background: var(--surface-subtle-wash);
+    color: var(--color-stone-500);
+  }
+
+  /* Verification is a fact, not a status signal, so it stays monochrome. */
+  .badge-verified {
+    background: var(--color-ink-black);
+    color: var(--color-newsprint);
+  }
+
+  /* ---- Forms ------------------------------------------------------ */
+
+  .field {
+    width: 100%;
+    background: var(--surface-subtle-wash);
+    border: var(--border-hairline);
+    border-radius: var(--radius-buttons);
+    padding: 10px 12px;
+    font-size: 14px;
+    line-height: 1.3;
+    transition: background-color 140ms ease, border-color 140ms ease;
+  }
+  .field:hover {
+    border-color: var(--color-stone-400);
+  }
+  .field:focus {
+    outline: none;
+    background: var(--surface-card);
+    border-color: var(--color-ink-black);
+  }
+
+  .label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    color: var(--color-stone-700);
+    margin-bottom: 6px;
+  }
+
+  /* ---- Typography helpers ------------------------------------------ */
+
+  .meta {
+    font-family: var(--font-system-ui);
+    font-size: 12px;
+    line-height: 1.3;
+    letter-spacing: -0.36px;
+    color: var(--color-stone-500);
+  }
+
+  .caption {
+    font-family: var(--font-system-ui);
+    font-size: 10px;
+    line-height: 1.3;
+    letter-spacing: -0.3px;
+    color: var(--color-stone-400);
+  }
+
+  .section-title {
+    font-size: 28px;
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    color: var(--color-ink-black);
+  }
+
+  .section-desc {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 1.4;
+    color: var(--color-stone-600);
+  }
+
+  /* Footer links: no underline until hover, offset 2px. */
+  .footer-link {
+    color: var(--color-stone-700);
+    font-size: 14px;
+    text-decoration: none;
+    transition: color 140ms ease;
+  }
+  .footer-link:hover {
+    color: var(--color-ink-black);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .hairline {
+    border-bottom: var(--border-hairline);
+  }
+}
+
+@layer utilities {
+  .animate-in {
+    animation: fade-up 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .animate-in-slow {
+    animation: fade-up 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .animate-in,
+    .animate-in-slow {
+      animation: none;
+    }
+  }
+}
+
+/* A consumer may want the two-part quotation on paper. */
+@media print {
+  body {
+    background: #ffffff;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

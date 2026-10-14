@@ -1,0 +1,316 @@
+"use client";
+
+import { Check, Loader2, MessageCircle, Phone, X } from "lucide-react";
+import { Badge, Card } from "@/components/ui";
+import { CATEGORY_MAP, JOB_STATUS_META } from "@/lib/constants";
+import { computeTotals, formatPeso } from "@/lib/commission";
+import { formatDate, timeAgo } from "@/lib/utils";
+import type { Tone } from "@/components/ui";
+import type { Job, JobStatus } from "@/lib/types";
+
+/** Shared pipeline timeline. The active stage is the first unfinished step. */
+const STAGES: JobStatus[] = [
+  "requested",
+  "accepted",
+  "quoted",
+  "in_progress",
+  "completed",
+  "reviewed",
+];
+
+export function JobTimeline({ status }: { status: JobStatus }) {
+  if (status === "cancelled" || status === "disputed") return null;
+
+  const index = STAGES.indexOf(status);
+  return (
+    <ol className="flex flex-wrap items-center gap-1.5" aria-label="Job progress">
+      {STAGES.map((stage, i) => {
+        const done = i <= index;
+        const current = i === index;
+        return (
+          <li key={stage} className="flex items-center gap-1.5">
+            <span
+              className={
+                current
+                  ? "flex items-center gap-1.5 rounded-md border border-ink-black bg-white px-2 py-1 text-[11px] tracking-[-0.02em] text-ink-black"
+                  : done
+                    ? "flex items-center gap-1.5 px-2 py-1 text-[11px] tracking-[-0.02em] text-stone-600"
+                    : "flex items-center gap-1.5 px-2 py-1 text-[11px] tracking-[-0.02em] text-stone-400"
+              }
+            >
+              {done && !current ? (
+                <Check size={10} strokeWidth={2} />
+              ) : (
+                <span className="tabular-nums">{i + 1}</span>
+              )}
+              {STAGE_LABELS[stage]}
+            </span>
+            {i < STAGES.length - 1 ? (
+              <span aria-hidden className="h-px w-3 bg-stone-200" />
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const STAGE_LABELS: Record<string, string> = {
+  requested: "Requested",
+  accepted: "Accepted",
+  quoted: "Quoted",
+  in_progress: "Execution",
+  completed: "Settled",
+  reviewed: "Reviewed",
+};
+
+/** Two-part quotation, shown identically to both parties before approval. */
+export function QuoteBreakdown({ job }: { job: Job }) {
+  if (!job.quote) return null;
+
+  const t = computeTotals(job.quote.laborFee, job.quote.materialsCost);
+
+  return (
+    <div className="rounded-md border border-stone-200 bg-bone">
+      <div className="flex items-center justify-between gap-2 border-b border-stone-200 px-4 py-2.5">
+        <p className="font-[family-name:var(--font-system-ui)] text-[10px] uppercase tracking-[-0.3px] text-stone-500">
+          Official quote &middot; {job.quote.validDays}-day validity
+        </p>
+        {job.quoteApprovedAt ? (
+          <Badge tone="neutral">Approved {formatDate(job.quoteApprovedAt)}</Badge>
+        ) : (
+          <Badge tone="ember">Awaiting approval</Badge>
+        )}
+      </div>
+
+      <dl className="grid sm:grid-cols-4">
+        {[
+          { label: "Labor fee", value: t.laborFee, note: "Subject to 10%" },
+          {
+            label: "Materials",
+            value: t.materialsCost,
+            note: "Zero commission",
+          },
+          {
+            label: "Platform fee",
+            value: t.commission,
+            note: "10% of labor",
+          },
+          { label: "Total payable", value: t.total, note: "Paid to worker" },
+        ].map((row, i) => (
+          <div
+            key={row.label}
+            className={
+              i > 0
+                ? "border-t border-stone-200 px-4 py-3 sm:border-t-0 sm:border-l"
+                : "px-4 py-3"
+            }
+          >
+            <dt className="caption">{row.label}</dt>
+            <dd className="mt-1 text-[18px] leading-[1.2] font-medium tracking-[-0.36px] text-ink-black tabular-nums">
+              {formatPeso(row.value)}
+            </dd>
+            <dd className="caption mt-0.5">{row.note}</dd>
+          </div>
+        ))}
+      </dl>
+
+      {job.quote.notes ? (
+        <p className="border-t border-stone-200 px-4 py-3 text-[13px] leading-[1.45] text-stone-600">
+          {job.quote.notes}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+export function StatusBadge({ status }: { status: JobStatus }) {
+  const meta = JOB_STATUS_META[status] ?? {
+    label: status,
+    tone: "muted" as Tone,
+  };
+  return <Badge tone={meta.tone}>{meta.label}</Badge>;
+}
+
+/**
+ * Contact details. Masked until the worker accepts — this is the Data Privacy
+ * Act requirement enforced in the UI, not just in the data model.
+ */
+export function ContactReveal({
+  phone,
+  unlocked,
+  counterpartName,
+}: {
+  phone: string;
+  unlocked: boolean;
+  counterpartName: string;
+}) {
+  const digits = phone.replace(/\D/g, "");
+  const messenger = digits.length >= 10 ? `63${digits.slice(-10)}` : "";
+
+  if (!unlocked) {
+    return (
+      <div className="flex items-start gap-2 rounded-md border border-stone-200 bg-bone px-4 py-3">
+        <span
+          aria-hidden
+          className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-stone-400 text-[9px] text-stone-500"
+        >
+          ?
+        </span>
+        <p className="text-[12px] leading-[1.45] text-stone-600">
+          Contact details for {counterpartName} stay masked until the job request
+          is formally accepted.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-stone-200 bg-bone px-4 py-3">
+      <a
+        href={`tel:${phone}`}
+        className="btn-neutral btn-sm no-underline"
+      >
+        <Phone size={13} strokeWidth={1.5} />
+        {phone}
+      </a>
+      {messenger ? (
+        <a
+          href={`https://m.me/${messenger}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-neutral btn-sm no-underline"
+        >
+          <MessageCircle size={13} strokeWidth={1.5} />
+          Messenger
+        </a>
+      ) : null}
+      <span className="caption">Unlocked on acceptance</span>
+    </div>
+  );
+}
+
+export function JobCard({
+  job,
+  counterpartLabel,
+  counterpartName,
+  counterpartPhone,
+  actions,
+  showQuote = true,
+}: {
+  job: Job;
+  counterpartLabel: string;
+  counterpartName: string;
+  counterpartPhone?: string;
+  actions?: React.ReactNode;
+  showQuote?: boolean;
+}) {
+  const trade = CATEGORY_MAP[job.categoryId];
+  const unlocked = !["requested", "cancelled", "disputed"].includes(job.status);
+
+  return (
+    <Card className="flex flex-col gap-4 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
+              {job.title}
+            </h3>
+            <StatusBadge status={job.status} />
+          </div>
+          <p className="mt-1 text-[13px] text-stone-600">
+            {trade?.name ?? "General"} &middot; {job.barangay} &middot;{" "}
+            {timeAgo(job.requestedAt)}
+          </p>
+        </div>
+        <p className="caption shrink-0 text-right">
+          {counterpartLabel}
+          <span className="mt-0.5 block text-[13px] tracking-[-0.02em] text-stone-800">
+            {counterpartName}
+          </span>
+        </p>
+      </div>
+
+      <p className="text-[13px] leading-[1.5] text-stone-700">{job.description}</p>
+
+      <JobTimeline status={job.status} />
+
+      {showQuote && job.quote ? <QuoteBreakdown job={job} /> : null}
+
+      {counterpartPhone ? (
+        <ContactReveal
+          phone={counterpartPhone}
+          unlocked={unlocked}
+          counterpartName={counterpartName}
+        />
+      ) : null}
+
+      {actions ? (
+        <div className="flex flex-wrap items-center gap-2 border-t border-stone-200 pt-4">
+          {actions}
+        </div>
+      ) : null}
+    </Card>
+  );
+}
+
+export function ActionButton({
+  busy,
+  onClick,
+  children,
+  variant = "primary",
+  disabled,
+  icon,
+}: {
+  busy?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  variant?: "primary" | "neutral";
+  disabled?: boolean;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy || disabled}
+      className={variant === "primary" ? "btn-primary btn-sm" : "btn-neutral btn-sm"}
+    >
+      {busy ? (
+        <>
+          <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
+          Working
+        </>
+      ) : (
+        <>
+          {icon}
+          {children}
+        </>
+      )}
+    </button>
+  );
+}
+
+export function DeclineButton({
+  onClick,
+  busy,
+}: {
+  onClick: () => void;
+  busy?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="btn-neutral btn-sm"
+    >
+      {busy ? (
+        <Loader2 size={13} strokeWidth={1.5} className="animate-spin" />
+      ) : (
+        <X size={13} strokeWidth={1.5} />
+      )}
+      Decline
+    </button>
+  );
+}

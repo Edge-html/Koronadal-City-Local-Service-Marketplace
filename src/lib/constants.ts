@@ -1,0 +1,275 @@
+/**
+ * The ten essential household service categories, plus the twenty-five
+ * barangays of Koronadal City. Sourced from the platform specification.
+ */
+
+export interface Category {
+  id: string;
+  name: string;
+  scope: string;
+  useCases: string;
+  /** Typical price band in PHP, used as a floor reference for anti-exploitation. */
+  floor: number;
+}
+
+export const CATEGORIES: Category[] = [
+  {
+    id: "carpentry",
+    name: "Carpentry",
+    scope:
+      "Structural woodwork, framing, custom cabinetry, door/window fitting, and furniture repair.",
+    useCases:
+      "Repairing ceiling joists, installing flush doors, building built-in kitchen cabinets.",
+    floor: 800,
+  },
+  {
+    id: "plumbing",
+    name: "Plumbing & Water Services",
+    scope:
+      "Piping installation, leak diagnostics, fixture mounting, drainage unclogging, and water tank servicing.",
+    useCases:
+      "Fixing pressurized line leaks, installing toilet bowls, clearing blocked septic connections.",
+    floor: 500,
+  },
+  {
+    id: "electrical",
+    name: "Electrical Services",
+    scope:
+      "Residential wiring, breaker panel upgrades, short-circuit troubleshooting, lighting fixture installation.",
+    useCases:
+      "Rewiring renovated room extensions, fixing tripping main breakers, installing outlet networks.",
+    floor: 600,
+  },
+  {
+    id: "aircon-appliance",
+    name: "Aircon & Appliance Repair",
+    scope:
+      "Air conditioning cleaning/freon recharge, refrigerator maintenance, washing machine diagnostics.",
+    useCases:
+      "Split-type AC chemical cleaning, washing machine motor replacement, refrigerator compressor repair.",
+    floor: 700,
+  },
+  {
+    id: "masonry",
+    name: "Masonry & Concrete Repair",
+    scope:
+      "Block laying, plastering, tile setting, concrete cracking repair, perimeter wall construction.",
+    useCases:
+      "Laying floor tiles, rendering wall surfaces, repairing damaged concrete driveways.",
+    floor: 900,
+  },
+  {
+    id: "roofing",
+    name: "Roofing & Leak Sealing",
+    scope:
+      "Corrugated sheet replacement, gutter clearing/installation, waterproofing coat application, roof flashing repair.",
+    useCases:
+      "Sealing ridge cap leaks during monsoon season, clearing downspouts, re-tapping roof screws.",
+    floor: 1200,
+  },
+  {
+    id: "painting",
+    name: "House Painting",
+    scope:
+      "Interior and exterior surface preparation, priming, finish painting, wood staining, anti-rust coating.",
+    useCases:
+      "Exterior wall repainting, gate rust treatment and painting, interior room coats.",
+    floor: 1500,
+  },
+  {
+    id: "welding",
+    name: "Welding & Metalwork",
+    scope:
+      "Fabrication, structural iron welding, window grill repair, main gate realignment, metal frame assembly.",
+    useCases:
+      "Welding broken gate hinges, fabricating window security grilles, steel truss spot repairs.",
+    floor: 750,
+  },
+  {
+    id: "mechanical",
+    name: "Small Engine & Motorcycle Mechanics",
+    scope:
+      "On-site tune-ups, carburetor cleaning, engine oil changes, brake overhaul, small pump maintenance.",
+    useCases:
+      "Home servicing of commuter motorcycles, generator engine tune-ups, water pump fixes.",
+    floor: 300,
+  },
+  {
+    id: "groundskeeping",
+    name: "General Yard & Grounds Maintenance",
+    scope:
+      "Tree trimming, lawn mowing, brush clearing, perimeter debris management, landscape cleanup.",
+    useCases:
+      "Cutting overgrown mango trees near power lines, lot clearing, lawn turf trimming.",
+    floor: 400,
+  },
+];
+
+export const CATEGORY_MAP = Object.fromEntries(
+  CATEGORIES.map((c) => [c.id, c]),
+) as Record<string, Category>;
+
+export const BARANGAYS = [
+  "Banga",
+  "Baras",
+  "Bulacawan",
+  "Calumpang",
+  "Camalian",
+  "Centro 1 (Poblacion)",
+  "Centro 2",
+  "Centro 3",
+  "Ecol",
+  "Gabi",
+  "Gulayan",
+  "Ibaba",
+  "Kauman",
+  "Labogon",
+  "Lemoy",
+  "Libis",
+  "Magsaysay",
+  "Malaya",
+  "Mitchan",
+  "Pollocan",
+  "Saravia",
+  "Sanyawa",
+  "Tinuro",
+  "Upper Samay",
+] as const;
+
+/** Walk-in assisted onboarding service points. */
+export const SERVICE_POINTS = [
+  "Barangay Desk Kiosk — participating Barangay Halls",
+  "PESO Desk Support — PESO Koronadal branch",
+];
+
+export const WALLET_TOPUP_METHODS = [
+  {
+    id: "gcash",
+    name: "GCash In-App Direct Top-Up",
+    detail: "Instant automated balance credit.",
+  },
+  {
+    id: "cliqq",
+    name: "7-Eleven (CliQQ) Terminals / App",
+    detail: "Over-the-counter cash deposits across all regional branches.",
+  },
+] as const;
+
+export const ONBOARDING_PATHWAYS = [
+  {
+    id: "walk-in",
+    name: "Walk-In Assisted Onboarding",
+    detail:
+      "For workers who prefer in-person registration or require digital literacy assistance.",
+    points: SERVICE_POINTS,
+  },
+  {
+    id: "digital",
+    name: "Digital Self-Registration (3-Step)",
+    detail: "Register from any mobile device, then submit credentials for review.",
+    points: [
+      "Step 1 — Identity & contact creation",
+      "Step 2 — Document upload",
+      "Step 3 — Verification & activation",
+    ],
+  },
+] as const;
+
+/** The six-stage lifecycle, rendered as a stepper across the product UI. */
+export const WORKFLOW_STAGES = [
+  {
+    step: 1,
+    key: "browse",
+    name: "Browse & Select",
+    detail:
+      "Consumers browse worker profiles filtered by category, location (Barangay), average star rating, and verified badges.",
+  },
+  {
+    step: 2,
+    key: "requested",
+    name: "Request Sent",
+    detail:
+      "The consumer selects a worker and inputs a basic service description with an optional photo. The system triggers an immediate SMS notification to the worker's mobile number alongside an in-app alert.",
+  },
+  {
+    step: 3,
+    key: "accepted",
+    name: "Acceptance & Contact Unlocked",
+    detail:
+      "Once the worker accepts, the platform unlocks direct contact channels: phone call capabilities, direct SMS routing, and Facebook Messenger deep-linking.",
+  },
+  {
+    step: 4,
+    key: "quoted",
+    name: "Quote Approved",
+    detail:
+      "The worker assesses the job scope on-site and inputs the official quote broken into Labor Fee and Material Cost. The consumer receives an SMS and web push notification and formally approves.",
+  },
+  {
+    step: 5,
+    key: "completed",
+    name: "Completion & Direct Cash/GCash",
+    detail:
+      "The worker marks the job complete. The consumer pays 100% of the total quote directly to the worker using physical Cash or a direct GCash mobile transfer.",
+  },
+  {
+    step: 6,
+    key: "reviewed",
+    name: "Review & Portfolio",
+    detail:
+      'The worker may upload "Before & After" photos to enrich their public portfolio. The consumer receives an automated link to leave a 1-to-5 star rating and text review.',
+  },
+] as const;
+
+export const JOB_STATUS_META: Record<
+  string,
+  { label: string; tone: "amber" | "coral" | "ember" | "violet" | "neutral" | "muted" }
+> = {
+  requested: { label: "Requested", tone: "amber" },
+  accepted: { label: "Accepted", tone: "coral" },
+  quoted: { label: "Quote Sent", tone: "ember" },
+  in_progress: { label: "In Progress", tone: "violet" },
+  completed: { label: "Completed", tone: "neutral" },
+  reviewed: { label: "Reviewed", tone: "neutral" },
+  cancelled: { label: "Cancelled", tone: "muted" },
+  disputed: { label: "Disputed", tone: "muted" },
+};
+
+/** Regulatory framework surfaced on the landing page and in terms. */
+export const COMPLIANCE_FRAMEWORK = [
+  {
+    title: "Philippine Labor Code",
+    subtitle: "Intermediary platform status",
+    body: "The platform operates as an independent technology intermediary connecting service contractors with clients. It does not establish an employer-employee relationship, ensuring workers retain complete autonomy over their working schedules, accepted jobs, and operating methods.",
+  },
+  {
+    title: "DOLE Guidelines on Service Fees",
+    subtitle: "Fair commission standards",
+    body: "In alignment with Department of Labor and Employment standards, commission structures remain transparent, fair, and non-exploitative, leaving workers with full earnings autonomy over their labor value.",
+  },
+  {
+    title: "Data Privacy Act of 2012",
+    subtitle: "Republic Act No. 10173",
+    body: "All personally identifiable information, clearance documents, and contact details are encrypted and stored in full compliance with National Privacy Commission mandates. Direct contact details are masked and only revealed to counterparties once a job request is formally accepted.",
+  },
+  {
+    title: "Consumer Protection Act",
+    subtitle: "Republic Act No. 7394",
+    body: "Ensures clear pricing transparency prior to service commitment. The mandatory two-part quotation (Labor vs. Materials) protects consumers from unexpected service upcharges and ensures clear recourse through built-in dispute logging.",
+  },
+];
+
+export const FAIR_COMPETITION_PRINCIPLES = [
+  {
+    title: "Price floors are monitored",
+    body: "Price floors are monitored to prevent predatory pricing or illegal labor undercutting.",
+  },
+  {
+    title: "Single-tier referrals only",
+    body: "Transparent referral systems prevent MLM-style structures, limiting rewards strictly to single-tier, job-verified invites.",
+  },
+  {
+    title: "Algorithmic review audits",
+    body: "Rating and review systems are algorithmically audited to prevent malicious feedback or unfair worker blacklisting.",
+  },
+];

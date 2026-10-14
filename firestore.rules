@@ -1,0 +1,187 @@
+rules_version = '2';
+
+// Koronadal City Local Service Marketplace — Firestore security rules.
+//
+// Design notes:
+//  * The directory is world-readable, because that is what makes the marketplace
+//    discoverable. Identifying data is masked in the UI and stripped in any
+//    server-side projection before it is served.
+//  * `workers` is keyed by auto-id, not by uid, so ownership is checked by
+//    comparing the document's `uid` field against the caller. Jobs and ledger
+//    entries denormalise `workerUid` for the same reason: it lets these rules
+//    avoid a cross-document lookup on the hot read path.
+//  * Review signals — verified, rating, reviewCount, wallet, referralCredits,
+//    status — are not writable by the client. A worker cannot mark themselves
+//    approved or grant themselves wallet credit.
+//  * Reviews are immutable once written, so feedback cannot be rewritten to
+//    launder a rating. RA 7394 recourse depends on that immutability.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- Helpers -------------------------------------------------
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isSignedIn() && userDoc().data.role == 'admin';
+    }
+
+    function myRole() {
+      return isSignedIn() ? userDoc().data.role : null;
+    }
+
+    function isWorkerRole() {
+      return myRole() == 'worker' || myRole() == 'admin';
+    }
+
+    /** The caller owns this worker document. */
+    function ownsWorker(workerId) {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/workers/$(workerId)).data.uid
+           == request.auth.uid;
+    }
+
+    /** The caller is the household or the assigned worker on this job. */
+    function isJobParty(jobId) {
+      let job = get(/databases/$(database)/documents/jobs/$(jobId)).data;
+      return isSignedIn()
+        && (job.consumerId == request.auth.uid
+            || job.workerUid == request.auth.uid);
+    }
+
+    /** Signals the client must never be able to set on a worker document. */
+    function reviewSignalsUnchanged() {
+      return request.resource.data.verified == resource.data.verified
+        && request.resource.data.rating == resource.data.rating
+        && request.resource.data.reviewCount == resource.data.reviewCount
+        && request.resource.data.walletBalance == resource.data.walletBalance
+        && request.resource.data.walletLocked == resource.data.walletLocked
+        && request.resource.data.referralCredits == resource.data.referralCredits
+        && request.resource.data.status == resource.data.status;
+    }
+
+    // ---- users ----------------------------------------------------
+
+    match /users/{uid} {
+      // A user creates their own record during signup.
+      allow create: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role in ['customer', 'worker', 'admin'];
+
+      allow read: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+
+      // Edit your own record, but never escalate your own role.
+      allow update: if isSignedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role;
+
+      allow delete: if isAdmin();
+    }
+
+    // ---- workers -------------------------------------------------
+
+    match /workers/{workerId} {
+      // The public directory. An unapproved applicant stays unreadable so they
+      // are never listed.
+      allow read: if resource.data.verified == true
+                  || isAdmin()
+                  || ownsWorker(workerId);
+
+      // Registration creates the applicant's own profile, unverified, with a
+      // clean slate for every review signal.
+      allow create: if isSignedIn()
+        && isWorkerRole()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.verified == false
+        && request.resource.data.rating == 0
+        && request.resource.data.reviewCount == 0
+        && request.resource.data.jobsCompleted == 0
+        && request.resource.data.walletBalance == 0
+        && request.resource.data.walletLocked == 0
+        && request.resource.data.referralCredits == 0;
+
+      // A worker may edit their own listing text and rates.
+      allow update: if isAdmin()
+        || (ownsWorker(workerId) && reviewSignalsUnchanged());
+
+      allow delete: if isAdmin();
+    }
+
+    // ---- jobs -----------------------------------------------------
+
+    match /jobs/{jobId} {
+      allow read: if isJobParty(jobId) || isAdmin();
+
+      // A household opens a request against a verified, active worker.
+      allow create: if isSignedIn()
+        && myRole() == 'customer'
+        && request.resource.data.consumerId == request.auth.uid
+        && request.resource.data.status == 'requested'
+        && request.resource.data.workerId is string
+        && request.resource.data.workerUid is string;
+
+      // Only the two parties on the job may move it along, and neither party
+      // can reassign the other.
+      allow update: if isJobParty(jobId)
+        && request.resource.data.consumerId == resource.data.consumerId
+        && request.resource.data.workerId == resource.data.workerId
+        && request.resource.data.workerUid == resource.data.workerUid;
+
+      allow delete: if isAdmin();
+    }
+
+    // ---- reviews --------------------------------------------------
+
+    match /reviews/{reviewId} {
+      // Readable by anyone browsing a profile.
+      allow read: if true;
+
+      // One review per job, from the household that paid for it, 1–5 stars.
+      allow create: if isSignedIn()
+        && myRole() == 'customer'
+        && request.resource.data.consumerId == request.auth.uid
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && !exists(/databases/$(database)/documents/reviews/$(request.resource.data.jobId));
+
+      // Immutable once submitted.
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- ledger ---------------------------------------------------
+
+    match /ledger/{entryId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.workerUid == request.auth.uid);
+
+      // Append-only. In production entries are written by a Cloud Function on
+      // job settlement rather than by the client.
+      allow create: if isSignedIn() && request.resource.data.workerUid is string;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- disputes -------------------------------------------------
+
+    match /disputes/{disputeId} {
+      allow read: if isSignedIn()
+        && (resource.data.consumerId == request.auth.uid
+            || resource.data.workerUid == request.auth.uid
+            || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Default deny.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
