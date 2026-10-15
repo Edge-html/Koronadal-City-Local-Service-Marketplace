@@ -101,7 +101,7 @@ export default function WorkerOnboardingPage() {
         yearsExperience: Number(years) || 0,
         hourlyRate: Number(hourly) || 0,
         tesdaCertified: Boolean(docs.tesda_certificate),
-        referredBy: referral.trim().toUpperCase() || undefined,
+        referredBy: referral.trim().toUpperCase(),
         verificationDocs: Object.entries(docs).map(([type, value]) => ({
           type: type as DocType,
           fileName: value.fileName,

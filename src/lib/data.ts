@@ -132,8 +132,23 @@ export interface WorkerDraft {
 
 /** Creates the worker profile at the end of the 3-step self-registration. */
 export async function createWorkerProfile(draft: WorkerDraft) {
+  /**
+   * Firestore rejects the whole write if any field is undefined
+   * ("Unsupported field value: undefined"), and optional inputs are routinely
+   * passed as undefined - a blank referral code, an absent phone number.
+   * Strip them rather than requiring every caller to remember.
+   */
+  // An empty referral code means "none entered", not "referrer is blank string".
+  if (typeof draft.referredBy === "string" && !draft.referredBy.trim()) {
+    draft = { ...draft, referredBy: undefined };
+  }
+
+  const defined = Object.fromEntries(
+    Object.entries(draft).filter(([, value]) => value !== undefined),
+  );
+
   const ref = await addDoc(workersCol(), {
-    ...draft,
+    ...defined,
     rating: 0,
     reviewCount: 0,
     jobsCompleted: 0,
@@ -150,12 +165,21 @@ export async function createWorkerProfile(draft: WorkerDraft) {
   return ref.id;
 }
 
+/**
+ * Patch a worker document.
+ *
+ * Undefined fields are dropped rather than sent, because Firestore rejects a
+ * write that contains one. To actually clear a value, pass deleteField().
+ */
 export async function updateWorker(
   id: string,
   patch: Partial<Worker> & Record<string, unknown>,
 ) {
+  const defined = Object.fromEntries(
+    Object.entries(patch).filter(([, value]) => value !== undefined),
+  );
   await updateDoc(doc(db(), "workers", id), {
-    ...patch,
+    ...defined,
     updatedAt: serverTimestamp(),
   });
 }
