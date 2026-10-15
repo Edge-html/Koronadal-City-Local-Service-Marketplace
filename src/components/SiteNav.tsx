@@ -9,12 +9,16 @@ import { useAuth } from "@/context/AuthContext";
 import { firebaseConfigured } from "@/lib/firebase";
 import { cx, initials } from "@/lib/utils";
 
+/**
+ * Commission and compliance used to be separate top-level links that both
+ * resolved to sections of /platform. Three nav entries pointing into one page
+ * is noise, so they fold into a single destination; the on-page index on
+ * /platform carries the detail.
+ */
 const LINKS = [
   { href: "/browse", label: "Find a worker" },
   { href: "/#categories", label: "Services" },
   { href: "/platform", label: "How it works" },
-  { href: "/platform#commission", label: "Commission" },
-  { href: "/platform#compliance", label: "Compliance" },
 ];
 
 export function SiteNav() {
