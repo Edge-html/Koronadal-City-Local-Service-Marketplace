@@ -72,6 +72,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * role.
    */
   const attachProfile = useCallback((uid: string) => {
+    const authDisplayName = getFirebaseAuth().currentUser?.displayName;
+    const authEmail = getFirebaseAuth().currentUser?.email;
     let ref;
     try {
       ref = doc(getFirebaseDb(), "users", uid);
@@ -91,6 +93,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(data);
           setRole((data.role as Role) ?? null);
         } else {
+          /**
+           * Signed in, but no user document.
+           *
+           * The rules resolve the caller's role from this document, so a
+           * missing one makes every role-gated operation fail closed with
+           * permission-denied and the account looks broken: job requests
+           * rejected, "my requests" unreadable. Accounts reach this state by
+           * being created outside the signup form, or by a signup whose
+           * document write failed after the auth account already existed.
+           *
+           * Recreate at the least-privileged role. Anything more specific
+           * would be a guess, and guessing upward is how an account gains
+           * powers it was never granted.
+           */
+          console.warn(
+            "[auth] no user document; recreating as customer",
+          );
+          setDoc(doc(getFirebaseDb(), "users", uid), {
+            uid,
+            fullName: authDisplayName ?? "",
+            email: authEmail ?? "",
+            phone: "",
+            role: "customer",
+            createdAt: new Date().toISOString(),
+            repairedAt: new Date().toISOString(),
+          }).catch((repairError) => {
+            console.error("[auth] could not recreate user document:", repairError);
+            setProfileError(
+              "This account has no profile record and it could not be recreated. The Firestore rules may be blocking it.",
+            );
+          });
           setProfile(null);
           setRole(null);
         }

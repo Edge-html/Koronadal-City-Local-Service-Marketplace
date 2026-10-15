@@ -25,16 +25,27 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    /**
+     * The caller's role, or null when there is no user document.
+     *
+     * get() returns null for a document that does not exist, and reading .data
+     * off that null is an evaluation error, not false. An unguarded userDoc()
+     * therefore made every rule that consults the role fail closed with a bare
+     * permission-denied: creating a job, reading "my requests", anything
+     * touching isAdmin(). That is exactly what an account with an auth record
+     * but no user document experiences.
+     */
+    function userRole() {
+      let path = /databases/$(database)/documents/users/$(request.auth.uid);
+      return exists(path) ? get(path).data.role : null;
     }
 
     function isAdmin() {
-      return isSignedIn() && userDoc().data.role == 'admin';
+      return isSignedIn() && userRole() == 'admin';
     }
 
     function myRole() {
-      return isSignedIn() ? userDoc().data.role : null;
+      return isSignedIn() ? userRole() : null;
     }
 
     function isWorkerRole() {
