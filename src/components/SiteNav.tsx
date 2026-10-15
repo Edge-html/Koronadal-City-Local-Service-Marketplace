@@ -31,6 +31,13 @@ export function SiteNav() {
       ? [{ href: "/admin", label: "Review queue" }, ...LINKS]
       : LINKS;
 
+  // displayName is set at signup, but fall back to the email local-part so
+  // the header never renders an empty identity chip.
+  const accountName =
+    (user?.displayName as string | undefined)?.trim() ||
+    user?.email?.split("@")[0] ||
+    "Account";
+
   // Mobile sheet closes on navigation.
   useEffect(() => setOpen(false), [pathname]);
 
@@ -105,13 +112,19 @@ export function SiteNav() {
             <span className="h-9 w-24 animate-pulse rounded-md bg-stone-200/70" />
           ) : user ? (
             <>
-              <Link href="/dashboard" className="btn-ghost">
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-bone text-[10px] font-medium text-stone-700">
-                  {initials(
-                    (user.displayName as string) || (user.email ?? "U"),
-                  )}
+              {/* Name rather than a generic "Dashboard": it identifies who is
+                  signed in and still links to their console. */}
+              <Link
+                href="/dashboard"
+                className="btn-ghost gap-2"
+                title="Go to your dashboard"
+              >
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bone text-[10px] font-medium text-stone-700">
+                  {initials(accountName)}
                 </span>
-                Dashboard
+                <span className="max-w-[18ch] truncate text-[14px] tracking-[-0.02em] text-ink-black">
+                  {accountName}
+                </span>
               </Link>
               <button
                 type="button"
@@ -178,7 +191,7 @@ export function SiteNav() {
                 <>
                   <Link href="/dashboard" className="btn-neutral w-full">
                     <LayoutGrid size={14} strokeWidth={1.5} />
-                    Go to dashboard
+                    {accountName}
                   </Link>
                   {/* Review queue is already the first link in the list above. */}
                   <button
