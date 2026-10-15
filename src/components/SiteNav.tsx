@@ -23,6 +23,14 @@ export function SiteNav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
+  // Administrators are the one audience whose primary destination is the
+  // product rather than the marketing site, so their link leads. The rest of
+  // the nav stays untouched for everyone else.
+  const links =
+    role === "admin"
+      ? [{ href: "/admin", label: "Review queue" }, ...LINKS]
+      : LINKS;
+
   // Mobile sheet closes on navigation.
   useEffect(() => setOpen(false), [pathname]);
 
@@ -75,7 +83,7 @@ export function SiteNav() {
             className="hidden items-center gap-1 lg:flex"
             aria-label="Primary"
           >
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -105,11 +113,6 @@ export function SiteNav() {
                 </span>
                 Dashboard
               </Link>
-              {role === "admin" ? (
-                <Link href="/admin" className="btn-neutral btn-sm">
-                  Review queue
-                </Link>
-              ) : null}
               <button
                 type="button"
                 onClick={logout}
@@ -160,7 +163,7 @@ export function SiteNav() {
             className="container-page flex flex-col gap-1 py-4"
             aria-label="Mobile"
           >
-            {LINKS.map((link) => (
+            {links.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -177,11 +180,7 @@ export function SiteNav() {
                     <LayoutGrid size={14} strokeWidth={1.5} />
                     Go to dashboard
                   </Link>
-                  {role === "admin" ? (
-                    <Link href="/admin" className="btn-neutral w-full">
-                      Review queue
-                    </Link>
-                  ) : null}
+                  {/* Review queue is already the first link in the list above. */}
                   <button
                     type="button"
                     onClick={logout}
