@@ -72,6 +72,31 @@ ledger entries for each settled job.
 > `service-account.json` grants full project access. It is gitignored — never
 > commit it.
 
+### Resumes
+
+Workers upload a PDF or image from the worker console or their profile
+settings. PDFs are parsed in the browser with `pdf.js`: the text layer is read
+out and heuristics pull a name, mobile number, email, skills, years of
+experience and mentioned credentials into editable fields. The worker confirms
+or corrects each field before anything is saved, and a "what was read from the
+file" panel lets them audit the extraction rather than trust it.
+
+Parsed skills map onto the marketplace categories, so a resume mentioning
+plumbing and tiling suggests the right service category automatically.
+
+What is persisted is the *reading* of the resume, not the file. The binary is
+not uploaded: Firestore documents cap at 1 MB and resumes exceed that, and
+Firebase Storage is not yet wired up. The UI says so rather than implying the
+file is hosted. The parsed summary is public on the worker's profile, which is
+what households actually read when deciding whom to book.
+
+Images have no text layer, so there is nothing to parse. They upload with the
+fields typed in. Real OCR needs Cloud Vision, which requires putting the
+Firebase project on a billing plan.
+
+The `pdf.js` worker is copied into `public/` by `scripts/copy-pdf-worker.mjs`
+on `postinstall` and served from this origin, so resume parsing does not
+depend on a CDN being reachable.
 ### Promote an account to admin
 
 Admin is the platform-wide override that unlocks every Firestore collection,
@@ -191,6 +216,14 @@ of JavaScript.
 
 ---
 
+### Two consoles, switchable
+
+A household and a provider are different jobs, so they open different screens:
+households land on the directory, providers land on their job requests. Neither
+is exclusive. A plumber can hire an electrician, and a household can decide to
+start offering services, so the mode switcher changes which console an account
+opens on rather than granting or removing capability. The choice is stored as
+`activeMode` on the user document and defaults by role.
 ## Compliance notes
 
 - **Data Privacy Act (RA 10173)** — phone numbers are masked on every public

@@ -25,7 +25,8 @@ import {
   getFirebaseAuth,
   getFirebaseDb,
 } from "@/lib/firebase";
-import type { Role } from "@/lib/types";
+import type { DashboardMode, Role } from "@/lib/types";
+import { setDashboardMode } from "@/lib/data";
 
 interface AuthContextValue {
   user: User | null;
@@ -36,6 +37,10 @@ interface AuthContextValue {
   unconfigured: boolean;
   /** Set when the session is valid but its profile record could not be read. */
   profileError: string | null;
+  /** Which console this account opens on. A worker can still hire, so the
+   *  two views are switchable rather than exclusive. */
+  mode: DashboardMode;
+  setMode: (mode: DashboardMode) => Promise<void>;
   signUp: (
     email: string,
     password: string,
@@ -60,6 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [unconfigured, setUnconfigured] = useState(!firebaseConfigured);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [mode, setModeState] = useState<DashboardMode>("customer");
   const router = useRouter();
 
   /**
@@ -234,6 +240,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The profile snapshot listener picks the new role up on its own.
   }, []);
 
+  const setMode = useCallback(
+    async (next: DashboardMode) => {
+      const uid = getFirebaseAuth().currentUser?.uid;
+      // Update locally first so the switch is instant; the profile snapshot
+      // confirms it a moment later.
+      setModeState(next);
+      if (!uid) return;
+      try {
+        await setDashboardMode(uid, next);
+      } catch (err) {
+        setModeState(mode === "worker" ? "worker" : "customer");
+        throw err;
+      }
+    },
+    [mode],
+  );
+
   const logout = useCallback(async () => {
     await signOut(getFirebaseAuth());
     setProfileError(null);
@@ -256,6 +279,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       unconfigured,
       profileError,
+      mode,
+      setMode,
       signUp,
       signIn,
       becomeWorker,
@@ -270,6 +295,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       unconfigured,
       profileError,
+      mode,
+      setMode,
       signUp,
       signIn,
       becomeWorker,

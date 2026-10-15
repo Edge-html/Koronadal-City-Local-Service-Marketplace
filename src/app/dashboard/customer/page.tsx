@@ -21,6 +21,8 @@ import {
 } from "@/lib/data";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
+import { ModeSwitcher } from "@/components/ModeSwitcher";
+import { getWorkerByUid } from "@/lib/data";
 import type { Job, Worker } from "@/lib/types";
 
 export default function CustomerDashboardPage() {
@@ -33,6 +35,7 @@ export default function CustomerDashboardPage() {
 
 function CustomerDashboard() {
   const { user, loading: authLoading } = useAuth();
+  const [hasWorkerProfile, setHasWorkerProfile] = useState(false);
   const params = useSearchParams();
 
   const [jobs, setJobs] = useState<Job[] | null>(null);
@@ -41,6 +44,23 @@ function CustomerDashboard() {
   const [disputing, setDisputing] = useState<string | null>(null);
 
   const sent = params.get("sent") === "1";
+
+  // Resolve whether this household also has a worker profile, which decides if
+  // the "working as a provider" switch is offered.
+  useEffect(() => {
+    if (authLoading || !user) return;
+    let cancelled = false;
+    getWorkerByUid(user.uid)
+      .then((w) => {
+        if (!cancelled) setHasWorkerProfile(!!w);
+      })
+      .catch(() => {
+        if (!cancelled) setHasWorkerProfile(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
 
   useEffect(() => {
     if (authLoading || !user) return;
@@ -87,6 +107,8 @@ function CustomerDashboard() {
         title="My requests"
         subtitle="Track every job from first contact to settlement."
       >
+        <ModeSwitcher available={hasWorkerProfile} />
+
         <div className="grid gap-3 sm:grid-cols-4">
           <StatCard label="In flight" value="—" />
           <StatCard label="Awaiting approval" value="—" />

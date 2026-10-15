@@ -2,8 +2,9 @@
     "name":  "koronadal-local-service-marketplace",
     "version":  "1.0.0",
     "private":  true,
-    "description":  "Koronadal City Local Service Marketplace â€” connecting households with verified blue-collar trade professionals.",
+    "description":  "Koronadal City Local Service Marketplace Ã¢â‚¬â€ connecting households with verified blue-collar trade professionals.",
     "scripts":  {
+                    "postinstall":  "node scripts/copy-pdf-worker.mjs",
                     "dev":  "next dev",
                     "build":  "next build",
                     "start":  "next start",
@@ -15,6 +16,7 @@
                          "firebase":  "^11.1.0",
                          "lucide-react":  "^0.469.0",
                          "next":  "^15.1.3",
+                         "pdfjs-dist":  "^6.4.299",
                          "react":  "^19.0.0",
                          "react-dom":  "^19.0.0"
                      },

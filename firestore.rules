@@ -185,8 +185,10 @@ service cloud.firestore {
       allow read: if isJobParty() || isAdmin();
 
       // A household opens a request against a verified, active worker.
+      // Workers are permitted too: the two consoles are switchable, so a
+      // worker acting as a household must be able to post a request.
       allow create: if isSignedIn()
-        && myRole() == 'customer'
+        && myRole() in ['customer', 'worker']
         && request.resource.data.consumerId == request.auth.uid
         && request.resource.data.status == 'requested'
         && request.resource.data.workerId is string

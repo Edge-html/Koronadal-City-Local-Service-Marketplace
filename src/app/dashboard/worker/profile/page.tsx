@@ -6,6 +6,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
 import { Badge, Card, Notice, safeAsync, StarRating, StatCard } from "@/components/ui";
 import { CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
+import { ResumeEditor } from "@/components/ResumeEditor";
 import { getWorkerByUid, listReviews, updateWorker } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
@@ -81,6 +82,8 @@ export default function WorkerProfilePage() {
           <StatCard label="Reference rate" value={`${formatPeso(worker.hourlyRate)}/hr`} />
           <StatCard label="Referral credits" value={worker.referralCredits} sublabel="Single tier, job-verified" />
         </div>
+
+        <ResumeEditor worker={worker} />
 
         <div className="grid gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
           <Card className="flex flex-col gap-4 p-5">

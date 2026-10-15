@@ -25,6 +25,7 @@ import {
   StarRating,
 } from "@/components/ui";
 import { CATEGORY_MAP } from "@/lib/constants";
+import { ResumeSummary } from "@/components/ResumeSummary";
 import { useAuth } from "@/context/AuthContext";
 import { createJobRequest, getWorker, listReviews } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
@@ -155,6 +156,8 @@ export function WorkerProfile({ id }: { id: string }) {
               ))}
             </dl>
           </Card>
+
+          <ResumeSummary worker={worker} />
 
           {/* Portfolio */}
           <Card className="overflow-hidden p-0">

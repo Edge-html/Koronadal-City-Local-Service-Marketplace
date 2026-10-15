@@ -7,7 +7,7 @@ import { LoadingBlock } from "@/components/ui";
 
 /** Routes each role to the console that actually applies to them. */
 export default function DashboardPage() {
-  const { user, role, loading } = useAuth();
+  const { user, role, mode, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -16,10 +16,19 @@ export default function DashboardPage() {
       router.replace("/login?next=/dashboard");
       return;
     }
-    if (role === "admin") router.replace("/admin");
-    else if (role === "worker") router.replace("/dashboard/worker");
-    else router.replace("/dashboard/customer");
-  }, [loading, user, role, router]);
+    if (role === "admin") {
+      router.replace("/admin");
+      return;
+    }
+
+    // Workers open on job requests; households open on the directory, which
+    // is the first thing either of them actually wants.
+    if (mode === "worker" && role === "worker") {
+      router.replace("/dashboard/worker");
+    } else {
+      router.replace("/browse");
+    }
+  }, [loading, user, role, mode, router]);
 
   return <LoadingBlock label="Routing to your console" />;
 }

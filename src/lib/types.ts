@@ -5,6 +5,12 @@
  */
 
 export type Role = "customer" | "worker" | "admin";
+/**
+ * Which console a dual-role account opens by default.
+ * A worker can still hire services, so the two views are switchable rather
+ * than exclusive.
+ */
+export type DashboardMode = "customer" | "worker";
 
 export type WorkerStatus =
   | "pending_verification"
@@ -32,6 +38,27 @@ export interface Quote {
   validDays: number;
 }
 
+/**
+ * A worker's uploaded resume and whatever could be read from it.
+ *
+ * The extracted fields are suggestions the worker confirms; rawText is kept so
+ * the reading can be audited rather than trusted blindly.
+ */
+export interface Resume {
+  fileName: string;
+  /** Object URL for the current session; not stable across devices. */
+  fileUrl: string;
+  /** Text extracted from the file, empty for images. */
+  rawText: string;
+  fullName?: string;
+  email?: string;
+  phone?: string;
+  skills: string[];
+  yearsExperience?: number;
+  certifications: string[];
+  confidence: "none" | "low" | "medium" | "high";
+  uploadedAt: string;
+}
 export interface Worker {
   id: string;
   /** Firebase auth uid. The Firestore doc is auto-id, so this is the join key. */
@@ -59,6 +86,7 @@ export interface Worker {
   hourlyRate: number;
   /** Code of the worker who referred this one, if any. */
   referredBy?: string;
+  resume?: Resume | null;
   portfolio: PortfolioEntry[];
   verificationDocs: VerificationDoc[];
   createdAt: string;

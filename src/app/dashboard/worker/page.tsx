@@ -24,6 +24,8 @@ import {
 } from "@/lib/data";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { CATEGORIES } from "@/lib/constants";
+import { ResumeEditor } from "@/components/ResumeEditor";
+import { ModeSwitcher } from "@/components/ModeSwitcher";
 import { useAuth } from "@/context/AuthContext";
 import type { Job, Worker } from "@/lib/types";
 
@@ -186,6 +188,13 @@ export default function WorkerDashboardPage() {
             setUploading(false);
             await refresh();
           }} />
+        ) : null}
+
+        {worker ? (
+          <>
+            <ModeSwitcher available={!!worker.id} />
+            <ResumeEditor worker={worker} />
+          </>
         ) : null}
 
         {jobs && jobs.length === 0 ? (

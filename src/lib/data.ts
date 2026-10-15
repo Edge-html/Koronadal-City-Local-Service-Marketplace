@@ -35,10 +35,12 @@ const db = getFirebaseDb;
 import { commissionOn, computeTotals, pesos } from "@/lib/commission";
 import { makeReferralCode } from "@/lib/utils";
 import type {
+  DashboardMode,
   Job,
   JobStatus,
   LedgerEntry,
   PortfolioEntry,
+  Resume,
   Review,
   VerificationDoc,
   Worker,
@@ -79,6 +81,7 @@ function toWorker(id: string, data: DocumentData): Worker {
     status: data.status ?? "pending_verification",
     hourlyRate: data.hourlyRate ?? 0,
     referredBy: data.referredBy,
+    resume: data.resume ?? null,
     portfolio: data.portfolio ?? [],
     verificationDocs: data.verificationDocs ?? [],
     createdAt: data.createdAt ?? "",
@@ -184,6 +187,28 @@ export async function updateWorker(
   });
 }
 
+/**
+ * Persist the worker's resume.
+ *
+ * The parsed text and confirmed fields live on the worker document so they are
+ * readable from the public profile. The binary is not stored in Firestore:
+ * documents are capped at 1 MB and resumes routinely exceed that. The file
+ * URL here is a session-local object URL, so what persists is the reading of
+ * the resume rather than the file itself. Wiring Firebase Storage is the
+ * follow-up, and the UI says as much rather than implying the file is hosted.
+ */
+export async function saveResume(workerId: string, resume: Resume) {
+  await updateDoc(doc(db(), "workers", workerId), { resume });
+}
+
+export async function clearResume(workerId: string) {
+  await updateDoc(doc(db(), "workers", workerId), { resume: null });
+}
+
+/** Switch which console a dual-role account opens on. */
+export async function setDashboardMode(uid: string, mode: DashboardMode) {
+  await updateDoc(doc(db(), "users", uid), { activeMode: mode });
+}
 /* ------------------------------------------------------------------ */
 /* Jobs — the six-stage lifecycle                                       */
 /* ------------------------------------------------------------------ */
