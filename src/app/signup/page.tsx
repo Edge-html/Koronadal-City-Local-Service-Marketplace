@@ -12,7 +12,8 @@ import { getWorkerByUid } from "@/lib/data";
 type RoleChoice = "customer" | "worker";
 
 function SignUpForm() {
-  const { user, role: accountRole, signUp, becomeWorker, loading: authLoading } = useAuth();
+  const { user, role: accountRole, signUp, loading: authLoading } =
+  useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -25,7 +26,7 @@ function SignUpForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [upgrading, setUpgrading] = useState(false);
+  const [starting, setStarting] = useState(false);
 
   // Someone who already has an account should upgrade it, not create a second
   // one. People start here to hire services and some later offer them.
@@ -60,27 +61,30 @@ function SignUpForm() {
     }
   }
 
-  /** Upgrade in place, then continue into onboarding or the jobs console. */
-  const upgrade = safeAsync(async () => {
-    setUpgrading(true);
+  /**
+   * Continue into the worker application.
+   *
+   * The account role is deliberately NOT upgraded here. Identity, the three
+   * mandatory documents, and the background check still have to be completed:
+   * the role flips only once onboarding is actually submitted, and the profile
+   * stays out of the directory until an administrator verifies it.
+   */
+  const startApplication = safeAsync(async () => {
+    setStarting(true);
     setError("");
     try {
-      await becomeWorker();
-
-      // If they already have a worker profile, onboarding would bounce them
-      // straight back out; go to the console instead.
+      // An existing worker profile means onboarding would bounce them
+      // straight back out, so send them to the console instead.
       const existing = await getWorkerByUid(user!.uid);
       router.push(existing ? "/dashboard/worker" : "/dashboard/worker/onboarding");
-    } catch (err) {
-      setError(
-        friendlyAuthError(err) === "Something went wrong. Please try again."
-          ? "Could not upgrade your account. Please try again."
-          : friendlyAuthError(err),
-      );
+    } catch {
+      // If the profile lookup is blocked, onboarding still renders and will
+      // report the real problem in context.
+      router.push("/dashboard/worker/onboarding");
     } finally {
-      setUpgrading(false);
+      setStarting(false);
     }
-  }, "become-worker");
+  }, "start-worker-application");
 
   // Wait for the session before choosing a view. Otherwise the signed-out
   // registration form paints first and is swapped for the upgrade panel a
@@ -116,20 +120,33 @@ function SignUpForm() {
             they are.
           </p>
 
-          <p className="rounded-md border border-stone-200 bg-bone px-4 py-3 text-[13px] leading-[1.45] text-stone-600">
-            You&rsquo;ll then complete three steps of onboarding: identity, documents,
-            and a background check that clears within 24 to 48 hours.
+          {/* The requirements are unchanged: nothing is granted by clicking.*/}
+          <ul className="flex flex-col gap-2 rounded-md border border-stone-200 bg-bone px-4 py-3">
+            <li className="text-[13px] leading-[1.45] text-stone-700">
+              Identity and contact details
+            </li>
+            <li className="text-[13px] leading-[1.45] text-stone-700">
+              Government photo ID, barangay or police clearance, and a letter
+              of recommendation
+            </li>
+            <li className="text-[13px] leading-[1.45] text-stone-700">
+              A background check clearing within 24 to 48 hours
+            </li>
+          </ul>
+          <p className="caption">
+            Until an administrator approves the application the profile stays
+            hidden from the directory and receives no job requests.
           </p>
 
-          <button type="button" className="btn-primary w-full" onClick={upgrade} disabled={upgrading}>
-            {upgrading ? (
+          <button type="button" className="btn-primary w-full" onClick={startApplication} disabled={starting}>
+            {starting ? (
               <>
                 <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />
-                Upgrading
+                Starting
               </>
             ) : (
               <>
-                Become a service provider
+                Start the application
                 <ArrowRight size={14} strokeWidth={1.5} />
               </>
             )}

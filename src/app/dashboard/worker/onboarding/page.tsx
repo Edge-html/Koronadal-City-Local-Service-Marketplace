@@ -24,7 +24,8 @@ const STEPS = [
 ];
 
 export default function WorkerOnboardingPage() {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, role, becomeWorker, loading: authLoading } =
+    useAuth();
   const router = useRouter();
 
   const [step, setStep] = useState(1);
@@ -96,6 +97,16 @@ export default function WorkerOnboardingPage() {
           reviewState: "pending" as const,
         })),
       });
+
+      // The role flips only now, once identity and the three mandatory
+      // documents have actually been submitted. Switching it on the "become a
+      // provider" click let an account claim to be a worker with nothing on
+      // file. The profile is still pending_verification and stays out of the
+      // directory until an administrator approves it.
+      if (role === "customer") {
+        await becomeWorker();
+      }
+
       router.replace("/dashboard/worker");
     } catch {
       setError(
