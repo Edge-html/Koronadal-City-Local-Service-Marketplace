@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, CirclePlay } from "lucide-react";
+import { BARANGAYS } from "@/lib/constants";
 
 export function Hero() {
   const [mounted, setMounted] = useState(false);
@@ -37,7 +38,7 @@ export function Hero() {
       <dl className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
         {[
           ["10", "essential trades"],
-          ["24", "barangays served"],
+          [String(BARANGAYS.length), "barangays served"],
           ["10%", "labor commission"],
         ].map(([value, label]) => (
           <div key={label} className="flex items-baseline gap-2">

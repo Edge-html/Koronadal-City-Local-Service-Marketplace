@@ -1,6 +1,6 @@
 /**
  * The ten essential household service categories, plus the twenty-five
- * barangays of Koronadal City. Sourced from the platform specification.
+ * barangays of Koronadal City, verified against the official list.
  */
 
 export interface Category {
@@ -110,30 +110,33 @@ export const CATEGORY_MAP = Object.fromEntries(
 ) as Record<string, Category>;
 
 export const BARANGAYS = [
-  "Banga",
-  "Baras",
-  "Bulacawan",
-  "Calumpang",
-  "Camalian",
-  "Centro 1 (Poblacion)",
-  "Centro 2",
-  "Centro 3",
-  "Ecol",
-  "Gabi",
-  "Gulayan",
-  "Ibaba",
-  "Kauman",
-  "Labogon",
-  "Lemoy",
-  "Libis",
+  "Assumption (Bulol)",
+  "Avanceña (Barrio III)",
+  "Cacub",
+  "Caloocan",
+  "Carpenter Hill",
+  "Concepcion (Barrio VI)",
+  "Esperanza",
+  "General Paulino Santos (Barrio I)",
+  "Mabini",
   "Magsaysay",
-  "Malaya",
-  "Mitchan",
-  "Pollocan",
-  "Saravia",
-  "Sanyawa",
-  "Tinuro",
-  "Upper Samay",
+  "Mambucal",
+  "Morales",
+  "Namnama",
+  "New Pangasinan (Barrio IV)",
+  "Paraiso",
+  "Rotonda",
+  "San Isidro",
+  "San Jose (Barrio V)",
+  "San Roque",
+  "Santa Cruz",
+  "Santo Niño (Barrio II)",
+  "Saravia (Barrio VIII)",
+  "Topland (Barrio VII / Zulueta)",
+  "Zone I (Poblacion)",
+  "Zone II (Poblacion)",
+  "Zone III (Poblacion)",
+  "Zone IV (Poblacion)",
 ] as const;
 
 /** Walk-in assisted onboarding service points. */

@@ -2,11 +2,11 @@ import { Badge, Card, SectionHeader, StatCard } from "@/components/ui";
 import { formatPeso } from "@/lib/commission";
 
 const DEMO_ROWS = [
-  { name: "Rodrigo A.", service: "Carpentry", place: "Baras", tone: "amber" },
-  { name: "Marisol T.", service: "Plumbing", place: "Banga", tone: "coral" },
-  { name: "Jomar P.", service: "Electrical", place: "Gabi", tone: "ember" },
-  { name: "Elena C.", service: "Roofing", place: "Lemoy", tone: "violet" },
-  { name: "Danilo R.", service: "Welding", place: "Ecol", tone: "neutral" },
+  { name: "Rodrigo A.", service: "Carpentry", place: "San Roque", tone: "amber" },
+  { name: "Marisol T.", service: "Plumbing", place: "Paraiso", tone: "coral" },
+  { name: "Jomar P.", service: "Electrical", place: "Magsaysay", tone: "ember" },
+  { name: "Elena C.", service: "Roofing", place: "Santo Niño", tone: "violet" },
+  { name: "Danilo R.", service: "Welding", place: "Zone III", tone: "neutral" },
   { name: "Rodel M.", service: "Painting", place: "Saravia", tone: "amber" },
 ] as const;
 
