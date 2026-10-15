@@ -72,6 +72,24 @@ ledger entries for each settled job.
 > `service-account.json` grants full project access. It is gitignored — never
 > commit it.
 
+### Promote an account to admin
+
+Admin is the platform-wide override that unlocks every Firestore collection,
+so it can never be self-assigned from the client; the rules permit only
+`customer -> worker`. The intended way to grant it is the Admin SDK:
+
+```bash
+npm run make-admin -- you@example.com            # promote an existing account
+npm run make-admin -- you@example.com --create   # create it if missing
+```
+
+This writes `role: 'admin'` to `users/{uid}`. Sign in and open **/admin** for the
+credential review queue. With `--create`, a random password is generated and
+printed once.
+
+Use this instead of re-running `npm run seed` when you want admin access
+without wiping the demo data.
+
 All demo accounts use the password `koronadal123`:
 
 | Email | Role |
