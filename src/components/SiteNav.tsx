@@ -15,16 +15,27 @@ import { cx, initials } from "@/lib/utils";
  * is noise, so they fold into a single destination; the on-page index on
  * /platform carries the detail.
  *
- * "Home" and "Services" both resolve to `/`, but they are not the same link:
- * `/` decides for you whether you are looking for a worker or offering one,
- * while `/#categories` lands on the trade list specifically. `isActive` keeps
- * the hash form from lighting up alongside the bare one.
+ * The primary links follow the signed-in role. A worker's home is their
+ * services and inquiries; a household's home is the worker finder.
  */
-const LINKS = [
+const PUBLIC_LINKS = [
   { href: "/", label: "Home" },
   { href: "/browse", label: "Find a worker" },
   { href: "/#categories", label: "Services" },
   { href: "/platform", label: "How it works" },
+];
+const WORKER_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/#inquiries", label: "Inquiries" },
+  { href: "/#my-services", label: "My services" },
+  { href: "/dashboard/worker", label: "Jobs" },
+  { href: "/browse", label: "Find a worker" },
+];
+const CUSTOMER_LINKS = [
+  { href: "/", label: "Home" },
+  { href: "/browse", label: "Find a worker" },
+  { href: "/dashboard/customer", label: "My requests" },
+  { href: "/#categories", label: "Services" },
 ];
 
 export function SiteNav() {
@@ -33,13 +44,15 @@ export function SiteNav() {
   const [open, setOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
-  // Administrators are the one audience whose primary destination is the
-  // product rather than the marketing site, so their link leads. The rest of
-  // the nav stays untouched for everyone else.
   const links =
     role === "admin"
-      ? [{ href: "/admin", label: "Review queue" }, ...LINKS]
-      : LINKS;
+      ? [{ href: "/admin", label: "Review queue" }, ...PUBLIC_LINKS]
+      : role === "worker"
+        ? WORKER_LINKS
+        : role === "customer"
+          ? CUSTOMER_LINKS
+          : PUBLIC_LINKS;
+  const accountHref = role === "admin" ? "/admin" : role === "worker" ? "/dashboard/worker" : "/dashboard/customer";
 
   // displayName is set at signup, but fall back to the email local-part so
   // the header never renders an empty identity chip.
@@ -124,14 +137,10 @@ export function SiteNav() {
             <span className="h-9 w-24 animate-pulse rounded-md bg-stone-200/70" />
           ) : user ? (
             <>
-              {/* Name rather than a generic "Dashboard": it identifies who is
-                  signed in. It goes to the directory rather than to /dashboard
-                  because that is the one screen every account can act on — a
-                  provider looking for an electrician is a household too. */}
               <Link
-                href="/browse"
+                href={accountHref}
                 className="btn-ghost gap-2"
-                title="Find a worker"
+                title="Open your account"
               >
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bone text-[10px] font-medium text-stone-700">
                   {initials(accountName)}
@@ -203,7 +212,7 @@ export function SiteNav() {
             <div className="mt-3 flex flex-col gap-2 border-t border-stone-200 pt-4">
               {user ? (
                 <>
-                  <Link href="/browse" className="btn-neutral w-full">
+                  <Link href={accountHref} className="btn-neutral w-full">
                     <LayoutGrid size={14} strokeWidth={1.5} />
                     {accountName}
                   </Link>

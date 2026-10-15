@@ -140,7 +140,7 @@ see "Two consoles" below.
 | `/browse` | Full directory — filter by trade, barangay, rating, credentials |
 | `/worker/[id]` | Public profile: resume, services on offer, portfolio, reviews, request form |
 | `/signup`, `/login` | Role-aware auth |
-| `/dashboard` | Redirects to the right console for the account's mode |
+| `/dashboard` | Redirects by account role to the worker console or customer home |
 | `/dashboard/customer` | Requests, quote approval, reviews, dispute filing |
 | `/dashboard/worker` | Full lifecycle: job inbox, quoting, completion, settlement |
 | `/dashboard/worker/onboarding` | Three-step digital self-registration |
@@ -207,7 +207,7 @@ Tokens live in `src/app/globals.css` under `@theme`.
 ## Data model
 
 ```
-users/{uid}        role, activeMode, fullName, email, phone
+users/{uid}        role, fullName, email, phone
 workers/{id}       public profile, resume summary, rating, wallet, referralCode
 workerCredentials/{id} private verification documents and resume details
 topupRequests/{id} worker payment references awaiting admin verification
@@ -247,15 +247,13 @@ of JavaScript.
 
 ---
 
-### Two consoles, switchable
+### Two role-based home pages
 
 A household and a provider are different jobs, so they open different screens:
-households land on the trades and then the directory, providers land on their
-incoming requests and then the work they have on offer. Neither is exclusive. A
-plumber can hire an electrician, and a household can decide to start offering
-services, so the mode switcher changes which console an account opens on rather
-than granting or removing capability. The choice is stored as `activeMode` on
-the user document and defaults by role.
+households land on the worker finder, while providers land on their inquiries,
+services, and incoming job requests. The home page and sign-in redirect use the
+account's role. Workers can still browse and hire another worker using the
+Find a worker link; the view links do not change their role or home page.
 
 The marketing pitch lives at `/landing`, not `/`. Putting a hero on the home
 page would mean scrolling past persuasion to reach the thing a returning account

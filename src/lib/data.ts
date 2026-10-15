@@ -49,7 +49,6 @@ async function marketplaceAction(payload: Record<string, unknown>) {
 import { computeTotals, pesos } from "@/lib/commission";
 import { makeReferralCode } from "@/lib/utils";
 import type {
-  DashboardMode,
   Inquiry,
   Job,
   JobStatus,
@@ -260,10 +259,6 @@ export async function clearResume(workerId: string) {
   await batch.commit();
 }
 
-/** Switch which console a dual-role account opens on. */
-export async function setDashboardMode(uid: string, mode: DashboardMode) {
-  await updateDoc(doc(db(), "users", uid), { activeMode: mode });
-}
 /* ------------------------------------------------------------------ */
 /* Service offers and inquiries                                         */
 /* ------------------------------------------------------------------ */

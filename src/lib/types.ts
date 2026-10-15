@@ -10,7 +10,6 @@ export type Role = "customer" | "worker" | "admin";
  * A worker can still hire services, so the two views are switchable rather
  * than exclusive.
  */
-export type DashboardMode = "customer" | "worker";
 
 export type WorkerStatus =
   | "pending_verification"

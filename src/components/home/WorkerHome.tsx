@@ -22,11 +22,10 @@ import { formatDate } from "@/lib/utils";
 import type { Job, Worker } from "@/lib/types";
 
 /**
- * The worker half of the home page: my jobs, then my services.
+ * The worker half of the home page: inquiries and services, then job requests.
  *
- * My jobs leads, because a request from a household is time-sensitive — it goes
- * stale while it waits. My services comes second because posting an offer is
- * something you do once and then maintain.
+ * Recent inquiries are visible with the worker's offers. Job requests remain
+ * actionable below, including accept and decline controls.
  *
  * Only the two actions that matter on arrival — accept and decline — are here.
  * Quoting, completing, settling, wallet and portfolio stay in the full console
@@ -70,6 +69,12 @@ export function WorkerHome() {
     };
   }, [authLoading, user]);
 
+  useEffect(() => {
+    if (!worker || !window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView());
+  }, [worker]);
+
   const open = (jobs ?? []).filter((j) => j.status === "requested");
   const active = (jobs ?? []).filter((j) =>
     ["accepted", "in_progress"].includes(j.status),
@@ -78,8 +83,54 @@ export function WorkerHome() {
     ["completed", "reviewed"].includes(j.status),
   );
 
+  if (jobs !== null && !worker && !error) {
+    return (
+      <section className="section container-page">
+        <p className="label">Worker home</p>
+        <h1 className="mt-3 font-[family-name:var(--font-display)] text-[44px] leading-[1.05] text-ink-black sm:text-[56px]">
+          Start offering your services.
+        </h1>
+        <p className="mt-4 max-w-[54ch] text-[16px] leading-[1.5] text-stone-600">
+          Finish your worker profile to appear in the directory and receive inquiries and job requests.
+        </p>
+        <Link href="/dashboard/worker/onboarding" className="btn-primary mt-6 w-fit no-underline">
+          Complete worker profile
+        </Link>
+      </section>
+    );
+  }
+
+  if (worker && !worker.verified) {
+    return (
+      <section className="section container-page">
+        <p className="label">Worker home</p>
+        <h1 className="mt-3 font-[family-name:var(--font-display)] text-[44px] leading-[1.05] text-ink-black sm:text-[56px]">
+          Your services are under review.
+        </h1>
+        <p className="mt-4 max-w-[54ch] text-[16px] leading-[1.5] text-stone-600">
+          An administrator needs to approve your credentials before households can find your profile or send requests.
+        </p>
+        <Link href="/dashboard/worker/credentials" className="btn-primary mt-6 w-fit no-underline">
+          Review your credentials
+        </Link>
+      </section>
+    );
+  }
+
   return (
     <>
+      <section className="container-page pt-12 sm:pt-16">
+        <p className="label">Worker home</p>
+        <h1 className="mt-3 font-[family-name:var(--font-display)] text-[44px] leading-[1.05] text-ink-black sm:text-[56px]">
+          Your services and inquiries.
+        </h1>
+        <p className="mt-4 max-w-[54ch] text-[16px] leading-[1.5] text-stone-600">
+          See who has asked about your offers, update what you provide, and respond to new job requests.
+        </p>
+      </section>
+
+      {worker ? <MyServices worker={worker} /> : null}
+
       <section className="section container-page">
         <SectionHeader
           eyebrow="My jobs"
@@ -223,12 +274,9 @@ export function WorkerHome() {
       </section>
 
       {worker ? (
-        <>
-          <div className="container-page">
-            <ModeSwitcher available={!!worker.id} />
-          </div>
-          <MyServices worker={worker} />
-        </>
+        <div className="container-page pb-12">
+          <ModeSwitcher available={!!worker.id} />
+        </div>
       ) : null}
     </>
   );

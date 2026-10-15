@@ -53,7 +53,7 @@ function SignUpForm() {
     try {
       await signUp(email, password, fullName, role, phone.trim());
       // Workers land straight into the 3-step self-registration flow.
-      router.push(role === "worker" ? "/dashboard/worker/onboarding" : "/browse");
+      router.push(role === "worker" ? "/dashboard/worker/onboarding" : "/");
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {

@@ -52,13 +52,15 @@ export function Badge({
 export function Card({
   children,
   className,
+  id,
   as: Tag = "div",
 }: {
   children: ReactNode;
   className?: string;
+  id?: string;
   as?: "div" | "section" | "article" | "li";
 }) {
-  return <Tag className={cx("card", className)}>{children}</Tag>;
+  return <Tag id={id} className={cx("card", className)}>{children}</Tag>;
 }
 
 export function Eyebrow({

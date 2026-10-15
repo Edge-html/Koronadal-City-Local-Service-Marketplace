@@ -96,9 +96,12 @@ export function MyServices({ worker }: { worker: Worker }) {
   }, [inquiries]);
 
   const totalInquiries = inquiries.length;
+  const recentInquiries = [...inquiries]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, 3);
 
   return (
-    <section id="my-services" className="section container-page scroll-mt-20">
+    <section id="my-services" className="container-page scroll-mt-20 pb-20 pt-8">
       <SectionHeader
         eyebrow="My services"
         title="Work you have on offer"
@@ -125,6 +128,46 @@ export function MyServices({ worker }: { worker: Worker }) {
           {error}
         </Notice>
       ) : null}
+
+      <div id="inquiries" className="mt-8 scroll-mt-24">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="label">Recent inquiries</p>
+            <h3 className="mt-1 text-[20px] font-medium tracking-[-0.03em] text-ink-black">
+              Who asked about your services
+            </h3>
+          </div>
+          {offers !== null ? <p className="meta">{totalInquiries} total</p> : null}
+        </div>
+        {offers === null ? (
+          <Skeleton className="mt-4 h-24 w-full" />
+        ) : recentInquiries.length ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {recentInquiries.map((inquiry) => {
+              const offer = offers.find((item) => item.id === inquiry.offerId);
+              return (
+                <Card key={inquiry.id} className="p-5">
+                  <p className="text-[15px] font-medium text-ink-black">{inquiry.consumerName}</p>
+                  <p className="caption mt-1">{formatDate(inquiry.createdAt)} · {offer?.title ?? "Your service"}</p>
+                  <p className="mt-3 text-[13px] leading-[1.5] text-stone-700">
+                    {inquiry.message || "Interested in your service."}
+                  </p>
+                  {offer ? (
+                    <a href={`#offer-${offer.id}`} className="mt-3 inline-block text-[13px] text-ink-black underline underline-offset-2">
+                      View service and all inquiries
+                    </a>
+                  ) : null}
+                </Card>
+              );
+            })}
+          </div>
+        ) : (
+          <Card className="mt-4 p-5">
+            <p className="text-[14px] text-ink-black">No inquiries yet.</p>
+            <p className="caption mt-1">When someone asks about an offer, their name and message will appear here.</p>
+          </Card>
+        )}
+      </div>
 
       {composing ? (
         <div className="mt-6">
@@ -168,7 +211,7 @@ export function MyServices({ worker }: { worker: Worker }) {
               const open = expanded === offer.id;
 
               return (
-                <Card key={offer.id} className="flex flex-col gap-4 p-5">
+                <Card key={offer.id} id={`offer-${offer.id}`} className="flex flex-col gap-4 p-5 scroll-mt-24">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">

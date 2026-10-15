@@ -10,11 +10,10 @@ import { useAuth } from "@/context/AuthContext";
 /**
  * The home page — what the signed-in account came here to do.
  *
- * Two halves, chosen by what the account is here for rather than by a URL they
- * have to know:
+ * Two halves, chosen by the account role rather than a separate mode setting:
  *
- *   Finding a service  the trades on offer, then the directory
- *   Working as a provider  requests waiting on them, then their own offers
+ *   Finding a service  the worker finder, then the trade categories
+ *   Working as a provider  inquiries and offers, then job requests
  *
  * The pitch lives at /landing. Putting a marketing hero here would mean
  * scrolling past persuasion to reach the thing they came for, which is the
@@ -25,10 +24,8 @@ import { useAuth } from "@/context/AuthContext";
  * landing page is the better first impression anyway.
  */
 export default function HomePage() {
-  const { user, role, mode, loading } = useAuth();
+  const { user, role, loading, profileError } = useAuth();
   const router = useRouter();
-
-  const workerMode = mode === "worker" && role === "worker";
 
   useEffect(() => {
     if (loading) return;
@@ -39,17 +36,34 @@ export default function HomePage() {
     if (role === "admin") router.replace("/admin");
   }, [loading, user, role, router]);
 
+  useEffect(() => {
+    if (loading || role !== "customer" || !window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    requestAnimationFrame(() => document.getElementById(id)?.scrollIntoView());
+  }, [loading, role]);
+
   if (loading) return <HomeSkeleton />;
 
   if (!user || role === "admin") return <HomeSkeleton />;
 
-  if (workerMode) return <WorkerHome />;
+  if (!role) {
+    return (
+      <section className="container-page py-16">
+        <h1 className="text-[28px] font-medium text-ink-black">We could not identify your account type.</h1>
+        <p className="mt-3 max-w-[54ch] text-[14px] leading-[1.5] text-stone-600">
+          {profileError || "Your account is still loading. Refresh this page to try again."}
+        </p>
+      </section>
+    );
+  }
+
+  if (role === "worker") return <WorkerHome />;
 
   return (
     <>
       <CustomerMasthead />
-      <Categories />
       <FindWorkerSection />
+      <Categories />
     </>
   );
 }
@@ -64,17 +78,16 @@ export default function HomePage() {
  */
 function CustomerMasthead() {
   return (
-    <section className="section container-page">
+    <section className="container-page pb-4 pt-14 sm:pb-6 sm:pt-20">
       <p className="font-[family-name:var(--font-system-ui)] text-[10px] uppercase tracking-[-0.3px] text-stone-500">
         Finding a service
       </p>
       <h1 className="mt-3 max-w-[18ch] font-[family-name:var(--font-display)] text-[44px] leading-[1.05] font-medium tracking-[-0.02em] text-ink-black sm:text-[56px]">
-        What needs doing?
+        Find the right worker.
       </h1>
       <p className="mt-4 max-w-[54ch] text-[16px] leading-[1.5] text-stone-600">
-        Pick a trade below, or browse everyone who has cleared a background
-        check. You fix the price before any work starts, and you pay the worker
-        directly.
+        Search verified local workers by name, service, or trade. Compare their
+        profiles and offers, then send a request when you find the right fit.
       </p>
     </section>
   );

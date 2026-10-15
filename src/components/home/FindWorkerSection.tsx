@@ -75,7 +75,7 @@ export function FindWorkerSection({ limit = 6 }: { limit?: number }) {
   const remaining = filtered.length - shown.length;
 
   return (
-    <section id="find-a-worker" className="section container-page scroll-mt-20">
+    <section id="find-a-worker" className="container-page scroll-mt-20 pb-20 pt-8 sm:pt-10">
       <SectionHeader
         eyebrow="Find a worker"
         title="Verified trades, ready to book"

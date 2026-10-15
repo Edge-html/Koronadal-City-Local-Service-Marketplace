@@ -25,8 +25,7 @@ import {
   getFirebaseAuth,
   getFirebaseDb,
 } from "@/lib/firebase";
-import type { DashboardMode, Role } from "@/lib/types";
-import { setDashboardMode } from "@/lib/data";
+import type { Role } from "@/lib/types";
 
 interface AuthContextValue {
   user: User | null;
@@ -37,10 +36,6 @@ interface AuthContextValue {
   unconfigured: boolean;
   /** Set when the session is valid but its profile record could not be read. */
   profileError: string | null;
-  /** Which console this account opens on. A worker can still hire, so the
-   *  two views are switchable rather than exclusive. */
-  mode: DashboardMode;
-  setMode: (mode: DashboardMode) => Promise<void>;
   signUp: (
     email: string,
     password: string,
@@ -65,7 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [unconfigured, setUnconfigured] = useState(!firebaseConfigured);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [mode, setModeState] = useState<DashboardMode>("customer");
   const router = useRouter();
 
   /**
@@ -77,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
    * takes down the entire app instead of merely leaving the session without a
    * role.
    */
-  const attachProfile = useCallback((uid: string) => {
+  const attachProfile = useCallback((uid: string, onResolved?: () => void) => {
     const authDisplayName = getFirebaseAuth().currentUser?.displayName;
     const authEmail = getFirebaseAuth().currentUser?.email;
     let ref;
@@ -87,12 +81,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Unconfigured deployment; preview mode already covers the UI.
       console.warn("[auth] Firestore unavailable:", err);
       setUnconfigured(true);
+      onResolved?.();
       return undefined;
     }
 
     return onSnapshot(
       ref,
       (snap) => {
+        onResolved?.();
         setProfileError(null);
         if (snap.exists()) {
           const data = snap.data() as Record<string, unknown>;
@@ -135,6 +131,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       },
       (err) => {
+        onResolved?.();
         console.warn("[auth] profile read failed:", err);
         setProfile(null);
         setRole(null);
@@ -155,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let detach: (() => void) | undefined;
+    let profileTimeout: ReturnType<typeof setTimeout> | undefined;
 
     // An unconfigured deployment must not throw inside an effect: React treats
     // that as an unhandled render error and unmounts the whole tree, so a
@@ -184,19 +182,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       unsubscribe = onAuthStateChanged(getFirebaseAuth(), (next) => {
         clearTimeout(giveUp);
+        clearTimeout(profileTimeout);
         detach?.();
         if (next) {
-          detach = attachProfile(next.uid);
+          // Wait for the role document before choosing a home page. Otherwise
+          // a worker briefly sees the customer finder on every sign-in.
+          setProfile(null);
+          setRole(null);
+          setProfileError(null);
+          setLoading(true);
+          profileTimeout = setTimeout(() => {
+            console.warn("[auth] profile check did not settle in time");
+            setLoading(false);
+          }, 8000);
+          detach = attachProfile(next.uid, () => {
+            clearTimeout(profileTimeout);
+            setLoading(false);
+          });
         } else {
           setProfile(null);
           setRole(null);
           setProfileError(null);
+          setLoading(false);
         }
         setUser(next);
-        setLoading(false);
       });
     } catch (err) {
       clearTimeout(giveUp);
+      clearTimeout(profileTimeout);
       // Expected and handled: the UI switches to preview mode. Logged as a
       // warning so the console carries the diagnosis without implying a fault.
       console.warn("[auth] Firebase unavailable, continuing without auth:", err);
@@ -207,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => {
       clearTimeout(giveUp);
+      clearTimeout(profileTimeout);
       unsubscribe?.();
       detach?.();
     };
@@ -263,23 +277,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // The profile snapshot listener picks the new role up on its own.
   }, []);
 
-  const setMode = useCallback(
-    async (next: DashboardMode) => {
-      const uid = getFirebaseAuth().currentUser?.uid;
-      // Update locally first so the switch is instant; the profile snapshot
-      // confirms it a moment later.
-      setModeState(next);
-      if (!uid) return;
-      try {
-        await setDashboardMode(uid, next);
-      } catch (err) {
-        setModeState(mode === "worker" ? "worker" : "customer");
-        throw err;
-      }
-    },
-    [mode],
-  );
-
   const logout = useCallback(async () => {
     await signOut(getFirebaseAuth());
     setProfileError(null);
@@ -302,8 +299,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       unconfigured,
       profileError,
-      mode,
-      setMode,
       signUp,
       signIn,
       becomeWorker,
@@ -318,8 +313,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       unconfigured,
       profileError,
-      mode,
-      setMode,
       signUp,
       signIn,
       becomeWorker,
