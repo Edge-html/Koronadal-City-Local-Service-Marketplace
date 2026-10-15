@@ -192,7 +192,7 @@ export const WORKFLOW_STAGES = [
     key: "requested",
     name: "Request Sent",
     detail:
-      "The consumer selects a worker and inputs a basic service description with an optional photo. The system triggers an immediate SMS notification to the worker's mobile number alongside an in-app alert.",
+      "The consumer selects a worker and inputs a basic service description with an optional photo. The request appears in the worker's dashboard.",
   },
   {
     step: 3,
@@ -206,7 +206,7 @@ export const WORKFLOW_STAGES = [
     key: "quoted",
     name: "Quote Approved",
     detail:
-      "The worker assesses the job scope on-site and inputs the official quote broken into Labor Fee and Material Cost. The consumer receives an SMS and web push notification and formally approves.",
+      "The worker assesses the job scope on-site and inputs the official quote broken into Labor Fee and Material Cost. The quote appears in the consumer's dashboard for approval.",
   },
   {
     step: 5,

@@ -29,7 +29,7 @@ export function LiveProductCard() {
             <p className="caption mt-0.5">Live pipeline &middot; updated continuously</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <Badge tone="neutral">SMS alerts on</Badge>
+            <Badge tone="neutral">In-app requests</Badge>
             <span
               className="relative inline-flex h-5 w-9 items-center rounded-full bg-bone"
               aria-hidden

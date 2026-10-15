@@ -87,11 +87,11 @@ plumbing and tiling suggests the right service category automatically.
 What is persisted is the *reading* of the resume, not the file. The binary is
 not uploaded: Firestore documents cap at 1 MB and resumes exceed that, and
 Firebase Storage is not yet wired up. The UI says so rather than implying the
-file is hosted. The parsed summary is public on the worker's profile, which is
-what households actually read when deciding whom to book.
+file is hosted. The confirmed summary is public on the worker's profile;
+raw extracted text, phone and email stay in the private worker credential record.
 
-Images have no text layer, so there is nothing to parse. They upload with the
-fields typed in. Real OCR needs Cloud Vision, which requires putting the
+Resume images have no text layer, so there is nothing to parse. Workers enter
+those fields themselves. Real OCR needs Cloud Vision, which requires putting the
 Firebase project on a billing plan.
 
 The `pdf.js` worker is copied into `public/` by `scripts/copy-pdf-worker.mjs`
@@ -144,6 +144,7 @@ see "Two consoles" below.
 | `/dashboard/customer` | Requests, quote approval, reviews, dispute filing |
 | `/dashboard/worker` | Full lifecycle: job inbox, quoting, completion, settlement |
 | `/dashboard/worker/onboarding` | Three-step digital self-registration |
+| `/dashboard/worker/credentials` | Replace expired or rejected verification files |
 | `/dashboard/wallet` | Prepaid balance, top-ups, ledger |
 | `/dashboard/worker/profile` | Public listing, resume editor, referral code |
 | `/admin` | Credential review queue, disputes, price-floor monitoring |
@@ -157,7 +158,7 @@ Six stages, each a discrete state transition:
 | # | Stage | State | What happens |
 | --- | --- | --- | --- |
 | 1 | Browse & select | — | Filter the directory by category, barangay, rating, verified badges |
-| 2 | Request sent | `requested` | SMS alert to the worker plus an in-app notification |
+| 2 | Request sent | `requested` | In-app request in the worker dashboard |
 | 3 | Acceptance | `accepted` | **Contact details unlock** — phone, SMS, Messenger |
 | 4 | Quote approved | `quoted` → `in_progress` | Two-part quote; approval **locks 10% of labor** against the wallet |
 | 5 | Completion | `completed` | Cash/GCash paid direct to worker; commission settles |
@@ -177,8 +178,8 @@ platform   ──0% of materials──▶             (pass-through, no commissi
 
 On quote approval, 10% of the labor fee is **locked** from the worker's prepaid
 balance and settled on completion. If a balance falls below ₱0 the worker is
-paused from receiving new requests until they reload. Top-ups arrive through
-GCash in-app or 7-Eleven CliQQ terminals.
+paused from receiving new requests until they reload. GCash and CliQQ top-up
+requests enter an admin queue and credit the wallet only after payment verification.
 
 All arithmetic lives in `src/lib/commission.ts` — `computeTotals` is the single
 source of truth used by the UI, the quote form, and the write path.
@@ -207,7 +208,9 @@ Tokens live in `src/app/globals.css` under `@theme`.
 
 ```
 users/{uid}        role, activeMode, fullName, email, phone
-workers/{id}       profile, credentials, resume, rating, wallet, referralCode
+workers/{id}       public profile, resume summary, rating, wallet, referralCode
+workerCredentials/{id} private verification documents and resume details
+topupRequests/{id} worker payment references awaiting admin verification
 offers/{id}        workerId, workerUid, title, categoryId, priceFrom, status
 inquiries/{id}     id = "{offerId}_{consumerId}", offerId, workerUid, consumerId, message
 jobs/{id}          consumer ⇄ worker, status, quote{ laborFee, materialsCost }
@@ -261,8 +264,10 @@ signed-out visitor to `/` is redirected there.
 
 ## Compliance notes
 
-- **Data Privacy Act (RA 10173)** — phone numbers are masked on every public
-  profile and revealed only after a request is formally accepted.
+- **Data Privacy Act (RA 10173)** — new worker records keep phone numbers and
+  credentials outside the public directory document. Contact numbers are copied
+  to a job only when its assigned worker accepts. Run the admin migration once
+  after deployment to remove legacy public fields.
 - **Consumer Protection Act (RA 7394)** — quotes are mandatory two-part
   (labor vs. materials); disputes are logged with the platform.
 - **Labor Code / DOLE** — the platform is an intermediary and establishes no
@@ -293,8 +298,18 @@ The repository is connected to Vercel.
    | `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:173000508891:web:eab4e1b8b120b70a8693fe` |
    | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | `G-4MF8DRVBVR` |
 
-3. Redeploy — **Deployments → ⋯ → Redeploy**. Environment changes only apply
-   to new builds, so an existing failed build will not self-heal.
+3. Add `FIREBASE_SERVICE_ACCOUNT_JSON` as a **private** variable containing
+   the Firebase service-account JSON (raw JSON or base64 JSON). Apply it to
+   Production and to Preview if preview builds need working marketplace actions.
+   Never prefix it with `NEXT_PUBLIC_` or commit its value.
+4. Redeploy. Environment changes apply only to new builds.
+5. Publish the rules with `npx firebase-tools deploy --only firestore:rules`
+   from this repository (after `firebase login` and selecting the correct
+   project). GitHub/Vercel pushes do not publish Firestore rules.
+6. Sign in as an administrator and run **Migrate legacy records** once to move
+   existing public contact and credential fields into private documents.
+   Older browser blob URLs cannot be recovered; affected workers are placed back
+   in the review queue and can upload fresh credentials from their dashboard.
 
 > These are Firebase **client** keys. They are designed to be public and are
 > already in `.env.local`; access is governed by `firestore.rules`, not by
@@ -323,10 +338,9 @@ the same as a working marketplace. Work through these in order:
 | Sign-up `operation-not-allowed` | Email/Password provider disabled | Firebase console -> Authentication -> Sign-in method |
 | Stuck on "Checking your account" | Firebase Auth never settled | Should self-resolve after 8s; check the console for a `[auth] session check did not settle` warning |
 
-The rules in this repo must be published for the app to work, and the deployed
-copy is not updated by a push — pasting the file into Firebase console ->
-Firestore Database -> Rules and hitting Publish is the only step that changes
-it.
+The rules in this repo must be published for the app to work. A GitHub push
+does not update them; use the Firebase CLI command above or publish the file
+in Firebase Console → Firestore Database → Rules.
 
 ---
 
@@ -338,9 +352,10 @@ deliberately stubbed at the edges and need wiring before real traffic:
 - **SMS alerts** — job requests and quote notifications create Firestore
   records but do not dispatch SMS. Add a provider (Semaphore, Infobip, or an
   SMS gateway) behind a Cloud Function triggered on `jobs` writes.
-- **Payments** — GCash and CliQQ top-ups credit the wallet immediately. In
-  production, reconcile via provider webhooks before crediting.
-- **File uploads** — credentials and job photos accept a URL rather than a
-  direct upload. Wire Firebase Storage with signed upload URLs.
+- **Payments** — workers submit a reference and an administrator independently
+  verifies it before crediting. Provider webhooks remain future work.
+- **File uploads** — verification documents upload to private Firebase Storage
+  through an authenticated server route. Job photos still use a URL and need a
+  proper upload path.
 - **Admin roles** — `users/{uid}.role` is trusted as written. Gate admin
   routes with Firebase custom claims.

@@ -20,7 +20,7 @@ export type WorkerStatus =
 
 /** The six-stage booking lifecycle from the specification. */
 export type JobStatus =
-  | "requested" // Step 2 — request sent, SMS alert dispatched
+  | "requested" // Step 2 — request sent to the worker dashboard
   | "accepted" // Step 3 — contact channels unlocked
   | "quoted" // Step 4 — official quote awaiting approval
   | "in_progress" // Step 5 — execution underway
@@ -193,6 +193,8 @@ export interface Job {
   workerId: string;
   workerUid: string;
   workerName: string;
+  workerPhone?: string;
+  consumerPhone?: string;
   categoryId: string;
   title: string;
   description: string;
@@ -204,6 +206,7 @@ export interface Job {
   requestedAt: string;
   acceptedAt?: string;
   completedAt?: string;
+  settledAt?: string;
   rating?: number;
   reviewText?: string;
 }

@@ -13,7 +13,7 @@ import {
 } from "@/components/ui";
 import { CATEGORY_MAP } from "@/lib/constants";
 import { formatPeso } from "@/lib/commission";
-import { createInquiry, listOffersForWorker } from "@/lib/data";
+import { createInquiry, listOpenOffersForWorker } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
 import type { ServiceOffer, Worker } from "@/lib/types";
 
@@ -37,7 +37,7 @@ export function WorkerOffers({ worker }: { worker: Worker }) {
 
   useEffect(() => {
     let cancelled = false;
-    listOffersForWorker(worker.id)
+    listOpenOffersForWorker(worker.uid)
       .then((rows) => {
         if (!cancelled) setOffers(rows.filter((o) => o.status === "open"));
       })
@@ -52,7 +52,7 @@ export function WorkerOffers({ worker }: { worker: Worker }) {
     return () => {
       cancelled = true;
     };
-  }, [worker.id]);
+  }, [worker.uid]);
 
   const respond = useCallback(
     async (offer: ServiceOffer, message: string) => {

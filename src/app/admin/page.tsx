@@ -13,23 +13,28 @@ import {
 } from "@/components/ui";
 import { CATEGORY_MAP } from "@/lib/constants";
 import { DOC_TYPES, type Job, type Worker } from "@/lib/types";
-import { decideVerification, listAllJobs, listPendingWorkers } from "@/lib/data";
+import { decideTopUp, decideVerification, listAllJobs, listPendingTopUpRequests, listPendingWorkers, migrateLegacyWorkers, type TopUpRequest } from "@/lib/data";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { openCredential } from "@/lib/credentials";
 
 export default function AdminPage() {
   const { role, loading: authLoading } = useAuth();
 
   const [pending, setPending] = useState<Worker[] | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [topUps, setTopUps] = useState<TopUpRequest[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [migrationDone, setMigrationDone] = useState(false);
+  const [migrating, setMigrating] = useState(false);
 
   const load = async () => {
     setPending(await listPendingWorkers());
     setJobs(await listAllJobs());
+    setTopUps(await listPendingTopUpRequests());
   };
 
   useEffect(() => {
@@ -84,14 +89,53 @@ export default function AdminPage() {
     }
   }
 
+  async function decidePayment(request: TopUpRequest, approve: boolean) {
+    if (approve && !window.confirm("Confirm you independently verified this payment before crediting the wallet.")) return;
+    setBusyId(request.id);
+    setError("");
+    try {
+      await decideTopUp(request.id, approve);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not process this top-up.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function protectLegacyRecords() {
+    if (!window.confirm("Move legacy contact and credential fields out of public worker records?")) return;
+    setMigrating(true);
+    setError("");
+    try {
+      await migrateLegacyWorkers();
+      setMigrationDone(true);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not migrate legacy records.");
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   return (
     <DashboardShell
       eyebrow="Administration"
       title="Review queue"
-      subtitle="Worker credential review, dispute handling, and anti-exploitation monitoring."
+      subtitle="Worker credential review, payment verification, dispute handling, and price monitoring."
     >
       <div className="flex flex-col gap-4">
         {error ? <Notice tone="alert">{error}</Notice> : null}
+        {migrationDone ? <Notice>Legacy worker contact and document fields were moved to private records.</Notice> : null}
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <h2 className="text-[15px] font-medium">Protect existing worker records</h2>
+            <p className="caption mt-1">Run once after deployment to move older contact and document fields out of the public directory.</p>
+          </div>
+          <ActionButton variant="neutral" busy={migrating} onClick={protectLegacyRecords}>
+            Migrate legacy records
+          </ActionButton>
+        </Card>
 
         <div className="grid gap-3 sm:grid-cols-4">
           <StatCard
@@ -115,6 +159,33 @@ export default function AdminPage() {
             sublabel="Most recent 200"
           />
         </div>
+
+        <Card className="overflow-hidden p-0">
+          <div className="border-b border-stone-200 px-5 py-4">
+            <h2 className="text-[16px] font-medium text-ink-black">Top-up verification</h2>
+            <p className="caption mt-1">Check the payment with the provider before approving. A reference alone is not proof of payment.</p>
+          </div>
+          {topUps.length === 0 ? (
+            <p className="px-5 py-8 text-[14px] text-stone-500">No top-ups awaiting verification.</p>
+          ) : (
+            <ul className="divide-y divide-stone-200">
+              {topUps.map((request) => (
+                <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                  <div>
+                    <p className="text-[14px] font-medium">{formatPeso(request.amount)} via {request.method.toUpperCase()}</p>
+                    <p className="caption mt-1">Reference: {request.reference} · Worker: {request.workerUid} · {formatDate(request.createdAt)}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <ActionButton variant="neutral" busy={busyId === request.id}
+                      onClick={() => decidePayment(request, false)}>Reject</ActionButton>
+                    <ActionButton busy={busyId === request.id}
+                      onClick={() => decidePayment(request, true)}>Payment verified</ActionButton>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
 
         {/* Verification queue */}
         <Card className="overflow-hidden p-0">
@@ -145,7 +216,7 @@ export default function AdminPage() {
                   keyof typeof DOC_TYPES
                 >).filter((t) => DOC_TYPES[t].requirement === "mandatory");
                 const complete = mandatory.every((t) =>
-                  worker.verificationDocs.some((d) => d.type === t),
+                  worker.verificationDocs.some((d) => d.type === t && d.fileUrl.startsWith("credentials/")),
                 );
 
                 return (
@@ -180,14 +251,18 @@ export default function AdminPage() {
                           <span className="truncate text-[12px] text-stone-700">
                             {DOC_TYPES[doc.type].label}
                           </span>
-                          <a
-                            href={doc.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="caption shrink-0 text-stone-800 underline underline-offset-2"
-                          >
-                            View
-                          </a>
+                          {doc.fileUrl.startsWith("credentials/") ? (
+                            <button type="button"
+                              onClick={() => openCredential(doc.fileUrl).catch((err) =>
+                                setError(err instanceof Error ? err.message : "Could not open document.")
+                              )}
+                              className="caption shrink-0 text-stone-800 underline underline-offset-2"
+                            >
+                              View
+                            </button>
+                          ) : (
+                            <span className="caption text-alert-coral">Reupload required</span>
+                          )}
                         </li>
                       ))}
                       {worker.verificationDocs.length === 0 ? (
@@ -232,6 +307,7 @@ export default function AdminPage() {
                         <ActionButton
                           busy={busyId === worker.id}
                           onClick={() => decide(worker, true)}
+                          disabled={!complete}
                         >
                           Approve &amp; activate
                         </ActionButton>

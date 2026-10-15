@@ -46,7 +46,7 @@ export function WorkerHome() {
     if (!user) return;
     const w = await getWorkerByUid(user.uid);
     setWorker(w);
-    setJobs(w ? await listJobsForWorker(w.id) : []);
+    setJobs(w ? await listJobsForWorker(w.uid) : []);
   }, [user]);
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export function WorkerHome() {
         const w = await getWorkerByUid(user.uid);
         if (cancelled) return;
         setWorker(w);
-        setJobs(w ? await listJobsForWorker(w.id) : []);
+        setJobs(w ? await listJobsForWorker(w.uid) : []);
       } catch (err) {
         console.error("[home] worker load failed:", err);
         if (cancelled) return;
@@ -138,8 +138,10 @@ export function WorkerHome() {
                           onClick={safeAsync(async () => {
                             setBusyId(job.id);
                             try {
-                              await acceptJob(job.id, worker!);
+                              await acceptJob(job.id);
                               await refresh();
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : "Could not update this request.");
                             } finally {
                               setBusyId(null);
                             }
@@ -156,6 +158,8 @@ export function WorkerHome() {
                             try {
                               await declineJob(job.id, "Worker unavailable");
                               await refresh();
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : "Could not update this request.");
                             } finally {
                               setBusyId(null);
                             }

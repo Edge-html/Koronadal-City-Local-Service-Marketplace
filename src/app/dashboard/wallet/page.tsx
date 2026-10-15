@@ -6,7 +6,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
 import { Card, Notice, StatCard } from "@/components/ui";
 import { WALLET_TOPUP_METHODS } from "@/lib/constants";
-import { getWorkerByUid, listLedger, topUpWallet } from "@/lib/data";
+import { getWorkerByUid, listLedger, listTopUpRequestsForWorker, topUpWallet } from "@/lib/data";
 import { COMMISSION_RATE, availableBalance, formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import { formatDate } from "@/lib/utils";
@@ -18,6 +18,9 @@ export default function WalletPage() {
   const [worker, setWorker] = useState<Worker | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [amount, setAmount] = useState("500");
+  const [reference, setReference] = useState("");
+  const [pendingCount, setPendingCount] = useState(0);
+  const [message, setMessage] = useState("");
   const [method, setMethod] = useState<"gcash" | "cliqq">("gcash");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -25,7 +28,10 @@ export default function WalletPage() {
   const refresh = async () => {
     const w = await getWorkerByUid(user!.uid);
     setWorker(w);
-    if (w) setEntries(await listLedger(w.id));
+    if (w) {
+      setEntries(await listLedger(w.uid));
+      setPendingCount((await listTopUpRequestsForWorker(w.uid)).filter((r) => r.status === "pending").length);
+    }
   };
 
   useEffect(() => {
@@ -52,10 +58,12 @@ export default function WalletPage() {
     setBusy(true);
     setError("");
     try {
-      await topUpWallet(worker, value, method);
+      await topUpWallet(worker, value, method, reference);
+      setMessage("Request submitted. Your balance changes only after an administrator verifies the payment.");
+      setReference("");
       await refresh();
-    } catch {
-      setError("Top-up failed. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit the top-up request.");
     } finally {
       setBusy(false);
     }
@@ -99,6 +107,7 @@ export default function WalletPage() {
         ) : null}
 
         {error ? <Notice tone="alert">{error}</Notice> : null}
+        {message ? <Notice>{message}</Notice> : null}
 
         <div className="grid gap-3 sm:grid-cols-4">
           <StatCard
@@ -136,7 +145,7 @@ export default function WalletPage() {
                 Top up
               </h2>
               <p className="caption mt-1">
-                Accessible channels, credited without clearing cycles
+                Submit a payment reference for administrator verification
               </p>
             </div>
 
@@ -189,17 +198,25 @@ export default function WalletPage() {
               </div>
             </div>
 
+            <div>
+              <label className="label" htmlFor="topup-reference">Payment reference or receipt number</label>
+              <input id="topup-reference" className="field" value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="GCash or CliQQ transaction reference" />
+            </div>
+
             <ActionButton
               onClick={topUp}
               busy={busy}
-              disabled={!(Number(amount) > 0)}
+              disabled={!(Number(amount) > 0) || reference.trim().length < 4}
             >
-              Add {formatPeso(Number(amount) || 0)}
+              Request {formatPeso(Number(amount) || 0)} top-up
             </ActionButton>
 
             <p className="caption border-t border-stone-200 pt-3">
-              In production, GCash and CliQQ settlements are reconciled by
-              webhook before the balance is credited.
+              {pendingCount} pending request{pendingCount === 1 ? "" : "s"}. Arrange payment with the platform team through your chosen
+              channel, then enter its transaction reference. An administrator
+              must verify payment before funds are credited.
             </p>
           </Card>
 

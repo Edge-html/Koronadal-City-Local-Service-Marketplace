@@ -51,19 +51,19 @@ export function MyServices({ worker }: { worker: Worker }) {
 
   const load = useCallback(async () => {
     const [rows, inqs] = await Promise.all([
-      listOffersForWorker(worker.id),
+      listOffersForWorker(worker.uid),
       listInquiriesForWorker(worker.uid),
     ]);
     setOffers(rows);
     setInquiries(inqs);
-  }, [worker.id, worker.uid]);
+  }, [worker.uid]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const [rows, inqs] = await Promise.all([
-          listOffersForWorker(worker.id),
+          listOffersForWorker(worker.uid),
           listInquiriesForWorker(worker.uid),
         ]);
         if (cancelled) return;
@@ -81,7 +81,7 @@ export function MyServices({ worker }: { worker: Worker }) {
     return () => {
       cancelled = true;
     };
-  }, [worker.id, worker.uid]);
+  }, [worker.uid]);
 
   // Grouped once rather than per card: a worker with six offers should cost
   // one pass over the inquiry list, not six.

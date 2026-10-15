@@ -25,14 +25,28 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
   type DocumentData,
   type QueryConstraint,
 } from "firebase/firestore";
-import { getFirebaseDb } from "@/lib/firebase";
+import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 
 /** Resolved per call so an unconfigured environment fails at use, not import. */
 const db = getFirebaseDb;
-import { commissionOn, computeTotals, pesos } from "@/lib/commission";
+
+async function marketplaceAction(payload: Record<string, unknown>) {
+  const token = await getFirebaseAuth().currentUser?.getIdToken();
+  if (!token) throw new Error("Sign in to continue.");
+  const response = await fetch("/api/marketplace", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: "Bearer " + token },
+    body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result.error || "Could not complete the action.");
+}
+
+import { computeTotals, pesos } from "@/lib/commission";
 import { makeReferralCode } from "@/lib/utils";
 import type {
   DashboardMode,
@@ -131,7 +145,20 @@ export async function getWorker(id: string): Promise<Worker | null> {
 
 export async function getWorkerByUid(uid: string): Promise<Worker | null> {
   const snap = await getDocs(query(workersCol(), where("uid", "==", uid), limit(1)));
-  return snap.empty ? null : toWorker(snap.docs[0].id, snap.docs[0].data());
+  if (snap.empty) return null;
+  const worker = toWorker(snap.docs[0].id, snap.docs[0].data());
+  const [userSnap, credentialsSnap] = await Promise.all([
+    getDoc(doc(db(), "users", uid)),
+    getDoc(doc(db(), "workerCredentials", worker.id)),
+  ]);
+  const privateResume = credentialsSnap.data()?.resumePrivate as Partial<Resume> | undefined;
+  return {
+    ...worker,
+    phone: (userSnap.data()?.phone as string) ?? worker.phone,
+    email: (userSnap.data()?.email as string) ?? worker.email,
+    verificationDocs: (credentialsSnap.data()?.verificationDocs as VerificationDoc[]) ?? worker.verificationDocs,
+    resume: worker.resume && privateResume ? { ...worker.resume, ...privateResume } : worker.resume,
+  };
 }
 
 export interface WorkerDraft {
@@ -156,9 +183,14 @@ export async function createWorkerProfile(draft: WorkerDraft) {
     draft = { ...draft, referredBy: undefined };
   }
 
-  const defined = stripUndefined(draft as unknown as Record<string, unknown>);
-
-  const ref = await addDoc(workersCol(), {
+  const verificationDocs = draft.verificationDocs;
+  const publicDraft = Object.fromEntries(
+    Object.entries(draft).filter(([key]) => !["phone", "email", "verificationDocs"].includes(key)),
+  );
+  const defined = stripUndefined(publicDraft);
+  const workerRef = doc(workersCol());
+  const batch = writeBatch(db());
+  batch.set(workerRef, {
     ...defined,
     rating: 0,
     reviewCount: 0,
@@ -173,7 +205,13 @@ export async function createWorkerProfile(draft: WorkerDraft) {
     createdAt: new Date().toISOString(),
     updatedAt: serverTimestamp(),
   });
-  return ref.id;
+  batch.set(doc(db(), "workerCredentials", workerRef.id), {
+    uid: draft.uid,
+    verificationDocs,
+    createdAt: new Date().toISOString(),
+  });
+  await batch.commit();
+  return workerRef.id;
 }
 
 /**
@@ -206,11 +244,20 @@ export async function updateWorker(
  * follow-up, and the UI says as much rather than implying the file is hosted.
  */
 export async function saveResume(workerId: string, resume: Resume) {
-  await updateDoc(doc(db(), "workers", workerId), { resume });
+  const { rawText, email, phone, fileUrl, ...publicResume } = resume;
+  const batch = writeBatch(db());
+  batch.update(doc(db(), "workers", workerId), { resume: publicResume });
+  batch.update(doc(db(), "workerCredentials", workerId), {
+    resumePrivate: { rawText, email: email ?? "", phone: phone ?? "", fileUrl },
+  });
+  await batch.commit();
 }
 
 export async function clearResume(workerId: string) {
-  await updateDoc(doc(db(), "workers", workerId), { resume: null });
+  const batch = writeBatch(db());
+  batch.update(doc(db(), "workers", workerId), { resume: null });
+  batch.update(doc(db(), "workerCredentials", workerId), { resumePrivate: null });
+  await batch.commit();
 }
 
 /** Switch which console a dual-role account opens on. */
@@ -257,8 +304,8 @@ function toOffer(id: string, data: DocumentData): ServiceOffer {
 }
 
 /** Everything a given worker has posted, newest first. */
-export async function listOffersForWorker(workerId: string) {
-  const snap = await getDocs(query(offersCol(), where("workerId", "==", workerId)));
+export async function listOffersForWorker(workerUid: string) {
+  const snap = await getDocs(query(offersCol(), where("workerUid", "==", workerUid)));
   return snap.docs
     .map((d) => toOffer(d.id, d.data()))
     .sort((a, b) => byNewest(a.createdAt, b.createdAt));
@@ -266,13 +313,17 @@ export async function listOffersForWorker(workerId: string) {
 
 /** Open offers in one trade, for the public "what is on offer" listing. */
 export async function listOpenOffers(categoryId?: string) {
-  const base = categoryId
-    ? query(offersCol(), where("categoryId", "==", categoryId))
-    : query(offersCol(), where("status", "==", "open"));
-  const snap = await getDocs(base);
+  const snap = await getDocs(query(offersCol(), where("status", "==", "open")));
   return snap.docs
     .map((d) => toOffer(d.id, d.data()))
+    .filter((offer) => !categoryId || offer.categoryId === categoryId)
     .sort((a, b) => byNewest(a.createdAt, b.createdAt));
+}
+
+/** Public profile view: only open offers can be read by visitors. */
+export async function listOpenOffersForWorker(workerUid: string) {
+  const offers = await listOpenOffers();
+  return offers.filter((offer) => offer.workerUid === workerUid);
 }
 
 /** Post work to the marketplace as an offer. */
@@ -356,6 +407,8 @@ function toJob(id: string, data: DocumentData): Job {
     workerId: data.workerId ?? "",
     workerUid: data.workerUid ?? "",
     workerName: data.workerName ?? "",
+    workerPhone: data.workerPhone ?? "",
+    consumerPhone: data.consumerPhone ?? "",
     categoryId: data.categoryId ?? "",
     title: data.title ?? "",
     description: data.description ?? "",
@@ -367,6 +420,7 @@ function toJob(id: string, data: DocumentData): Job {
     requestedAt: data.requestedAt ?? "",
     acceptedAt: data.acceptedAt,
     completedAt: data.completedAt,
+    settledAt: data.settledAt,
     rating: data.rating,
     reviewText: data.reviewText,
   };
@@ -386,8 +440,8 @@ export async function listConsumerJobs(uid: string) {
     .sort((a, b) => byNewest(a.requestedAt, b.requestedAt));
 }
 
-export async function listJobsForWorker(workerId: string) {
-  const snap = await getDocs(query(jobsCol(), where("workerId", "==", workerId)));
+export async function listJobsForWorker(workerUid: string) {
+  const snap = await getDocs(query(jobsCol(), where("workerUid", "==", workerUid)));
   return snap.docs
     .map((d) => toJob(d.id, d.data()))
     .sort((a, b) => byNewest(a.requestedAt, b.requestedAt));
@@ -409,7 +463,7 @@ export interface NewJob {
   barangay: string;
 }
 
-/** Stage 1 -> 2. Fires an SMS alert to the worker alongside the in-app record. */
+/** Stage 1 -> 2. Creates the in-app request for the worker. */
 export async function createJobRequest(input: NewJob) {
   const ref = await addDoc(jobsCol(), {
     consumerId: input.consumerId,
@@ -430,12 +484,8 @@ export async function createJobRequest(input: NewJob) {
 }
 
 /** Stage 3. Accepting is what unlocks the parties' contact details. */
-export async function acceptJob(jobId: string, worker: Worker) {
-  await updateDoc(doc(db(), "jobs", jobId), {
-    status: "accepted",
-    acceptedAt: new Date().toISOString(),
-  });
-  await releasePausedIfCleared(worker);
+export async function acceptJob(jobId: string) {
+  await marketplaceAction({ operation: "acceptJob", jobId });
 }
 
 export async function declineJob(jobId: string, reason: string) {
@@ -459,32 +509,8 @@ export async function submitQuote(jobId: string, quote: NonNullable<Job["quote"]
  * Stage 4, consumer side. Approval locks 10% of the labor fee against the
  * worker's prepaid balance and moves the job into execution.
  */
-export async function approveQuote(job: Job, worker: Worker) {
-  if (!job.quote) throw new Error("Cannot approve a job with no quote.");
-
-  const commission = commissionOn(job.quote.laborFee);
-  const nextBalance = pesos(worker.walletBalance + commission);
-  const nextLocked = pesos(worker.walletLocked + commission);
-
-  await updateDoc(doc(db(), "jobs", job.id), {
-    status: "in_progress",
-    quoteApprovedAt: new Date().toISOString(),
-  });
-
-  await updateDoc(doc(db(), "workers", worker.id), {
-    walletBalance: nextBalance,
-    walletLocked: nextLocked,
-  });
-
-  await writeLedger({
-    workerId: worker.id,
-    workerUid: worker.uid,
-    jobId: job.id,
-    kind: "commission_lock",
-    amount: commission,
-    balanceAfter: nextBalance,
-    note: `10% labor commission locked on ${job.title}`,
-  });
+export async function approveQuote(job: Job) {
+  await marketplaceAction({ operation: "approveQuote", jobId: job.id });
 }
 
 /** Stage 5. Worker marks the job complete. */
@@ -502,41 +528,10 @@ export async function completeJob(jobId: string) {
  * outside the platform, so nothing further moves here — this only books the
  * commission against the prepaid balance and counters the job.
  */
-export async function settleJob(job: Job, worker: Worker) {
-  if (!job.quote) throw new Error("Cannot settle a job with no quote.");
-
-  const commission = commissionOn(job.quote.laborFee);
-  const nextBalance = pesos(worker.walletBalance - commission);
-  const nextLocked = pesos(Math.max(0, worker.walletLocked - commission));
-  const breached = nextBalance < 0;
-
-  await updateDoc(doc(db(), "workers", worker.id), {
-    walletBalance: nextBalance,
-    walletLocked: nextLocked,
-    jobsCompleted: (worker.jobsCompleted ?? 0) + 1,
-    // A negative balance pauses the worker from receiving new requests.
-    status: breached ? "paused_wallet" : worker.status,
-  });
-
-  await writeLedger({
-    workerId: worker.id,
-    workerUid: worker.uid,
-    jobId: job.id,
-    kind: "commission_settle",
-    amount: -commission,
-    balanceAfter: nextBalance,
-    note: `Commission settled on ${job.title}`,
-  });
-
-  // Referral credits clear only on a completed, paid first job.
-  await maybeAwardReferral(worker, job);
+export async function settleJob(job: Job) {
+  await marketplaceAction({ operation: "settleJob", jobId: job.id });
 }
 
-async function releasePausedIfCleared(worker: Worker) {
-  if (worker.status === "paused_wallet" && worker.walletBalance >= 0) {
-    await updateDoc(doc(db(), "workers", worker.id), { status: "active" });
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /* Stage 6 — review & portfolio                                         */
@@ -544,40 +539,10 @@ async function releasePausedIfCleared(worker: Worker) {
 
 export async function submitReview(
   job: Job,
-  worker: Worker,
   rating: number,
   text: string,
 ) {
-  // Keyed by jobId rather than auto-id: this is what lets the security rules
-  // enforce one review per job with a plain exists() probe, and it makes a
-  // duplicate submission fail loudly instead of silently double-rating.
-  await setDoc(doc(db(), "reviews", job.id), {
-    jobId: job.id,
-    workerId: worker.id,
-    consumerId: job.consumerId,
-    consumerName: job.consumerName,
-    rating,
-    text,
-    createdAt: new Date().toISOString(),
-  });
-
-  await updateDoc(doc(db(), "jobs", job.id), {
-    status: "reviewed",
-    rating,
-    reviewText: text,
-  });
-
-  // Recompute from the full set rather than nudging a running average, so a
-  // removed or flagged review cannot leave the score drifting (RA 7394).
-  const snap = await getDocs(query(reviewsCol(), where("workerId", "==", worker.id)));
-  const rows = snap.docs.map((d) => d.data());
-  const total = rows.reduce((sum, r) => sum + (r.rating ?? 0), 0);
-  const count = rows.length;
-
-  await updateDoc(doc(db(), "workers", worker.id), {
-    rating: count ? pesos(total / count) : 0,
-    reviewCount: count,
-  });
+  await marketplaceAction({ operation: "submitReview", jobId: job.id, rating, text });
 }
 
 export async function addPortfolioEntry(
@@ -604,28 +569,60 @@ export async function topUpWallet(
   worker: Worker,
   amount: number,
   method: "gcash" | "cliqq",
+  reference: string,
 ) {
-  const nextBalance = pesos(worker.walletBalance + amount);
-
-  await updateDoc(doc(db(), "workers", worker.id), {
-    walletBalance: nextBalance,
-    // A top-up clears a breach and returns the worker to the active pool.
-    status: worker.status === "paused_wallet" ? "active" : worker.status,
-  });
-
-  await writeLedger({
+  if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) {
+    throw new Error("Enter an amount between ₱1 and ₱100,000.");
+  }
+  if (reference.trim().length < 4) throw new Error("Enter the payment reference.");
+  await addDoc(collection(db(), "topupRequests"), {
     workerId: worker.id,
     workerUid: worker.uid,
-    kind: "top_up",
-    amount,
-    balanceAfter: nextBalance,
+    amount: pesos(amount),
     method,
-    note: method === "gcash" ? "GCash in-app top-up" : "7-Eleven CliQQ deposit",
+    reference: reference.trim(),
+    status: "pending",
+    createdAt: new Date().toISOString(),
   });
 }
 
-export async function listLedger(workerId: string) {
-  const snap = await getDocs(query(ledgerCol(), where("workerId", "==", workerId)));
+export interface TopUpRequest {
+  id: string;
+  workerId: string;
+  workerUid: string;
+  amount: number;
+  method: "gcash" | "cliqq";
+  reference: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
+export async function listTopUpRequestsForWorker(workerUid: string): Promise<TopUpRequest[]> {
+  const snap = await getDocs(query(collection(db(), "topupRequests"), where("workerUid", "==", workerUid)));
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<TopUpRequest, "id">), id: d.id }))
+    .sort((a, b) => byNewest(a.createdAt, b.createdAt));
+}
+
+export async function listPendingTopUpRequests(): Promise<TopUpRequest[]> {
+  const snap = await getDocs(query(collection(db(), "topupRequests"), where("status", "==", "pending")));
+  return snap.docs.map((d) => ({ ...(d.data() as Omit<TopUpRequest, "id">), id: d.id }))
+    .sort((a, b) => byNewest(a.createdAt, b.createdAt));
+}
+
+export async function resubmitCredentials(credentials: VerificationDoc[]) {
+  await marketplaceAction({ operation: "resubmitCredentials", credentials });
+}
+
+export async function migrateLegacyWorkers() {
+  await marketplaceAction({ operation: "migrateLegacyWorkers" });
+}
+
+export async function decideTopUp(requestId: string, approve: boolean) {
+  await marketplaceAction({ operation: approve ? "approveTopUp" : "rejectTopUp", requestId });
+}
+
+export async function listLedger(workerUid: string) {
+  const snap = await getDocs(query(ledgerCol(), where("workerUid", "==", workerUid)));
   return snap.docs
     .map((d) => ({ ...(d.data() as LedgerEntry), id: d.id }))
     .sort((a, b) => byNewest(a.createdAt as string, b.createdAt as string));
@@ -636,59 +633,26 @@ export async function listLedger(workerId: string) {
  * grant a worker read access to their own history without a cross-document
  * lookup: the Firestore doc is auto-id, and the auth uid is the join key.
  */
-async function writeLedger(
-  entry: Omit<LedgerEntry, "id" | "createdAt" | "workerUid"> & {
-    workerUid: string;
-  },
-) {
-  await addDoc(ledgerCol(), {
-    ...entry,
-    createdAt: new Date().toISOString(),
-  });
-}
 
-/* ------------------------------------------------------------------ */
-/* Referrals                                                            */
-/* ------------------------------------------------------------------ */
-
-/**
- * Credits disburse only once the invitee's first job has been settled, which
- * is what keeps the program single-tier and job-verified.
- */
-async function maybeAwardReferral(worker: Worker, job: Job) {
-  if ((worker.jobsCompleted ?? 0) + 1 !== 1) return; // not their first job
-  if (!worker.referredBy) return;
-
-  const inviterSnap = await getDocs(
-    query(workersCol(), where("referralCode", "==", worker.referredBy), limit(1)),
-  );
-  if (inviterSnap.empty) return;
-
-  const inviterDoc = inviterSnap.docs[0];
-  const inviter = toWorker(inviterDoc.id, inviterDoc.data());
-  const nextCredits = (inviter.referralCredits ?? 0) + 1;
-
-  await updateDoc(inviterDoc.ref, { referralCredits: nextCredits });
-  await writeLedger({
-    workerId: inviter.id,
-    workerUid: inviter.uid,
-    jobId: job.id,
-    kind: "referral_credit",
-    amount: 1,
-    balanceAfter: nextCredits,
-    note: `Referral credit: ${worker.fullName} completed their first job`,
-  });
-}
-
-/* ------------------------------------------------------------------ */
 /* Admin                                                               */
 /* ------------------------------------------------------------------ */
 
 export async function listPendingWorkers() {
   const snap = await getDocs(query(workersCol(), where("status", "==", "pending_verification")));
-  return snap.docs
-    .map((d) => toWorker(d.id, d.data()))
-    .sort((a, b) => byNewest(a.createdAt, b.createdAt));
+  const workers = await Promise.all(snap.docs.map(async (row) => {
+    const worker = toWorker(row.id, row.data());
+    const [credentials, user] = await Promise.all([
+      getDoc(doc(db(), "workerCredentials", row.id)),
+      getDoc(doc(db(), "users", worker.uid)),
+    ]);
+    return {
+      ...worker,
+      verificationDocs: (credentials.data()?.verificationDocs as VerificationDoc[]) ?? worker.verificationDocs,
+      phone: (user.data()?.phone as string) ?? worker.phone,
+      email: (user.data()?.email as string) ?? worker.email,
+    };
+  }));
+  return workers.sort((a, b) => byNewest(a.createdAt, b.createdAt));
 }
 
 /** Admin decision on the three mandatory credentials. */
@@ -702,8 +666,9 @@ export async function decideVerification(
     reviewState: approve ? ("approved" as const) : ("rejected" as const),
   }));
 
-  await updateDoc(doc(db(), "workers", worker.id), {
-    verificationDocs: docs,
+  const batch = writeBatch(db());
+  batch.update(doc(db(), "workerCredentials", worker.id), { verificationDocs: docs });
+  batch.update(doc(db(), "workers", worker.id), {
     verificationNotes: notes,
     verified: approve,
     tesdaCertified:
@@ -711,6 +676,7 @@ export async function decideVerification(
     status: approve ? "active" : "suspended",
     reviewedAt: new Date().toISOString(),
   });
+  await batch.commit();
 }
 
 export async function listAllJobs(max = 200) {

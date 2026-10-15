@@ -43,7 +43,7 @@ export default function WorkerDashboardPage() {
     if (!user) return;
     const w = await getWorkerByUid(user.uid);
     setWorker(w);
-    setJobs(w ? await listJobsForWorker(w.id) : []);
+    setJobs(w ? await listJobsForWorker(w.uid) : []);
   };
 
   useEffect(() => {
@@ -54,7 +54,7 @@ export default function WorkerDashboardPage() {
         const w = await getWorkerByUid(user.uid);
         if (cancelled) return;
         setWorker(w);
-        setJobs(w ? await listJobsForWorker(w.id) : []);
+        setJobs(w ? await listJobsForWorker(w.uid) : []);
       } catch {
         if (!cancelled) setError("Could not load your jobs. Please refresh.");
       }
@@ -108,6 +108,9 @@ export default function WorkerDashboardPage() {
             as soon as your three mandatory credentials are approved.
           </Notice>
           <OnboardingSummary worker={worker} />
+          <Link href="/dashboard/worker/credentials" className="btn-primary w-fit no-underline">
+            Upload or replace credentials
+          </Link>
         </div>
       </DashboardShell>
     );
@@ -200,7 +203,7 @@ export default function WorkerDashboardPage() {
         {jobs && jobs.length === 0 ? (
           <EmptyState
             title="No jobs yet"
-            description="Once a household sends you a request it lands here immediately, and you get an SMS alert at the same time."
+            description="New household requests appear here. Check this dashboard for updates."
             action={{ label: "View your public profile", href: `/worker/${worker?.id ?? ""}` }}
           />
         ) : (
@@ -211,6 +214,7 @@ export default function WorkerDashboardPage() {
                 job={job}
                 counterpartLabel="Household"
                 counterpartName={job.consumerName}
+                counterpartPhone={job.consumerPhone}
                 showQuote={false}
                 actions={
                   <>
@@ -221,8 +225,10 @@ export default function WorkerDashboardPage() {
                           onClick={safeAsync(async () => {
                             setBusyId(job.id);
                             try {
-                              await acceptJob(job.id, worker!);
+                              await acceptJob(job.id);
                               await refresh();
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : "Could not update this job.");
                             } finally {
                               setBusyId(null);
                             }
@@ -239,6 +245,8 @@ export default function WorkerDashboardPage() {
                             try {
                               await declineJob(job.id, "Worker unavailable");
                               await refresh();
+                            } catch (err) {
+                              setError(err instanceof Error ? err.message : "Could not update this job.");
                             } finally {
                               setBusyId(null);
                             }
@@ -266,6 +274,8 @@ export default function WorkerDashboardPage() {
                           try {
                             await completeJob(job.id);
                             await refresh();
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Could not update this job.");
                           } finally {
                             setBusyId(null);
                           }
@@ -275,14 +285,16 @@ export default function WorkerDashboardPage() {
                       </ActionButton>
                     ) : null}
 
-                    {job.status === "completed" ? (
+                    {job.status === "completed" && !job.settledAt ? (
                       <ActionButton
                         busy={busyId === job.id}
                         onClick={safeAsync(async () => {
                           setBusyId(job.id);
                           try {
-                            await settleJob(job, worker!);
+                            await settleJob(job);
                             await refresh();
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "Could not update this job.");
                           } finally {
                             setBusyId(null);
                           }
@@ -290,6 +302,10 @@ export default function WorkerDashboardPage() {
                       >
                         Settle commission
                       </ActionButton>
+                    ) : null}
+
+                    {job.status === "completed" && job.settledAt ? (
+                      <span className="caption">Commission settled. The household can now review.</span>
                     ) : null}
 
                     {job.status === "reviewed" ? (

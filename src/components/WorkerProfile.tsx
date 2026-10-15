@@ -30,7 +30,7 @@ import { WorkerOffers } from "@/components/WorkerOffers";
 import { useAuth } from "@/context/AuthContext";
 import { createJobRequest, getWorker, listReviews } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
-import { maskPhone, timeAgo } from "@/lib/utils";
+import { timeAgo } from "@/lib/utils";
 import type { Review, Worker } from "@/lib/types";
 
 export function WorkerProfile({ id }: { id: string }) {
@@ -357,7 +357,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
           Send a job request
         </h2>
         <p className="mt-1.5 text-[13px] leading-[1.45] text-stone-600">
-          The worker receives an immediate SMS alert alongside an in-app
+          The worker receives an in-app
           notification.
         </p>
       </div>
@@ -455,8 +455,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
             strokeWidth={1.5}
             className="mt-0.5 shrink-0 text-stone-400"
           />
-          {maskPhone(worker.phone)} — the full number unlocks when the worker
-          accepts.
+          The worker&apos;s contact number unlocks after they accept your request.
         </p>
         <p className="flex items-start gap-2 text-[12px] leading-[1.45] text-stone-600">
           <ShieldCheck

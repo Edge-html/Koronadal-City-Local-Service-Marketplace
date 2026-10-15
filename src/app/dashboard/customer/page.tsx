@@ -14,7 +14,6 @@ import {
 } from "@/components/ui";
 import {
   approveQuote,
-  getWorker,
   listConsumerJobs,
   logDispute,
   submitReview,
@@ -23,7 +22,7 @@ import { computeTotals, formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import { ModeSwitcher } from "@/components/ModeSwitcher";
 import { getWorkerByUid } from "@/lib/data";
-import type { Job, Worker } from "@/lib/types";
+import type { Job } from "@/lib/types";
 
 export default function CustomerDashboardPage() {
   return (
@@ -87,7 +86,7 @@ function CustomerDashboard() {
       inFlight: jobs.filter((j) =>
         ["requested", "accepted", "quoted", "in_progress"].includes(j.status),
       ).length,
-      settled: jobs.filter((j) => ["completed", "reviewed"].includes(j.status))
+      settled: jobs.filter((j) => Boolean(j.settledAt) || j.status === "reviewed")
         .length,
       committed: jobs
         .filter((j) => ["completed", "reviewed"].includes(j.status))
@@ -160,7 +159,7 @@ function CustomerDashboard() {
         {jobs && jobs.length === 0 ? (
           <EmptyState
             title="No requests yet"
-            description="Browse the directory, pick a verified worker, and describe what needs doing. You will get an SMS alert the moment they accept."
+            description="Browse the directory, pick a verified worker, and describe what needs doing. Their acceptance appears in your requests."
             action={{ label: "Browse workers", href: "/browse" }}
           />
         ) : (
@@ -171,6 +170,7 @@ function CustomerDashboard() {
                 job={job}
                 counterpartLabel="Assigned worker"
                 counterpartName={job.workerName}
+                counterpartPhone={job.workerPhone}
                 showQuote={false}
                 actions={
                   <>
@@ -200,7 +200,7 @@ function CustomerDashboard() {
                       </>
                     ) : null}
 
-                    {job.status === "completed" ? (
+                    {job.status === "completed" && job.settledAt ? (
                       <ActionButton
                         variant="neutral"
                         onClick={() =>
@@ -210,6 +210,10 @@ function CustomerDashboard() {
                       >
                         Leave a review
                       </ActionButton>
+                    ) : null}
+
+                    {job.status === "completed" && !job.settledAt ? (
+                      <span className="caption">Awaiting commission settlement before review.</span>
                     ) : null}
 
                     {job.status === "disputed" ? (
@@ -285,12 +289,10 @@ function ApproveButton({
     setBusy(true);
     setError("");
     try {
-      const worker: Worker | null = await getWorker(job.workerId);
-      if (!worker) throw new Error("worker missing");
-      await approveQuote(job, worker);
+      await approveQuote(job);
       await onDone();
-    } catch {
-      setError("Could not approve. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not approve the quote.");
     } finally {
       setBusy(false);
     }
@@ -316,12 +318,10 @@ function ReviewForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
     setBusy(true);
     setError("");
     try {
-      const worker = await getWorker(job.workerId);
-      if (!worker) throw new Error("worker missing");
-      await submitReview(job, worker, rating, text.trim());
+      await submitReview(job, rating, text.trim());
       await onDone();
-    } catch {
-      setError("Could not save the review. Please try again.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save the review.");
     } finally {
       setBusy(false);
     }

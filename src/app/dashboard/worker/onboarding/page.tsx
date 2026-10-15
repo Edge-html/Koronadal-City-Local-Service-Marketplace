@@ -13,6 +13,7 @@ import {
 import { BARANGAYS, CATEGORIES, SERVICE_POINTS } from "@/lib/constants";
 import { DOC_TYPES, type DocType } from "@/lib/types";
 import { createWorkerProfile, getWorkerByUid } from "@/lib/data";
+import { uploadCredential } from "@/lib/credentials";
 import { formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import { cx } from "@/lib/utils";
@@ -41,7 +42,7 @@ export default function WorkerOnboardingPage() {
   const [referral, setReferral] = useState("");
 
   // [step 2]
-  const [docs, setDocs] = useState<Record<string, { fileName: string; fileUrl: string }>>({});
+  const [docs, setDocs] = useState<Record<string, { fileName: string; file: File }>>({});
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -71,7 +72,7 @@ export default function WorkerOnboardingPage() {
     "barangay_clearance",
     "recommendation_letter",
   ];
-  const step2Valid = mandatoryDocs.every((type) => docs[type]?.fileUrl);
+  const step2Valid = mandatoryDocs.every((type) => docs[type]?.file);
 
   async function submit() {
     setBusy(true);
@@ -90,6 +91,13 @@ export default function WorkerOnboardingPage() {
         await becomeWorker();
       }
 
+      const uploadedDocs = await Promise.all(Object.entries(docs).map(async ([type, value]) => ({
+        type: type as DocType,
+        fileName: value.fileName,
+        fileUrl: await uploadCredential(value.file),
+        uploadedAt: new Date().toISOString(),
+        reviewState: "pending" as const,
+      })));
       await createWorkerProfile({
         uid: user!.uid,
         fullName: user!.displayName || "",
@@ -102,13 +110,7 @@ export default function WorkerOnboardingPage() {
         hourlyRate: Number(hourly) || 0,
         tesdaCertified: Boolean(docs.tesda_certificate),
         referredBy: referral.trim().toUpperCase(),
-        verificationDocs: Object.entries(docs).map(([type, value]) => ({
-          type: type as DocType,
-          fileName: value.fileName,
-          fileUrl: value.fileUrl,
-          uploadedAt: new Date().toISOString(),
-          reviewState: "pending" as const,
-        })),
+        verificationDocs: uploadedDocs,
       });
 
       router.replace("/dashboard/worker");
@@ -254,7 +256,7 @@ export default function WorkerOnboardingPage() {
 
               <div>
                 <label className="label" htmlFor="ob-phone">
-                  Mobile number for SMS alerts
+                  Mobile number for accepted-job contact
                 </label>
                 <input
                   id="ob-phone"
@@ -362,15 +364,14 @@ export default function WorkerOnboardingPage() {
                           {uploaded ? "Replace" : "Upload"}
                           <input
                             type="file"
-                            accept="image/*,application/pdf"
+                            accept="image/jpeg,image/png,image/webp,application/pdf"
                             className="sr-only"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
                               if (!file) return;
-                              const fileUrl = URL.createObjectURL(file);
                               setDocs((prev) => ({
                                 ...prev,
-                                [type]: { fileName: file.name, fileUrl },
+                                [type]: { fileName: file.name, file },
                               }));
                             }}
                           />

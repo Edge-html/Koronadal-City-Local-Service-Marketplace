@@ -3,9 +3,8 @@ rules_version = '2';
 // Koronadal City Local Service Marketplace — Firestore security rules.
 //
 // Design notes:
-//  * The directory is world-readable, because that is what makes the marketplace
-//    discoverable. Identifying data is masked in the UI and stripped in any
-//    server-side projection before it is served.
+//  * The directory is world-readable. New public worker documents exclude
+//    phone, email and verification files; legacy documents require migration.
 //  * `workers` is keyed by auto-id, not by uid, so ownership is checked by
 //    comparing the document's `uid` field against the caller. Jobs and ledger
 //    entries denormalise `workerUid` for the same reason: it lets these rules
@@ -93,29 +92,20 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys()
         .hasOnly([
           'fullName',
-          'phone',
           'barangay',
           'bio',
           'yearsExperience',
           'hourlyRate',
           'portfolio',
+          'resume',
           'updatedAt'
-        ]);
-    }
-
-    /**
-     * Refresh of the denormalised rating cache after a customer reviews.
-     *
-     * Firestore rules cannot express "this customer reviewed this worker"
-     * (there is no query form of get()/exists()), so this path is granted to
-     * any signed-in caller who touches only the two cache fields. The
-     * authoritative data is the reviews collection; this is a cache. Move the
-     * recompute into a Cloud Function before real traffic.
-     */
-    function isRatingCacheRefresh() {
-      return isSignedIn()
-        && request.resource.data.diff(resource.data).affectedKeys()
-             .hasOnly(['rating', 'reviewCount', 'updatedAt']);
+        ])
+        && (!('resume' in request.resource.data)
+            || request.resource.data.resume == null
+            || (!('rawText' in request.resource.data.resume)
+                && !('phone' in request.resource.data.resume)
+                && !('email' in request.resource.data.resume)
+                && !('fileUrl' in request.resource.data.resume)));
     }
 
     // ---- users ----------------------------------------------------
@@ -169,13 +159,31 @@ service cloud.firestore {
         && request.resource.data.jobsCompleted == 0
         && request.resource.data.walletBalance == 0
         && request.resource.data.walletLocked == 0
-        && request.resource.data.referralCredits == 0;
+        && request.resource.data.referralCredits == 0
+        && !('phone' in request.resource.data)
+        && !('email' in request.resource.data)
+        && !('verificationDocs' in request.resource.data)
+        && !('resume' in request.resource.data);
 
       // A worker may edit their own listing. Admins may do anything.
       allow update: if isAdmin()
-        || (isOwnWorkerDoc() && isListingOnlyEdit())
-        || isRatingCacheRefresh();
+        || (isOwnWorkerDoc() && isListingOnlyEdit());
 
+      allow delete: if isAdmin();
+    }
+
+    // Credential metadata is separate from the public directory record.
+    match /workerCredentials/{workerId} {
+      allow read: if isAdmin()
+        || (isSignedIn()
+            && get(/databases/$(database)/documents/workers/$(workerId)).data.uid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.uid == request.auth.uid
+        && getAfter(/databases/$(database)/documents/workers/$(workerId)).data.uid == request.auth.uid;
+      allow update: if isAdmin()
+        || (isSignedIn()
+            && resource.data.uid == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['resumePrivate']));
       allow delete: if isAdmin();
     }
 
@@ -199,6 +207,12 @@ service cloud.firestore {
         && isWorkerRole()
         && request.resource.data.workerUid == request.auth.uid
         && request.resource.data.workerId is string
+        && get(/databases/$(database)/documents/workers/$(request.resource.data.workerId)).data.uid
+          == request.auth.uid
+        && get(/databases/$(database)/documents/workers/$(request.resource.data.workerId)).data.verified
+          == true
+        && get(/databases/$(database)/documents/workers/$(request.resource.data.workerId)).data.status
+          == 'active'
         && request.resource.data.status == 'open'
         && request.resource.data.title is string
         && request.resource.data.title.size() > 2
@@ -250,7 +264,11 @@ service cloud.firestore {
         && request.resource.data.offerId is string
         && inquiryId == request.resource.data.offerId + '_' + request.auth.uid
         && !exists(/databases/$(database)/documents/inquiries/$(inquiryId))
-        && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.offerId)).data.status == 'open';
+        && get(/databases/$(database)/documents/offers/$(request.resource.data.offerId)).data.status == 'open'
+        && get(/databases/$(database)/documents/offers/$(request.resource.data.offerId)).data.workerUid
+          == request.resource.data.workerUid
+        && get(/databases/$(database)/documents/offers/$(request.resource.data.offerId)).data.workerId
+          == request.resource.data.workerId;
 
       // Once sent, an inquiry is a record of what was said. Editing it would
       // undermine the one-review-per-job reasoning that applies here too.
@@ -268,15 +286,45 @@ service cloud.firestore {
         && myRole() in ['customer', 'worker']
         && request.resource.data.consumerId == request.auth.uid
         && request.resource.data.status == 'requested'
+        && request.resource.data.workerUid != request.auth.uid
         && request.resource.data.workerId is string
-        && request.resource.data.workerUid is string;
+        && request.resource.data.workerUid is string
+        && get(/databases/$(database)/documents/workers/$(request.resource.data.workerId)).data.uid
+          == request.resource.data.workerUid
+        && get(/databases/$(database)/documents/workers/$(request.resource.data.workerId)).data.verified
+          == true
+        && get(/databases/$(database)/documents/workers/$(request.resource.data.workerId)).data.status
+          == 'active';
 
-      // Only the two parties on the job may move it along, and neither party
-      // can reassign the other.
-      allow update: if isJobParty()
+      // Each client may make only its own next step. Money and review
+      // transitions are performed by the authenticated server transaction.
+      allow update: if isSignedIn()
         && request.resource.data.consumerId == resource.data.consumerId
         && request.resource.data.workerId == resource.data.workerId
-        && request.resource.data.workerUid == resource.data.workerUid;
+        && request.resource.data.workerUid == resource.data.workerUid
+        && (
+          (request.auth.uid == resource.data.workerUid
+            && resource.data.status == 'requested'
+            && request.resource.data.status == 'cancelled'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'cancelledAt', 'cancelReason']))
+          || (request.auth.uid == resource.data.workerUid
+            && resource.data.status == 'accepted'
+            && request.resource.data.status == 'quoted'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'quote', 'quotedAt']))
+          || (request.auth.uid == resource.data.workerUid
+            && resource.data.status == 'in_progress'
+            && request.resource.data.status == 'completed'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status', 'completedAt']))
+          || ((request.auth.uid == resource.data.workerUid
+               || request.auth.uid == resource.data.consumerId)
+            && resource.data.status in ['accepted', 'quoted', 'in_progress', 'completed']
+            && request.resource.data.status == 'disputed'
+            && request.resource.data.diff(resource.data).affectedKeys()
+              .hasOnly(['status']))
+        );
 
       allow delete: if isAdmin();
     }
@@ -287,21 +335,8 @@ service cloud.firestore {
       // Readable by anyone browsing a profile.
       allow read: if true;
 
-      // Review documents are keyed by jobId (see submitReview in
-      // src/lib/data.ts), so this id IS the job id. That is what makes the
-      // one-review-per-job check below actually enforceable — with random ids
-      // the exists() probe would never match and every household could post
-      // unlimited reviews for the same job.
-      //
-      // Written by the household that paid for the job, 1-5 stars.
-      allow create: if isSignedIn()
-        && myRole() == 'customer'
-        && request.resource.data.jobId == reviewId
-        && request.resource.data.consumerId == request.auth.uid
-        && request.resource.data.rating is number
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 5
-        && !exists(/databases/$(database)/documents/reviews/$(reviewId));
+      // The server verifies the settled job and creates one review atomically.
+      allow create: if false;
 
       // Immutable once submitted, so feedback cannot be rewritten to launder
       // a rating. RA 7394 recourse depends on that.
@@ -314,9 +349,25 @@ service cloud.firestore {
       allow read: if isAdmin()
         || (isSignedIn() && resource.data.workerUid == request.auth.uid);
 
-      // Append-only. In production entries are written by a Cloud Function on
-      // job settlement rather than by the client.
-      allow create: if isSignedIn() && request.resource.data.workerUid is string;
+      // Append-only. Authenticated server transactions create entries.
+      allow create: if false;
+      allow update, delete: if isAdmin();
+    }
+
+    // ---- top-up requests -----------------------------------------
+    match /topupRequests/{requestId} {
+      allow read: if isAdmin()
+        || (isSignedIn() && resource.data.workerUid == request.auth.uid);
+      allow create: if isSignedIn()
+        && request.resource.data.workerUid == request.auth.uid
+        && request.resource.data.workerId is string
+        && request.resource.data.status == 'pending'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.amount <= 100000
+        && request.resource.data.method in ['gcash', 'cliqq']
+        && request.resource.data.reference is string
+        && request.resource.data.reference.size() >= 4;
       allow update, delete: if isAdmin();
     }
 
@@ -327,7 +378,10 @@ service cloud.firestore {
         && (resource.data.consumerId == request.auth.uid
             || resource.data.workerUid == request.auth.uid
             || isAdmin());
-      allow create: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.jobId is string
+        && (get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.consumerId == request.auth.uid
+            || get(/databases/$(database)/documents/jobs/$(request.resource.data.jobId)).data.workerUid == request.auth.uid);
       allow update, delete: if isAdmin();
     }
 
