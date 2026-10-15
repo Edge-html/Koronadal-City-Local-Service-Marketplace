@@ -311,9 +311,10 @@ The repository is connected to Vercel.
    Older browser blob URLs cannot be recovered; affected workers are placed back
    in the review queue and can upload fresh credentials from their dashboard.
 
-> These are Firebase **client** keys. They are designed to be public and are
-> already in `.env.local`; access is governed by `firestore.rules`, not by
-> keeping them secret. Never put a service account key in Vercel.
+> The `NEXT_PUBLIC_FIREBASE_*` values are Firebase **client** keys. They are
+> designed to be public; access is governed by `firestore.rules`. Keep the
+> service account key only in the private `FIREBASE_SERVICE_ACCOUNT_JSON`
+> environment variable, and never commit it or expose it with `NEXT_PUBLIC_`.
 
 ### If the build fails with `auth/invalid-api-key`
 
