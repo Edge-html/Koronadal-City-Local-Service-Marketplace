@@ -42,8 +42,14 @@ async function marketplaceAction(payload: Record<string, unknown>) {
     headers: { "content-type": "application/json", authorization: "Bearer " + token },
     body: JSON.stringify(payload),
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "Could not complete the action.");
+  const isJson = response.headers.get("content-type")?.includes("application/json");
+  const result = isJson
+    ? await response.json().catch(() => null) as { error?: string } | null
+    : null;
+  if (!response.ok) {
+    throw new Error(result?.error || `The server could not complete this action (HTTP ${response.status}). Please try again.`);
+  }
+  if (!result) throw new Error("The server returned an unexpected response. Please try again.");
 }
 
 import { computeTotals, pesos } from "@/lib/commission";

@@ -14,9 +14,15 @@ export async function uploadCredential(file: File): Promise<string> {
     headers: { authorization: "Bearer " + await token() },
     body: form,
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error || "Document upload failed.");
-  return result.path as string;
+  const isJson = response.headers.get("content-type")?.includes("application/json");
+  const result = isJson
+    ? await response.json().catch(() => null) as { error?: string; path?: string } | null
+    : null;
+  if (!response.ok) {
+    throw new Error(result?.error || `Document upload failed (HTTP ${response.status}). Please try again.`);
+  }
+  if (!result?.path) throw new Error("The server returned an unexpected upload response.");
+  return result.path;
 }
 
 export async function openCredential(path: string): Promise<void> {
