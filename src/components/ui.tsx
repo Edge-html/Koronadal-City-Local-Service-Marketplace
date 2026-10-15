@@ -85,12 +85,19 @@ export function SectionHeader({
   title,
   description,
   align = "left",
+  action,
   className,
 }: {
   eyebrow?: string;
   title: ReactNode;
   description?: ReactNode;
   align?: "left" | "center";
+  /**
+   * A control that belongs with the heading rather than in the body. Keeping
+   * the section's primary action up here leaves the body free of a second
+   * call to action competing with it.
+   */
+  action?: ReactNode;
   className?: string;
 }) {
   return (
@@ -102,7 +109,15 @@ export function SectionHeader({
       )}
     >
       {eyebrow ? <Eyebrow>{eyebrow}</Eyebrow> : null}
-      <h2 className="section-title">{title}</h2>
+      <div
+        className={cx(
+          "flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between",
+          align === "center" && "sm:flex-col sm:items-center",
+        )}
+      >
+        <h2 className="section-title">{title}</h2>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
       {description ? (
         <p className={cx("section-desc", align === "center" && "mx-auto max-w-[560px]")}>
           {description}
@@ -306,9 +321,11 @@ export function LoadingBlock({ label = "Loading" }: { label?: string }) {
 export function Notice({
   tone = "neutral",
   children,
+  className,
 }: {
   tone?: "neutral" | "alert";
   children: ReactNode;
+  className?: string;
 }) {
   return (
     <div
@@ -318,6 +335,7 @@ export function Notice({
         tone === "alert"
           ? "border-stone-200 bg-bone text-stone-800"
           : "border-stone-200 bg-bone text-stone-700",
+        className,
       )}
     >
       {children}

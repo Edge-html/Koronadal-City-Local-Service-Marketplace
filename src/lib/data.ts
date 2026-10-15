@@ -36,12 +36,14 @@ import { commissionOn, computeTotals, pesos } from "@/lib/commission";
 import { makeReferralCode } from "@/lib/utils";
 import type {
   DashboardMode,
+  Inquiry,
   Job,
   JobStatus,
   LedgerEntry,
   PortfolioEntry,
   Resume,
   Review,
+  ServiceOffer,
   VerificationDoc,
   Worker,
 } from "@/lib/types";
@@ -53,6 +55,20 @@ const ledgerCol = () => collection(db(), "ledger");
 
 const byNewest = (a: string, b: string) =>
   new Date(b).getTime() - new Date(a).getTime();
+
+/**
+ * Drop undefined values from a payload before it reaches Firestore.
+ *
+ * Firestore rejects the entire write if any field is undefined ("Unsupported
+ * field value: undefined"), and optional inputs are routinely passed as
+ * undefined — a blank referral code, an absent phone number. Stripping here
+ * means callers do not have to remember to.
+ */
+function stripUndefined<T extends Record<string, unknown>>(draft: T) {
+  return Object.fromEntries(
+    Object.entries(draft).filter(([, value]) => value !== undefined),
+  ) as { [K in keyof T]: Exclude<T[K], undefined> };
+}
 
 /* ------------------------------------------------------------------ */
 /* Workers                                                             */
@@ -135,20 +151,12 @@ export interface WorkerDraft {
 
 /** Creates the worker profile at the end of the 3-step self-registration. */
 export async function createWorkerProfile(draft: WorkerDraft) {
-  /**
-   * Firestore rejects the whole write if any field is undefined
-   * ("Unsupported field value: undefined"), and optional inputs are routinely
-   * passed as undefined - a blank referral code, an absent phone number.
-   * Strip them rather than requiring every caller to remember.
-   */
   // An empty referral code means "none entered", not "referrer is blank string".
   if (typeof draft.referredBy === "string" && !draft.referredBy.trim()) {
     draft = { ...draft, referredBy: undefined };
   }
 
-  const defined = Object.fromEntries(
-    Object.entries(draft).filter(([, value]) => value !== undefined),
-  );
+  const defined = stripUndefined(draft as unknown as Record<string, unknown>);
 
   const ref = await addDoc(workersCol(), {
     ...defined,
@@ -208,6 +216,133 @@ export async function clearResume(workerId: string) {
 /** Switch which console a dual-role account opens on. */
 export async function setDashboardMode(uid: string, mode: DashboardMode) {
   await updateDoc(doc(db(), "users", uid), { activeMode: mode });
+}
+/* ------------------------------------------------------------------ */
+/* Service offers and inquiries                                         */
+/* ------------------------------------------------------------------ */
+/*
+ * An Offer is work a worker broadcasts to whoever wants it; a Job is one
+ * household asking one assigned worker to do something specific. They are
+ * separate collections because the audiences differ: offers are discovered by
+ * browsing, jobs are addressed.
+ *
+ * Inquiry counts are NOT denormalised onto the offer document. The obvious
+ * shortcut -- a household bumps inquiryCount on the offer as it writes its own
+ * inquiry -- does not survive contact with the rules: the household is not the
+ * offer's owner, so the offer's update rule correctly rejects its write. It
+ * also splits one logical action across two documents, which can half-succeed.
+ *
+ * Instead a worker's console reads every inquiry addressed to them once and
+ * groups by offer in memory. One query, one read of the whole picture, and no
+ * counter the client can tamper with.
+ */
+
+const offersCol = () => collection(db(), "offers");
+const inquiriesCol = () => collection(db(), "inquiries");
+
+function toOffer(id: string, data: DocumentData): ServiceOffer {
+  return {
+    id,
+    workerId: data.workerId ?? "",
+    workerUid: data.workerUid ?? "",
+    workerName: data.workerName ?? "",
+    title: data.title ?? "",
+    categoryId: data.categoryId ?? "",
+    description: data.description ?? "",
+    priceFrom: data.priceFrom ?? 0,
+    barangay: data.barangay ?? "",
+    status: data.status ?? "open",
+    createdAt: data.createdAt ?? "",
+  };
+}
+
+/** Everything a given worker has posted, newest first. */
+export async function listOffersForWorker(workerId: string) {
+  const snap = await getDocs(query(offersCol(), where("workerId", "==", workerId)));
+  return snap.docs
+    .map((d) => toOffer(d.id, d.data()))
+    .sort((a, b) => byNewest(a.createdAt, b.createdAt));
+}
+
+/** Open offers in one trade, for the public "what is on offer" listing. */
+export async function listOpenOffers(categoryId?: string) {
+  const base = categoryId
+    ? query(offersCol(), where("categoryId", "==", categoryId))
+    : query(offersCol(), where("status", "==", "open"));
+  const snap = await getDocs(base);
+  return snap.docs
+    .map((d) => toOffer(d.id, d.data()))
+    .sort((a, b) => byNewest(a.createdAt, b.createdAt));
+}
+
+/** Post work to the marketplace as an offer. */
+export async function createOffer(
+  worker: Worker,
+  input: {
+    title: string;
+    categoryId: string;
+    description: string;
+    priceFrom: number;
+    barangay: string;
+  },
+) {
+  const ref = await addDoc(offersCol(), stripUndefined({
+    workerId: worker.id,
+    workerUid: worker.uid,
+    workerName: worker.fullName,
+    title: input.title.trim(),
+    categoryId: input.categoryId,
+    description: input.description.trim(),
+    priceFrom: input.priceFrom,
+    barangay: input.barangay,
+    status: "open",
+    createdAt: new Date().toISOString(),
+  }));
+  return ref.id;
+}
+
+export async function setOfferStatus(offerId: string, status: "open" | "closed") {
+  await updateDoc(doc(db(), "offers", offerId), { status });
+}
+
+/**
+ * A household responds to an offer.
+ *
+ * The document id is derived from the offer and the household, which is what
+ * makes "one response per household" a property of the write instead of a
+ * convention: a second attempt collides on the existing document and is
+ * rejected by the rules before it can overwrite the first message.
+ */
+export async function createInquiry(
+  offer: ServiceOffer,
+  consumer: { id: string; name: string },
+  message: string,
+) {
+  await setDoc(
+    doc(db(), "inquiries", `${offer.id}_${consumer.id}`),
+    stripUndefined({
+      offerId: offer.id,
+      workerId: offer.workerId,
+      workerUid: offer.workerUid,
+      consumerId: consumer.id,
+      consumerName: consumer.name,
+      message: message.trim(),
+      createdAt: new Date().toISOString(),
+    }),
+  );
+}
+
+/**
+ * Every inquiry addressed to this worker, newest first.
+ *
+ * A single equality filter on workerUid, so it needs no composite index, and
+ * the caller groups by offerId.
+ */
+export async function listInquiriesForWorker(workerUid: string) {
+  const snap = await getDocs(query(inquiriesCol(), where("workerUid", "==", workerUid)));
+  return snap.docs
+    .map((d) => ({ ...(d.data() as Inquiry), id: d.id }))
+    .sort((a, b) => byNewest(a.createdAt, b.createdAt));
 }
 /* ------------------------------------------------------------------ */
 /* Jobs — the six-stage lifecycle                                       */

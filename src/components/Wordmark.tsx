@@ -4,9 +4,13 @@ import { cx } from "@/lib/utils";
 /**
  * Compact monogram mark. Deliberately monochrome: the single saturated color
  * in this system belongs to the primary action button and nothing else.
+ *
+ * Defaults to /landing, not /. The masthead is the brand's front door and
+ * should introduce the marketplace; `/` is the signed-in working home, which
+ * bounces a visitor straight back here when they have no account.
  */
 export function Wordmark({
-  href = "/",
+  href = "/landing",
   className,
 }: {
   href?: string;
@@ -19,7 +23,7 @@ export function Wordmark({
         "group inline-flex items-center gap-2 rounded-md no-underline",
         className,
       )}
-      aria-label="Koronadal Local Service Marketplace — home"
+      aria-label="Koronadal Local Service Marketplace — landing page"
     >
       <span
         aria-hidden

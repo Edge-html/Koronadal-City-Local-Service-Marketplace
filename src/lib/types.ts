@@ -146,6 +146,46 @@ export interface VerificationDoc {
   reviewState: "pending" | "approved" | "rejected";
 }
 
+/**
+ * A service a worker has posted to the marketplace: work they are offering
+ * rather than work they have been asked to do.
+ *
+ * Distinct from a Job. A Job is a household asking one assigned worker to do
+ * something; an Offer is broadcast by a worker to whoever wants it, and
+ * collects Inquiries from households that see it.
+ */
+export interface ServiceOffer {
+  id: string;
+  workerId: string;
+  workerUid: string;
+  workerName: string;
+  title: string;
+  categoryId: string;
+  description: string;
+  priceFrom: number;
+  barangay: string;
+  status: "open" | "closed";
+  createdAt: string;
+}
+
+/**
+ * A household responding to an offer. One per household per offer, enforced
+ * by the document id being "{offerId}_{consumerId}" rather than auto-generated.
+ *
+ * workerUid is carried alongside workerId so the rules can check ownership
+ * off this document alone, without a cross-document read.
+ */
+export interface Inquiry {
+  id: string;
+  offerId: string;
+  workerId: string;
+  workerUid: string;
+  consumerId: string;
+  consumerName: string;
+  message: string;
+  createdAt: string;
+}
+
 export interface Job {
   id: string;
   consumerId: string;

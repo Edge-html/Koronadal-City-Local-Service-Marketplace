@@ -179,6 +179,83 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // ---- offers ---------------------------------------------------
+    //
+    // An offer is work a worker broadcasts: "I will do this kind of work, at
+    // this price, in this area". It is the mirror image of a Job, which is one
+    // household asking one assigned worker for something specific.
+
+    match /offers/{offerId} {
+      // Open offers are public so households can find them. Closed ones stay
+      // readable by their owner and by administrators so the worker can still
+      // see the history and the inquiries it collected.
+      allow read: if resource.data.status == 'open'
+                  || isAdmin()
+                  || (isSignedIn() && resource.data.workerUid == request.auth.uid);
+
+      // A worker posts only as themselves. workerId must be a real string so a
+      // malformed document cannot produce a collection group with no owner.
+      allow create: if isSignedIn()
+        && isWorkerRole()
+        && request.resource.data.workerUid == request.auth.uid
+        && request.resource.data.workerId is string
+        && request.resource.data.status == 'open'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 2
+        && request.resource.data.title.size() <= 120
+        && request.resource.data.priceFrom is number
+        && request.resource.data.priceFrom >= 0;
+
+      // The worker may edit or close their own offer, but cannot re-point it
+      // at a different worker document or backdate it.
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && resource.data.workerUid == request.auth.uid
+          && request.resource.data.workerUid == request.auth.uid
+          && request.resource.data.workerId == resource.data.workerId
+          && request.resource.data.createdAt == resource.data.createdAt
+        );
+
+      allow delete: if isAdmin()
+        || (isSignedIn() && resource.data.workerUid == request.auth.uid);
+    }
+
+    // ---- inquiries ------------------------------------------------
+    //
+    // A household responding to an offer. The document id is deterministic --
+    // "{offerId}_{consumerId}" -- so the one-response-per-household rule is
+    // enforced by the write itself rather than by a query the client could
+    // race. An auto-id could not express that at all: there is no field holding
+    // the generated id, so `exists()` would have nothing to check.
+
+    match /inquiries/{inquiryId} {
+      // The worker who received it and the household who sent it, and nobody
+      // else. Reads workerUid off the document rather than looking the worker
+      // profile up: a get() here would put a cross-document read on the path
+      // of every inquiry the worker console lists.
+      allow read: if isAdmin()
+        || (
+          isSignedIn()
+          && (
+            resource.data.workerUid == request.auth.uid
+            || resource.data.consumerId == request.auth.uid
+          )
+        );
+
+      allow create: if isSignedIn()
+        && request.resource.data.consumerId == request.auth.uid
+        && request.resource.data.workerUid is string
+        && request.resource.data.workerId is string
+        && request.resource.data.offerId is string
+        && inquiryId == request.resource.data.offerId + '_' + request.auth.uid
+        && !exists(/databases/$(database)/documents/inquiries/$(inquiryId))
+        && getAfter(/databases/$(database)/documents/offers/$(request.resource.data.offerId)).data.status == 'open';
+
+      // Once sent, an inquiry is a record of what was said. Editing it would
+      // undermine the one-review-per-job reasoning that applies here too.
+      allow update, delete: if false;
+    }
     // ---- jobs -----------------------------------------------------
 
     match /jobs/{jobId} {

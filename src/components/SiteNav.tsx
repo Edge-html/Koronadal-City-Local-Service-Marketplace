@@ -14,8 +14,14 @@ import { cx, initials } from "@/lib/utils";
  * resolved to sections of /platform. Three nav entries pointing into one page
  * is noise, so they fold into a single destination; the on-page index on
  * /platform carries the detail.
+ *
+ * "Home" and "Services" both resolve to `/`, but they are not the same link:
+ * `/` decides for you whether you are looking for a worker or offering one,
+ * while `/#categories` lands on the trade list specifically. `isActive` keeps
+ * the hash form from lighting up alongside the bare one.
  */
 const LINKS = [
+  { href: "/", label: "Home" },
   { href: "/browse", label: "Find a worker" },
   { href: "/#categories", label: "Services" },
   { href: "/platform", label: "How it works" },
@@ -59,7 +65,9 @@ export function SiteNav() {
    */
   const isActive = (href: string) => {
     const [path, hash] = href.split("#");
-    if (path === "/" || pathname !== path) return false;
+    if (path !== pathname) return false;
+    // A hash link is a different destination from the bare path, even though
+    // both are `/`. Only the bare one lights up.
     return !hash;
   };
 
@@ -117,11 +125,13 @@ export function SiteNav() {
           ) : user ? (
             <>
               {/* Name rather than a generic "Dashboard": it identifies who is
-                  signed in and still links to their console. */}
+                  signed in. It goes to the directory rather than to /dashboard
+                  because that is the one screen every account can act on — a
+                  provider looking for an electrician is a household too. */}
               <Link
-                href="/dashboard"
+                href="/browse"
                 className="btn-ghost gap-2"
-                title="Go to your dashboard"
+                title="Find a worker"
               >
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bone text-[10px] font-medium text-stone-700">
                   {initials(accountName)}
@@ -193,7 +203,7 @@ export function SiteNav() {
             <div className="mt-3 flex flex-col gap-2 border-t border-stone-200 pt-4">
               {user ? (
                 <>
-                  <Link href="/dashboard" className="btn-neutral w-full">
+                  <Link href="/browse" className="btn-neutral w-full">
                     <LayoutGrid size={14} strokeWidth={1.5} />
                     {accountName}
                   </Link>

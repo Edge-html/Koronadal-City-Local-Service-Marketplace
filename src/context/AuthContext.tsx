@@ -161,8 +161,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // missing env var would white-screen the marketing site rather than just
     // disabling sign-in.
     let unsubscribe: (() => void) | undefined;
+
+    /**
+     * onAuthStateChanged only fires once Firebase has initialised, which means
+     * a network round trip to restore a persisted session. If that request is
+     * blocked, throttled, or simply never settles, every page that waits on
+     * `loading` — the signup and login shells included — sits on "Checking your
+     * account" forever, with no way forward and no error to act on.
+     *
+     * So give up after a few seconds and carry on as signed out. If the real
+     * callback lands later it still wins: it sets user and loading again and
+     * the session appears. Failing open with a correctable guess beats an
+     * unrecoverable spinner.
+     */
+    const giveUp = setTimeout(() => {
+      console.warn(
+        "[auth] session check did not settle in time, continuing as signed out",
+      );
+      setLoading(false);
+    }, 8000);
+
     try {
       unsubscribe = onAuthStateChanged(getFirebaseAuth(), (next) => {
+        clearTimeout(giveUp);
         detach?.();
         if (next) {
           detach = attachProfile(next.uid);
@@ -175,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
       });
     } catch (err) {
+      clearTimeout(giveUp);
       // Expected and handled: the UI switches to preview mode. Logged as a
       // warning so the console carries the diagnosis without implying a fault.
       console.warn("[auth] Firebase unavailable, continuing without auth:", err);
@@ -184,6 +206,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
+      clearTimeout(giveUp);
       unsubscribe?.();
       detach?.();
     };

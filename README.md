@@ -130,17 +130,22 @@ All demo accounts use the password `koronadal123`:
 
 ## Routes
 
+`/` is the working home; `/landing` is the pitch. They are separate on purpose —
+see "Two consoles" below.
+
 | Route | Purpose |
 | --- | --- |
-| `/` | Marketing site: categories, workflow, commission, onboarding, compliance |
-| `/browse` | Searchable directory, filterable by trade, barangay, rating, credentials |
-| `/worker/[id]` | Public profile, portfolio, reviews, job-request form |
+| `/` | Working home. Households: the ten trades, then the directory. Providers: requests waiting on them, then the work they have on offer. A signed-out visitor is sent to `/landing`. |
+| `/landing` | Marketing: hero, trust bar, categories, how-it-works, closing CTA |
+| `/browse` | Full directory — filter by trade, barangay, rating, credentials |
+| `/worker/[id]` | Public profile: resume, services on offer, portfolio, reviews, request form |
 | `/signup`, `/login` | Role-aware auth |
+| `/dashboard` | Redirects to the right console for the account's mode |
 | `/dashboard/customer` | Requests, quote approval, reviews, dispute filing |
-| `/dashboard/worker` | Job inbox, quoting, completion, settlement |
+| `/dashboard/worker` | Full lifecycle: job inbox, quoting, completion, settlement |
 | `/dashboard/worker/onboarding` | Three-step digital self-registration |
 | `/dashboard/wallet` | Prepaid balance, top-ups, ledger |
-| `/dashboard/worker/profile` | Public listing and referral code |
+| `/dashboard/worker/profile` | Public listing, resume editor, referral code |
 | `/admin` | Credential review queue, disputes, price-floor monitoring |
 
 ---
@@ -201,13 +206,36 @@ Tokens live in `src/app/globals.css` under `@theme`.
 ## Data model
 
 ```
-users/{uid}        role, fullName, email, phone
-workers/{id}       profile, credentials, rating, wallet, referralCode
+users/{uid}        role, activeMode, fullName, email, phone
+workers/{id}       profile, credentials, resume, rating, wallet, referralCode
+offers/{id}        workerId, workerUid, title, categoryId, priceFrom, status
+inquiries/{id}     id = "{offerId}_{consumerId}", offerId, workerUid, consumerId, message
 jobs/{id}          consumer ⇄ worker, status, quote{ laborFee, materialsCost }
 reviews/{id}       jobId, workerId, rating, text
 ledger/{id}        top_up | commission_lock | commission_settle | referral_credit
 disputes/{id}      RA 7394 recourse log
 ```
+
+An **offer** is work a worker broadcasts to whoever wants it. A **job** is one
+household asking one assigned worker for something specific. They are separate
+collections because their audiences differ: offers are discovered by browsing,
+jobs are addressed.
+
+Three details in that model are load-bearing:
+
+- **Inquiry counts are derived, not stored.** The obvious shortcut — a household
+  bumps a counter on the offer as it writes its own inquiry — does not survive
+  contact with the rules: the household is not the offer's owner, so the offer's
+  update rule correctly rejects the write. It also splits one action across two
+  documents, which can half-succeed. Instead the worker's console reads every
+  inquiry addressed to them once and groups by offer in memory.
+- **Inquiry document ids are deterministic** (`{offerId}_{consumerId}`). That
+  makes "one response per household" a property of the write rather than a
+  convention — a second attempt collides and is rejected. With an auto-generated
+  id there is no field holding the id, so a rule has nothing to check.
+- **Inquiries denormalise `workerUid`.** Reading ownership off the document
+  avoids a `get()` on the hot path, which is the same circular-read shape that
+  broke the job rules earlier.
 
 Reads use at most one equality filter and sort in memory. Firestore requires a
 composite index for a `where` + `orderBy` pair across different fields, and a
@@ -219,11 +247,18 @@ of JavaScript.
 ### Two consoles, switchable
 
 A household and a provider are different jobs, so they open different screens:
-households land on the directory, providers land on their job requests. Neither
-is exclusive. A plumber can hire an electrician, and a household can decide to
-start offering services, so the mode switcher changes which console an account
-opens on rather than granting or removing capability. The choice is stored as
-`activeMode` on the user document and defaults by role.
+households land on the trades and then the directory, providers land on their
+incoming requests and then the work they have on offer. Neither is exclusive. A
+plumber can hire an electrician, and a household can decide to start offering
+services, so the mode switcher changes which console an account opens on rather
+than granting or removing capability. The choice is stored as `activeMode` on
+the user document and defaults by role.
+
+The marketing pitch lives at `/landing`, not `/`. Putting a hero on the home
+page would mean scrolling past persuasion to reach the thing a returning account
+came for. The wordmark links to `/landing` as the brand's front door, and a
+signed-out visitor to `/` is redirected there.
+
 ## Compliance notes
 
 - **Data Privacy Act (RA 10173)** — phone numbers are masked on every public
@@ -282,8 +317,16 @@ the same as a working marketplace. Work through these in order:
 | --- | --- | --- |
 | "Preview mode" banner | `NEXT_PUBLIC_FIREBASE_*` unset | Add in Vercel, redeploy |
 | "Directory not readable" | Firestore rules not deployed | `npx firebase-tools deploy --only firestore:rules` |
+| "Offers are not readable…" on a worker profile | Rules predate the `offers` / `inquiries` collections | Publish `firestore.rules` from this repo — the offers section hides itself otherwise |
+| "My services" empty with a permissions error | Same as above | Publish `firestore.rules` |
 | "No workers listed yet" | Database genuinely empty | `npm run seed` (needs a service account key) |
 | Sign-up `operation-not-allowed` | Email/Password provider disabled | Firebase console -> Authentication -> Sign-in method |
+| Stuck on "Checking your account" | Firebase Auth never settled | Should self-resolve after 8s; check the console for a `[auth] session check did not settle` warning |
+
+The rules in this repo must be published for the app to work, and the deployed
+copy is not updated by a push — pasting the file into Firebase console ->
+Firestore Database -> Rules and hitting Publish is the only step that changes
+it.
 
 ---
 
