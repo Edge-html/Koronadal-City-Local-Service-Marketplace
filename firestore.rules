@@ -53,12 +53,20 @@ service cloud.firestore {
       return isSignedIn() && resource.data.uid == request.auth.uid;
     }
 
-    /** The caller is the household or the assigned worker on this job. */
-    function isJobParty(jobId) {
-      let job = get(/databases/$(database)/documents/jobs/$(jobId)).data;
+    /**
+     * True when the caller is the household or the assigned worker on the job
+     * document being evaluated.
+     *
+     * Reads resource.data rather than calling get() on the same document id.
+     * The self-referential get() was a circular call, and Firestore fails it
+     * with a bare permission-denied. That is why every job read was rejected:
+     * "My requests" queried jobs with a filter, each candidate document was
+     * checked, and the check recursed into itself.
+     */
+    function isJobParty() {
       return isSignedIn()
-        && (job.consumerId == request.auth.uid
-            || job.workerUid == request.auth.uid);
+        && (resource.data.consumerId == request.auth.uid
+            || resource.data.workerUid == request.auth.uid);
     }
 
     /**
@@ -163,7 +171,7 @@ service cloud.firestore {
     // ---- jobs -----------------------------------------------------
 
     match /jobs/{jobId} {
-      allow read: if isJobParty(jobId) || isAdmin();
+      allow read: if isJobParty() || isAdmin();
 
       // A household opens a request against a verified, active worker.
       allow create: if isSignedIn()
@@ -175,7 +183,7 @@ service cloud.firestore {
 
       // Only the two parties on the job may move it along, and neither party
       // can reassign the other.
-      allow update: if isJobParty(jobId)
+      allow update: if isJobParty()
         && request.resource.data.consumerId == resource.data.consumerId
         && request.resource.data.workerId == resource.data.workerId
         && request.resource.data.workerUid == resource.data.workerUid;
