@@ -13,7 +13,7 @@ import { useAuth } from "@/context/AuthContext";
  * Two halves, chosen by the account role rather than a separate mode setting:
  *
  *   Finding a service  the worker finder, then the trade categories
- *   Working as a provider  inquiries and service offers
+ *   Working as a provider  incoming job requests
  *
  * The pitch lives at /landing. Putting a marketing hero here would mean
  * scrolling past persuasion to reach the thing they came for, which is the

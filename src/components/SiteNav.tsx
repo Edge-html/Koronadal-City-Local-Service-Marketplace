@@ -16,7 +16,7 @@ import { cx, initials } from "@/lib/utils";
  * /platform carries the detail.
  *
  * The primary links follow the signed-in role. A worker's home is their
- * services and inquiries; a household's home is the worker finder.
+ * incoming job requests; a household's home is the worker finder.
  */
 const PUBLIC_LINKS = [
   { href: "/", label: "Home" },
@@ -26,8 +26,9 @@ const PUBLIC_LINKS = [
 ];
 const WORKER_LINKS = [
   { href: "/", label: "Home" },
-  { href: "/#inquiries", label: "Inquiries" },
-  { href: "/#my-services", label: "My services" },
+  { href: "/dashboard/worker", label: "Jobs" },
+  { href: "/dashboard/worker/profile", label: "Profile" },
+  { href: "/dashboard/wallet", label: "Wallet" },
   { href: "/browse", label: "Find a worker" },
 ];
 const CUSTOMER_LINKS = [

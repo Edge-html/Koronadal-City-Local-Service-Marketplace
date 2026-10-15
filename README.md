@@ -250,8 +250,9 @@ of JavaScript.
 ### Two role-based home pages
 
 A household and a provider are different jobs, so they open different screens:
-households land on the worker finder, while providers land on their inquiries
-and services. Job requests live in the separate worker console. The home page
+households land on the worker finder, while providers land on incoming job
+requests. Service offers and inquiries are not shown on the worker home. The
+home page
 and sign-in redirect use the account's role. Workers can still browse and hire another worker using the
 Find a worker link; the view links do not change their role or home page.
 

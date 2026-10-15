@@ -28,7 +28,7 @@ export function ModeSwitcher({
     {
       id: "worker",
       label: "Working as a provider",
-      note: "Inquiries and services",
+      note: "Job requests, quotes, and wallet",
       icon: Briefcase,
       href: "/",
       active: !findingService,
