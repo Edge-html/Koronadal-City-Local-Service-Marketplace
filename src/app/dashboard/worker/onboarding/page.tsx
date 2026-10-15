@@ -77,6 +77,19 @@ export default function WorkerOnboardingPage() {
     setBusy(true);
     setError("");
     try {
+      // The role must be worker before the profile write: the Firestore rules
+      // gate worker creation on isWorkerRole(). Flipping it afterwards meant
+      // every submission was denied.
+      //
+      // This is still gated on the requirements. Reaching submit means the
+      // three mandatory documents are attached to the write below, and the
+      // profile lands as pending_verification - out of the directory and
+      // unable to receive jobs until an administrator approves it. Neither
+      // step on its own grants anything.
+      if (role === "customer") {
+        await becomeWorker();
+      }
+
       await createWorkerProfile({
         uid: user!.uid,
         fullName: user!.displayName || "",
@@ -98,19 +111,19 @@ export default function WorkerOnboardingPage() {
         })),
       });
 
-      // The role flips only now, once identity and the three mandatory
-      // documents have actually been submitted. Switching it on the "become a
-      // provider" click let an account claim to be a worker with nothing on
-      // file. The profile is still pending_verification and stays out of the
-      // directory until an administrator approves it.
-      if (role === "customer") {
-        await becomeWorker();
-      }
-
       router.replace("/dashboard/worker");
-    } catch {
+    } catch (err) {
+      // The previous message blamed the network for what was usually a rules
+      // rejection, which sent people offline debugging instead of reading the
+      // console. Report the actual cause.
+      console.error("[onboarding] submit failed:", err);
+      const code = (err as { code?: string })?.code ?? "";
       setError(
-        "Could not submit your application. Check your connection and try again.",
+        code === "permission-denied"
+          ? "The server rejected this application. The Firestore rules for this project may not be the deployed version - check the browser console for the full error."
+          : code === "unavailable"
+            ? "Could not reach the database. Check your connection and try again."
+            : "Could not submit your application. Please try again, and check the browser console for details.",
       );
     } finally {
       setBusy(false);
