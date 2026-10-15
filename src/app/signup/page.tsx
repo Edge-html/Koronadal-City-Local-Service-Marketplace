@@ -43,7 +43,7 @@ function SignUpForm() {
     if (authLoading || !user) return;
     if (accountRole === "admin") router.replace("/admin");
     else if (accountRole === "worker")
-      router.replace("/dashboard/worker");
+      router.replace("/");
   }, [authLoading, user, accountRole, router]);
 
   async function onSubmit(event: React.FormEvent) {
@@ -76,7 +76,7 @@ function SignUpForm() {
       // An existing worker profile means onboarding would bounce them
       // straight back out, so send them to the console instead.
       const existing = await getWorkerByUid(user!.uid);
-      router.push(existing ? "/dashboard/worker" : "/dashboard/worker/onboarding");
+      router.push(existing ? "/" : "/dashboard/worker/onboarding");
     } catch {
       // If the profile lookup is blocked, onboarding still renders and will
       // report the real problem in context.

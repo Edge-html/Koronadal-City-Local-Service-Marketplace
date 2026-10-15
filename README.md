@@ -140,7 +140,7 @@ see "Two consoles" below.
 | `/browse` | Full directory — filter by trade, barangay, rating, credentials |
 | `/worker/[id]` | Public profile: resume, services on offer, portfolio, reviews, request form |
 | `/signup`, `/login` | Role-aware auth |
-| `/dashboard` | Redirects by account role to the worker console or customer home |
+| `/dashboard` | Redirects to the role-aware home page or admin review queue |
 | `/dashboard/customer` | Requests, quote approval, reviews, dispute filing |
 | `/dashboard/worker` | Full lifecycle: job inbox, quoting, completion, settlement |
 | `/dashboard/worker/onboarding` | Three-step digital self-registration |

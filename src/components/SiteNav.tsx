@@ -28,7 +28,6 @@ const WORKER_LINKS = [
   { href: "/", label: "Home" },
   { href: "/#inquiries", label: "Inquiries" },
   { href: "/#my-services", label: "My services" },
-  { href: "/dashboard/worker", label: "Jobs" },
   { href: "/browse", label: "Find a worker" },
 ];
 const CUSTOMER_LINKS = [
@@ -52,7 +51,7 @@ export function SiteNav() {
         : role === "customer"
           ? CUSTOMER_LINKS
           : PUBLIC_LINKS;
-  const accountHref = role === "admin" ? "/admin" : role === "worker" ? "/dashboard/worker" : "/dashboard/customer";
+  const accountHref = role === "admin" ? "/admin" : role === "worker" ? "/" : "/dashboard/customer";
 
   // displayName is set at signup, but fall back to the email local-part so
   // the header never renders an empty identity chip.

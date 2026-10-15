@@ -38,7 +38,7 @@ function LoginForm() {
     <AuthShell
       eyebrow="Welcome back"
       title="Sign in to your account"
-      description="Households track requests and quotes. Workers track jobs, wallet balance, and settlement."
+      description="Find a verified worker for your home, or manage the services you offer."
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         {error ? <Notice tone="alert">{error}</Notice> : null}

@@ -8,9 +8,8 @@ import { LoadingBlock } from "@/components/ui";
 /**
  * Routes each account to the right place.
  *
- * Worker accounts open the worker console; household accounts open the worker
- * finder on `/`. Workers can still browse and manage their own household
- * requests through explicit links.
+ * The role-aware home page shows services to workers and the finder to
+ * households. Administrators have their own review queue.
  */
 export default function DashboardPage() {
   const { user, role, loading } = useAuth();
@@ -29,7 +28,7 @@ export default function DashboardPage() {
 
     if (!role) return;
 
-    router.replace(role === "worker" ? "/dashboard/worker" : "/");
+    router.replace("/");
   }, [loading, user, role, router]);
 
   return <LoadingBlock label="Routing to your console" />;

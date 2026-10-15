@@ -28,9 +28,9 @@ export function ModeSwitcher({
     {
       id: "worker",
       label: "Working as a provider",
-      note: "Inquiries, services, and jobs",
+      note: "Inquiries and services",
       icon: Briefcase,
-      href: "/dashboard/worker",
+      href: "/",
       active: !findingService,
       disabled: !available,
     },

@@ -197,7 +197,7 @@ export function MyServices({ worker }: { worker: Worker }) {
           <EmptyState
             icon={<Megaphone size={22} strokeWidth={1.25} />}
             title="No offers posted"
-            description="Job requests only reach you when a household picks you from the directory. Posting an offer puts you in front of people browsing for a trade instead of waiting to be selected."
+            description="Post the services you provide, describe the work you take on, and set a starting price so households browsing your trade can find you."
           />
         ) : (
           <>
