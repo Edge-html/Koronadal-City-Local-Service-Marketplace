@@ -256,6 +256,27 @@ export function WorkerProfile({ id }: { id: string }) {
 /* Job request — stage 1 into stage 2                                   */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Turns a Firestore write failure into something the person can act on.
+ * These three causes need completely different responses, so naming the wrong
+ * one wastes their time.
+ */
+function describeRequestFailure(error: unknown): string {
+  const code = (error as { code?: string })?.code ?? "";
+  const message = String((error as { message?: string })?.message ?? error);
+
+  if (/ERR_BLOCKED_BY_CLIENT/i.test(message)) {
+    return "Your browser blocked this request before it left the page. This is almost always an ad blocker or privacy extension intercepting Firebase. Allow this site, or retry in a private window with extensions off.";
+  }
+  if (code === "permission-denied" || /permission/i.test(message)) {
+    return "The server rejected this request. The Firestore rules deployed for this project may not be the current version - check the browser console for the full error.";
+  }
+  if (code === "unavailable" || /network|failed to fetch/i.test(message)) {
+    return "Could not reach the database. Check your connection and try again.";
+  }
+  return "Could not send the request. Please try again, and check the browser console for details.";
+}
+
 function RequestPanel({ worker }: { worker: Worker }) {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -282,10 +303,12 @@ function RequestPanel({ worker }: { worker: Worker }) {
         barangay: barangay.trim(),
       });
       router.push("/dashboard?sent=1");
-    } catch {
-      setError(
-        "Could not send the request. Check your connection and try again.",
-      );
+    } catch (err) {
+      // Do not guess the cause. A bare "check your connection" sent a real
+      // report of an extension blocking firestore.googleapis.com down the
+      // wrong path entirely.
+      console.error("[job-request] send failed:", err);
+      setError(describeRequestFailure(err));
     } finally {
       setBusy(false);
     }
