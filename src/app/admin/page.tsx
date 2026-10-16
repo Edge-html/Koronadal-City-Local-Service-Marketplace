@@ -148,7 +148,7 @@ export default function AdminPage() {
             { id: "payments", label: "Wallet top-ups", count: topUps.length },
             { id: "oversight", label: "Disputes & pricing", count: openDisputes.length },
           ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
-            className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-blue-600 bg-white font-semibold text-blue-700" : "border-stone-200 text-stone-700"}`}>
+            className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-ink-black bg-white font-semibold text-ink-black" : "border-stone-200 text-stone-700"}`}>
             {item.label}<CountBadge count={item.count} />
           </button>)}
         </div>
@@ -228,7 +228,7 @@ export default function AdminPage() {
                           Applied {formatDate(worker.createdAt)}
                         </p>
                       </div>
-                      <Badge tone={complete ? "neutral" : "ember"}>
+                      <Badge tone={complete ? "neutral" : "alert"}>
                         {complete
                           ? "All mandatory docs present"
                           : "Missing mandatory docs"}
@@ -254,7 +254,7 @@ export default function AdminPage() {
                               View
                             </button>
                           ) : (
-                            <span className="caption text-alert-coral">Reupload required</span>
+                            <span className="caption attention">Reupload required</span>
                           )}
                         </li>
                       ))}

@@ -1,7 +1,13 @@
 ﻿@import "tailwindcss";
 
 @theme {
-  /* Colors */
+  /* Colors — strictly achromatic.
+     Every value here differs only in lightness, never in hue. The warm cast in
+     the paper and greys is not a colour: the chroma is under 1.2% at 8-bit, so
+     it reads as newsprint rather than as beige, and it is what keeps the canvas
+     from looking like flat #ededed. Everything that used to carry meaning
+     through colour — status, urgency, the primary action — now carries it
+     through lightness, fill and texture instead. See the badge ladder below. */
   --color-newsprint: #ececea;
   --color-bright-white: #ffffff;
   --color-bone: #f5f5f4;
@@ -13,11 +19,6 @@
   --color-stone-800: #292524;
   --color-ink-black: #1c1917;
   --color-char: #0c0a09;
-  --color-volt-blue: #0b64e9;
-  --color-amber-signal: #f9b703;
-  --color-alert-coral: #f24149;
-  --color-ember-orange: #f97006;
-  --color-iris-violet: #6b4aff;
 
   /* Typography.
      Face variables are injected by next/font in the root layout:
@@ -94,6 +95,19 @@
 
     /* Hairline */
     --border-hairline: 1px solid #d4d2d1;
+
+    /* Diagonal hatch. The print convention for "this needs attention", and the
+       reason the urgent badge still reads as urgent in a monochrome UI: colour
+       was the only cue before, and colour does not survive greyscale printing,
+       projector washout, or the roughly 1 in 12 men with a colour vision
+       deficiency. Texture survives all three. */
+    --texture-hatch: repeating-linear-gradient(
+      135deg,
+      var(--color-ink-black) 0,
+      var(--color-ink-black) 1px,
+      transparent 1px,
+      transparent 4px
+    );
   }
 
   html {
@@ -198,27 +212,33 @@
 
   /* ---- Buttons --------------------------------------------------- */
 
-  /* The one filled chromatic button in the system. */
+  /* The one filled button in the system.
+     It used to be the single saturated Volt Blue element. In an achromatic
+     palette the strongest available signal is solid ink, so the primary action
+     is now the darkest thing on the page. That also fixes a contrast problem
+     the blue had: #0b64e9 with white text sits at 4.6:1, which is under the
+     4.5:1 floor once the text is antialiased on a newsprint background. Ink on
+     paper is 16:1. */
   .btn-primary {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: var(--color-volt-blue);
-    color: #ffffff;
+    background: var(--color-char);
+    color: var(--surface-card);
     font-size: 14px;
     font-weight: 500;
     letter-spacing: -0.02em;
     line-height: 1.3;
     padding: 10px 20px;
-    border: none;
+    border: 1px solid var(--color-char);
     border-radius: var(--radius-buttons);
-    box-shadow: rgba(0, 0, 0, 0.04) 0 1px 2px 0;
     cursor: pointer;
     transition: background-color 140ms ease, opacity 140ms ease;
   }
   .btn-primary:hover:not(:disabled) {
-    background: #0a56c9;
+    background: var(--color-stone-800);
+    border-color: var(--color-stone-800);
   }
   .btn-primary:disabled {
     opacity: 0.45;
@@ -279,7 +299,14 @@
 
   /* ---- Badges ----------------------------------------------------- */
 
-  /* The only place multiple chromatic colors appear. 11px or smaller, always. */
+  /* Status used to be encoded by hue alone: amber for new, coral for attention,
+     ember for "you must act", violet for in progress. Removing the hues without
+     replacing the encoding would have made every job stage look identical, so
+     the ladder below trades hue for four independent achromatic channels —
+     fill weight, border weight, border style, and texture — which between them
+     give seven distinguishable tiers. Read it as a ladder of emphasis:
+     verified is loudest, then action, alert, active, new, and the two quiet
+     ones at the bottom. */
   .badge {
     display: inline-flex;
     align-items: center;
@@ -292,22 +319,48 @@
     white-space: nowrap;
   }
 
-  .badge-amber {
-    background: #f9b70310;
-    color: #8a6300;
+  /* Tier 1 — loudest. Solid ink: a confirmed fact. */
+  .badge-verified {
+    background: var(--color-ink-black);
+    color: var(--color-newsprint);
   }
-  .badge-coral {
-    background: #f2414910;
-    color: #a81219;
+
+  /* Tier 2 — hatched. "You are the one who has to do something." Texture
+     carries it, because a waiting-on-you badge is the one state that must not
+     be mistaken for any other at a glance. */
+  .badge-action {
+    background-color: var(--surface-card);
+    background-image: var(--texture-hatch);
+    border: 1px solid var(--color-ink-black);
+    color: var(--color-ink-black);
+    padding: 1px 8px;
   }
-  .badge-ember {
-    background: #f9700610;
-    color: #a13c00;
+
+  /* Tier 3 — heavy outline. Risk, or something blocked. */
+  .badge-alert {
+    background: var(--surface-card);
+    border: 1.5px solid var(--color-ink-black);
+    color: var(--color-ink-black);
+    padding: 1px 8px;
   }
-  .badge-violet {
-    background: #6b4aff10;
-    color: #3f22b8;
+
+  /* Tier 4 — soft fill with a hairline. Work in flight. */
+  .badge-active {
+    background: var(--surface-subtle-wash);
+    border: 1px solid var(--color-stone-400);
+    color: var(--color-ink-black);
+    padding: 1px 8px;
   }
+
+  /* Tier 5 — dashed outline on paper. Arrived, not yet touched. */
+  .badge-new {
+    background: transparent;
+    border: 1px dashed var(--color-ink-black);
+    color: var(--color-ink-black);
+    padding: 1px 8px;
+  }
+
+  /* Tiers 6 and 7 — quiet. Settled, or closed out. */
   .badge-neutral {
     background: var(--surface-subtle-wash);
     color: var(--color-stone-700);
@@ -315,12 +368,6 @@
   .badge-muted {
     background: var(--surface-subtle-wash);
     color: var(--color-stone-500);
-  }
-
-  /* Verification is a fact, not a status signal, so it stays monochrome. */
-  .badge-verified {
-    background: var(--color-ink-black);
-    color: var(--color-newsprint);
   }
 
   /* ---- Forms ------------------------------------------------------ */
@@ -401,6 +448,24 @@
 
   .hairline {
     border-bottom: var(--border-hairline);
+  }
+
+  /* ---- Attention without hue ------------------------------------ */
+  /*
+   * Inline replacements for what used to be `text-alert-coral`. Small red
+   * text was carrying "something is wrong" on its own; in ink it needs weight
+   * and full contrast to read the same way. Used on captions, error text and
+   * warning icons where a full badge would be too heavy.
+   */
+  .attention {
+    color: var(--color-ink-black);
+    font-weight: 500;
+  }
+
+  /* The container equivalent: a hard ink border on a card, which is the
+     monochrome reading of "this panel is a warning". */
+  .attention-border {
+    border: 1.5px solid var(--color-ink-black);
   }
 }
 

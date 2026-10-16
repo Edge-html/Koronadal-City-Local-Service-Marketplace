@@ -245,7 +245,7 @@ export function WorkerHome() {
                         key={job.id}
                         className="flex items-center justify-between gap-3 py-2.5"
                       >
-                        <Link href={`/dashboard/worker#job-${job.id}`} className="min-w-0 flex-1 text-sm text-blue-700 underline underline-offset-2">
+                        <Link href={`/dashboard/worker#job-${job.id}`} className="min-w-0 flex-1 text-sm text-ink-black underline decoration-stone-400 underline-offset-2 hover:decoration-ink-black">
                           {job.title}<span className="mt-1 block text-xs text-stone-500">{nextStep(job, "worker").title}</span>
                         </Link>
                         <span className="shrink-0 text-[12px] text-stone-500">

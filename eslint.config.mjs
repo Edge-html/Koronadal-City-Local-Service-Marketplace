@@ -19,6 +19,13 @@ const eslintConfig = [
       "next-env.d.ts",
       // Vendored pdf.js worker, copied in by scripts/copy-pdf-worker.mjs.
       "public/pdf.worker.min.mjs",
+      // Node CLI scripts and tests. These are CommonJS by necessity — they run
+      // under `node` before any bundler or type layer exists, and the test
+      // harness has to reach into a .ts module through transpileModule to do
+      // it. `next/typescript` enables no-require-imports, which is the right
+      // rule for app code and the wrong rule for a build script: a require()
+      // there is not avoiding types, it is the only way to run at all.
+      "scripts/**/*.cjs",
     ],
   },
 ];

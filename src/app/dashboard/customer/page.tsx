@@ -244,7 +244,7 @@ function ApproveButton({
       <ActionButton onClick={run} busy={busy}>
         Approve {formatPeso(total)}
       </ActionButton>
-      {error ? <span className="caption text-alert-coral">{error}</span> : null}
+      {error ? <span className="caption attention">{error}</span> : null}
     </span>
   );
 }

@@ -80,7 +80,7 @@ export function QuoteBreakdown({ job }: { job: Job }) {
         {job.quoteApprovedAt ? (
           <Badge tone="neutral">Approved {formatDate(job.quoteApprovedAt)}</Badge>
         ) : (
-          <Badge tone="ember">Awaiting approval</Badge>
+          <Badge tone="action">Awaiting approval</Badge>
         )}
       </div>
 
@@ -235,10 +235,21 @@ export function JobCard({
 
       <p className="text-[13px] leading-[1.5] text-stone-700">{job.description}</p>
 
-      {guidance ? <div className={`rounded-lg p-3 ${view && needsAction(job, view) ? "border border-blue-200 bg-blue-50" : "bg-stone-50"}`}>
-        <p className="text-sm font-semibold text-stone-900">{guidance.title}</p>
-        <p className="mt-1 text-sm leading-relaxed text-stone-600">{guidance.detail}</p>
-      </div> : null}
+      {guidance ? (
+        <div
+          className={`rounded-lg p-3 ${
+            view && needsAction(job, view)
+              ? // The state that is waiting on you. Same signal the hatched
+                // badge gives, applied to the panel: solid ink border rather
+                // than a blue tint.
+                "border border-ink-black bg-white"
+              : "bg-bone"
+          }`}
+        >
+          <p className="text-sm font-semibold text-ink-black">{guidance.title}</p>
+          <p className="mt-1 text-sm leading-relaxed text-stone-600">{guidance.detail}</p>
+        </div>
+      ) : null}
       <details><summary className="cursor-pointer text-xs text-stone-500">View job progress</summary><div className="mt-3"><JobTimeline status={job.status} /></div></details>
 
       {showQuote && job.quote ? <QuoteBreakdown job={job} /> : null}

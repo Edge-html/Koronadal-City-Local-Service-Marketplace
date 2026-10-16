@@ -134,11 +134,11 @@ export default function WorkerDashboardPage() {
         {error ? <Notice tone="alert">{error}</Notice> : null}
 
         {worker?.status === "paused_wallet" ? (
-          <Card className="flex items-start gap-3 border-alert-coral/40 p-5">
+          <Card className="flex items-start gap-3 attention-border p-5">
             <AlertTriangle
               size={15}
               strokeWidth={1.5}
-              className="mt-0.5 shrink-0 text-alert-coral"
+              className="attention mt-0.5 shrink-0"
             />
             <div>
               <p className="text-[14px] font-medium tracking-[-0.02em] text-ink-black">

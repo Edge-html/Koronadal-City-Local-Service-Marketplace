@@ -188,19 +188,38 @@ source of truth used by the UI, the quote form, and the write path.
 
 ## Design system
 
-The visual language is an editorial broadsheet crossed with a product UI:
-a warm newsprint canvas (`#ececea`), hairline borders (`#d4d2d1`), a two-tier
-radius hierarchy (12px cards, 6px controls, 4px badges), and **one** saturated
-color — Volt Blue `#0b64e9` — reserved exclusively for the primary action.
+The visual language is an editorial broadsheet crossed with a product UI: a
+warm newsprint canvas (`#ececea`), hairline borders (`#d4d2d1`), a two-tier radius
+hierarchy (12px cards, 6px controls, 4px badges), and **no color at all** — the
+palette is strictly achromatic, so hierarchy is carried by lightness, weight and
+texture instead of by hue.
 
 - **Display serif** (Playfair Display) appears exactly once per page, on the
   hero, at `0.80` line-height for dramatic overlap.
 - **UI sans** (Inter) handles nav, buttons, card titles, and data labels.
-- **Status badges** are the only place chromatic colors appear, always at
-  11px, never as fills or decoration.
-- Every section sits on the same warm canvas; no colored section backgrounds.
+- **The primary action is solid ink** (`--color-char`, `#0c0a09`). It is the
+  darkest thing on the page, which is what makes it the primary. This replaced a
+  single Volt Blue `#0b64e9`, and is also a contrast win: 19.4:1 against white
+  versus 4.6:1 for the blue, which sat on the edge of the WCAG AA floor.
+- **Status is encoded by four independent achromatic channels** — fill weight,
+  border weight, border style, and texture — giving seven distinguishable badge
+  tiers. Read the ladder as descending emphasis: `verified` (solid ink),
+  `action` (hatched), `alert` (heavy outline), `active` (soft fill + hairline),
+  `new` (dashed outline), then `neutral` and `muted`.
 
-Tokens live in `src/app/globals.css` under `@theme`.
+  This is a deliberate improvement, not a compromise. Hue was doing work it
+  cannot do reliably: colour-coded status is indistinguishable in greyscale
+  print, illegible on a washed-out projector, and inaccessible to the roughly 1
+  in 12 men with a colour vision deficiency. A hatch and a dashed rule survive
+  all three, so dropping the hues made the status system more robust rather than
+  merely plainer.
+- The paper cast in the greys (`#ececea`, `#d4d2d1`, …) is kept. Its chroma is
+  under 1.2% at 8-bit, so it reads as newsprint rather than as beige, and it is
+  what stops the canvas looking like flat `#ededed`. Set the `--color-*` values
+  to pure greys if you want literal zero tint.
+
+Tokens live in `src/app/globals.css` under `@theme`. Any new chromatic token
+would need a reason that survives greyscale printing.
 
 ---
 

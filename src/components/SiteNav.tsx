@@ -51,7 +51,7 @@ export function SiteNav() {
 
   const renderLinks = (mobile = false) => links.map((link) => <Link key={link.href} href={link.href}
     onClick={() => setOpen(false)} aria-current={pathname === link.href ? "page" : undefined}
-    className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm no-underline transition-colors ${mobile ? "justify-between" : ""} ${pathname === link.href ? "bg-white font-medium text-blue-700 shadow-sm" : "text-stone-700 hover:bg-white/70"}`}>
+    className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm no-underline transition-colors ${mobile ? "justify-between" : ""} ${pathname === link.href ? "bg-ink-black font-medium text-newsprint" : "text-stone-700 hover:bg-bone"}`}>
     {link.label}<CountBadge count={link.count} />
   </Link>);
 

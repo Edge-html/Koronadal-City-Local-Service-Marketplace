@@ -99,11 +99,11 @@ export default function WalletPage() {
           { title: "Wait for verification", detail: "Your balance is credited after approval. This balance covers your platform commission." },
         ]} />
         {breached ? (
-          <Card className="flex items-start gap-3 border-alert-coral/40 p-5">
+          <Card className="flex items-start gap-3 attention-border p-5">
             <AlertTriangle
               size={15}
               strokeWidth={1.5}
-              className="mt-0.5 shrink-0 text-alert-coral"
+              className="attention mt-0.5 shrink-0"
             />
             <p className="text-[13px] leading-[1.5] text-stone-700">
               Your balance is below zero. You are paused from receiving new job

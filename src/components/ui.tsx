@@ -4,26 +4,42 @@ import { Star } from "lucide-react";
 import { cx, initials } from "@/lib/utils";
 
 /* ------------------------------------------------------------------ */
-/* Badges â€” the only place multiple chromatic colors appear.            */
+/* Badges — the ladder of emphasis, in ink only.                       */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Tones are named for what they mean, not how they look.
+ *
+ * They used to be named after hues — amber, coral, ember, violet — which was
+ * accurate until the palette went achromatic. Leaving those names behind would
+ * have meant a `tone="coral"` badge with nothing coral about it and no way for
+ * the next person to discover the mapping. The rendering ladder lives in
+ * globals.css under `.badge-*`.
+ */
 export type Tone =
-  | "amber"
-  | "coral"
-  | "ember"
-  | "violet"
+  /** Confirmed fact. Solid ink. */
+  | "verified"
+  /** Waiting on this user to act. Hatched. */
+  | "action"
+  /** Risk, or blocked. Heavy outline. */
+  | "alert"
+  /** Work in flight. Soft fill, hairline. */
+  | "active"
+  /** Just arrived, untouched. Dashed outline. */
+  | "new"
+  /** Settled. */
   | "neutral"
-  | "muted"
-  | "verified";
+  /** Closed out. */
+  | "muted";
 
 const TONE_CLASS: Record<Tone, string> = {
-  amber: "badge-amber",
-  coral: "badge-coral",
-  ember: "badge-ember",
-  violet: "badge-violet",
+  verified: "badge-verified",
+  action: "badge-action",
+  alert: "badge-alert",
+  active: "badge-active",
+  new: "badge-new",
   neutral: "badge-neutral",
   muted: "badge-muted",
-  verified: "badge-verified",
 };
 
 export function Badge({
@@ -334,8 +350,13 @@ export function Notice({
       role={tone === "alert" ? "alert" : "status"}
       className={cx(
         "rounded-md border px-3 py-2.5 text-[13px] leading-[1.4]",
+        // The two tones used to differ only by a word of grey in the text
+        // colour, which is not a difference a reader can act on. Now that hue
+        // is gone entirely, an alert earns its own container: a hard ink
+        // border and a solid ink leading rule, so it reads as a distinct
+        // object rather than a slightly darker paragraph.
         tone === "alert"
-          ? "border-stone-200 bg-bone text-stone-800"
+          ? "border-ink-black bg-white text-ink-black [border-left-width:3px]"
           : "border-stone-200 bg-bone text-stone-700",
         className,
       )}

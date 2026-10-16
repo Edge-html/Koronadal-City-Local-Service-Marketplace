@@ -93,7 +93,7 @@ function CustomerMasthead() {
         profiles and offers, then send a request when you find the right fit.
       </p>
       <div className="mt-6 flex flex-col gap-3">
-        {customerError ? <p role="alert" className="text-sm text-red-700">{customerError}</p> : <AttentionNotice count={customerCount} href="/dashboard/customer">{customerCount ? "You have quotes or completed jobs waiting for your response in My requests." : "Start by choosing a worker below. Track your requests and quotes in My requests."}</AttentionNotice>}
+        {customerError ? <p role="alert" className="attention text-sm">{customerError}</p> : <AttentionNotice count={customerCount} href="/dashboard/customer">{customerCount ? "You have quotes or completed jobs waiting for your response in My requests." : "Start by choosing a worker below. Track your requests and quotes in My requests."}</AttentionNotice>}
         <FlowGuide steps={CUSTOMER_STEPS} />
       </div>
     </section>

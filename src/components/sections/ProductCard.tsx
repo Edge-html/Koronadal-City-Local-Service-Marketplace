@@ -1,13 +1,21 @@
 import { Badge, Card, SectionHeader, StatCard } from "@/components/ui";
 import { formatPeso } from "@/lib/commission";
+import { JOB_STATUS_META } from "@/lib/constants";
 
+/**
+ * Sample rows for the marketing table.
+ *
+ * These carry a real job `status`, not a badge tone. The label and the tone are
+ * both read from JOB_STATUS_META, so this table and the live job cards cannot
+ * disagree about what a stage looks like or what it is called.
+ */
 const DEMO_ROWS = [
-  { name: "Rodrigo A.", service: "Carpentry", place: "San Roque", tone: "amber" },
-  { name: "Marisol T.", service: "Plumbing", place: "Paraiso", tone: "coral" },
-  { name: "Jomar P.", service: "Electrical", place: "Magsaysay", tone: "ember" },
-  { name: "Elena C.", service: "Roofing", place: "Santo Niño", tone: "violet" },
-  { name: "Danilo R.", service: "Welding", place: "Zone III", tone: "neutral" },
-  { name: "Rodel M.", service: "Painting", place: "Saravia", tone: "amber" },
+  { name: "Rodrigo A.", service: "Carpentry", place: "San Roque", status: "requested" },
+  { name: "Marisol T.", service: "Plumbing", place: "Paraiso", status: "accepted" },
+  { name: "Jomar P.", service: "Electrical", place: "Magsaysay", status: "quoted" },
+  { name: "Elena C.", service: "Roofing", place: "Santo Niño", status: "in_progress" },
+  { name: "Danilo R.", service: "Welding", place: "Zone III", status: "completed" },
+  { name: "Rodel M.", service: "Painting", place: "Saravia", status: "reviewed" },
 ] as const;
 
 export function LiveProductCard() {
@@ -90,19 +98,9 @@ export function LiveProductCard() {
                     </td>
                     <td className="border-b border-stone-200 px-4 py-3">
                       <Badge
-                        tone={
-                          row.tone as "amber" | "coral" | "ember" | "violet" | "neutral"
-                        }
+                        tone={JOB_STATUS_META[row.status].tone}
                       >
-                        {row.tone === "neutral"
-                          ? "Settled"
-                          : row.tone === "amber"
-                            ? "Requested"
-                            : row.tone === "coral"
-                              ? "Accepted"
-                              : row.tone === "ember"
-                                ? "Quote sent"
-                                : "In progress"}
+                        {JOB_STATUS_META[row.status].label}
                       </Badge>
                     </td>
                   </tr>

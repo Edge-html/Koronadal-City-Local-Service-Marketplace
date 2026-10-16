@@ -1,3 +1,5 @@
+import type { Tone } from "@/components/ui";
+
 /**
  * The ten essential household service categories, plus the twenty-five
  * barangays of Koronadal City, verified against the official list.
@@ -224,18 +226,33 @@ export const WORKFLOW_STAGES = [
   },
 ] as const;
 
+/**
+ * Job stage to badge tone.
+ *
+ * The tones are ordered by how loudly they should read, and the order was set
+ * by what each stage asks of the user rather than by an arbitrary sequence:
+ *
+ *   quoted       the household is the only party who can unblock this, so it
+ *                gets the hatched badge — the loudest thing in the system
+ *   requested    a worker must accept or decline
+ *   disputed     something is wrong and someone has to look at it
+ *   in_progress  work is happening; no decision needed
+ *   completed    waiting on settlement
+ *   reviewed     done
+ *   cancelled    closed without work happening
+ */
 export const JOB_STATUS_META: Record<
   string,
-  { label: string; tone: "amber" | "coral" | "ember" | "violet" | "neutral" | "muted" }
+  { label: string; tone: Tone }
 > = {
-  requested: { label: "Requested", tone: "amber" },
-  accepted: { label: "Accepted", tone: "coral" },
-  quoted: { label: "Quote Sent", tone: "ember" },
-  in_progress: { label: "In Progress", tone: "violet" },
+  requested: { label: "Requested", tone: "new" },
+  accepted: { label: "Accepted", tone: "active" },
+  quoted: { label: "Quote Sent", tone: "action" },
+  in_progress: { label: "In Progress", tone: "active" },
   completed: { label: "Completed", tone: "neutral" },
   reviewed: { label: "Reviewed", tone: "neutral" },
   cancelled: { label: "Cancelled", tone: "muted" },
-  disputed: { label: "Disputed", tone: "muted" },
+  disputed: { label: "Disputed", tone: "alert" },
 };
 
 /** Regulatory framework surfaced on the landing page and in terms. */

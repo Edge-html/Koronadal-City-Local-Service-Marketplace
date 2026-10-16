@@ -267,7 +267,7 @@ function SignUpForm() {
             className={
               phoneValid
                 ? "caption mt-1"
-                : "mt-1 text-[10px] leading-[1.3] tracking-[-0.3px] text-alert-coral"
+                : "attention mt-1 text-[10px] leading-[1.3] tracking-[-0.3px]"
             }
           >
             {phoneValid
