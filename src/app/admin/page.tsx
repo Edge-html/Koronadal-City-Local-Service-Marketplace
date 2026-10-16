@@ -19,6 +19,8 @@ import { useAuth } from "@/context/AuthContext";
 import { useActivity } from "@/context/ActivityContext";
 import { CountBadge, FlowGuide } from "@/components/FlowGuide";
 import { openCredential } from "@/lib/credentials";
+import { PaymentSettingsCard } from "@/components/PaymentSettings";
+import { openPaymentImage } from "@/lib/payment-files";
 
 export default function AdminPage() {
   const { role, loading: authLoading } = useAuth();
@@ -154,7 +156,9 @@ export default function AdminPage() {
         </div>
         <p className="text-xs text-stone-500" role="status">{pending === null ? "Loading review queues…" : "Queue counts update automatically as requests arrive or are reviewed."}</p>
 
-        {section === "payments" ? <Card className="overflow-hidden p-0">
+        {section === "payments" ? <>
+        <PaymentSettingsCard />
+        <Card className="overflow-hidden p-0">
           <div className="border-b border-stone-200 px-5 py-4">
             <h2 className="text-[16px] font-medium text-ink-black">Top-up verification</h2>
             <p className="caption mt-1">1. Check the amount and reference. 2. Verify receipt with the payment provider. 3. Select Payment verified or Reject.</p>
@@ -169,17 +173,20 @@ export default function AdminPage() {
                     <p className="text-[14px] font-medium">{formatPeso(request.amount)} via {request.method.toUpperCase()}</p>
                     <p className="caption mt-1">Reference: {request.reference} · Worker: {request.workerUid} · {formatDate(request.createdAt)}</p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    {request.receiptPath ? <ActionButton variant="neutral" busy={false}
+                      onClick={() => openPaymentImage(request.receiptPath).catch((err) => setError(err instanceof Error ? err.message : "Could not open receipt."))}>View receipt</ActionButton>
+                      : <span className="self-center text-xs text-stone-500">Receipt missing — reject and ask the worker to resubmit</span>}
                     <ActionButton variant="neutral" busy={busyId === request.id}
                       onClick={() => decidePayment(request, false)}>Reject</ActionButton>
-                    <ActionButton busy={busyId === request.id}
+                    <ActionButton busy={busyId === request.id} disabled={!request.receiptPath}
                       onClick={() => decidePayment(request, true)}>Payment verified</ActionButton>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-        </Card> : null}
+        </Card></> : null}
 
         {/* Verification queue */}
         {section === "workers" ? <Card className="overflow-hidden p-0">

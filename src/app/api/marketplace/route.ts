@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 
-type Operation = "acceptJob" | "approveQuote" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials";
+type Operation = "acceptJob" | "approveQuote" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -39,9 +39,30 @@ export async function POST(request: NextRequest) {
       rating?: number;
       text?: string;
       credentials?: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt: string; reviewState: string }>;
+      paymentSettings?: { gcashAccountName?: string; gcashNumber?: string; gcashQrPath?: string };
     };
     const operation = input.operation;
     if (!operation) return fail("Missing operation.");
+
+    if (operation === "savePaymentSettings") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "admin") return fail("Administrators only.", 403);
+      const accountName = input.paymentSettings?.gcashAccountName?.trim() ?? "";
+      const gcashNumber = (input.paymentSettings?.gcashNumber ?? "").replace(/\s+/g, "");
+      const gcashQrPath = input.paymentSettings?.gcashQrPath?.trim() ?? "";
+      if (!accountName || accountName.length > 100) return fail("Enter the GCash account name.");
+      if (gcashNumber && !/^09\d{9}$/.test(gcashNumber)) return fail("Enter an 11-digit GCash number beginning with 09.");
+      if (!gcashNumber && !gcashQrPath) return fail("Enter a GCash number or upload a QR code.");
+      if (gcashQrPath && !/^payment-qr\/[A-Za-z0-9_-]+\/[A-Za-z0-9-]+$/.test(gcashQrPath)) return fail("Upload a valid QR code.");
+      await db.collection("platformSettings").doc("payments").set({
+        gcashAccountName: accountName,
+        gcashNumber,
+        gcashQrPath,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid,
+      }, { merge: true });
+      return NextResponse.json({ ok: true });
+    }
 
     if (operation === "acceptJob") {
       if (!input.jobId) return fail("Missing job.");
@@ -328,6 +349,10 @@ export async function POST(request: NextRequest) {
         if (operation === "rejectTopUp") {
           tx.update(topUpRef, { status: "rejected", reviewedBy: user.uid, reviewedAt: new Date().toISOString() });
           return;
+        }
+        if (typeof topUp.receiptPath !== "string"
+          || !topUp.receiptPath.startsWith(`topup-receipts/${topUp.workerUid}/`)) {
+          throw new MarketplaceError("This request has no valid receipt. Reject it and ask the worker to submit a new request.");
         }
         const matchingReferences = await tx.get(
           db.collection("topupRequests").where("reference", "==", topUp.reference),

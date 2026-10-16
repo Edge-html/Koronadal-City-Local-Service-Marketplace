@@ -150,13 +150,13 @@ export const SERVICE_POINTS = [
 export const WALLET_TOPUP_METHODS = [
   {
     id: "gcash",
-    name: "GCash In-App Direct Top-Up",
-    detail: "Instant automated balance credit.",
+    name: "GCash",
+    detail: "Pay the official account shown below, then submit your receipt for administrator verification.",
   },
   {
     id: "cliqq",
     name: "7-Eleven (CliQQ) Terminals / App",
-    detail: "Over-the-counter cash deposits across all regional branches.",
+    detail: "Pay through CliQQ, then submit the receipt for administrator verification.",
   },
 ] as const;
 

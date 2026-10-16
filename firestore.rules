@@ -420,8 +420,18 @@ service cloud.firestore {
         && request.resource.data.amount <= 100000
         && request.resource.data.method in ['gcash', 'cliqq']
         && request.resource.data.reference is string
-        && request.resource.data.reference.size() >= 4;
+        && request.resource.data.reference.size() >= 4
+        && request.resource.data.receiptPath is string
+        && request.resource.data.receiptPath.matches('topup-receipts/' + request.auth.uid + '/[A-Za-z0-9-]+');
       allow update, delete: if isAdmin();
+    }
+
+    // Payment destination details are visible to signed-in workers. Changes
+    // go through the authenticated Admin SDK route so clients cannot replace
+    // the platform's GCash number or QR code.
+    match /platformSettings/payments {
+      allow read: if isWorkerRole();
+      allow write: if false;
     }
 
     // ---- disputes -------------------------------------------------

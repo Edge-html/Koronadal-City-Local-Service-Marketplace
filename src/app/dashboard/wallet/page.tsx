@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Wallet as WalletIcon } from "lucide-react";
+import { AlertTriangle, Upload, Wallet as WalletIcon } from "lucide-react";
 import { FlowGuide } from "@/components/FlowGuide";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
 import { Card, Notice, StatCard } from "@/components/ui";
 import { WALLET_TOPUP_METHODS } from "@/lib/constants";
-import { getWorkerByUid, listLedger, listTopUpRequestsForWorker, topUpWallet } from "@/lib/data";
+import { getPaymentSettings, getWorkerByUid, listLedger, listTopUpRequestsForWorker, topUpWallet, type PaymentSettings } from "@/lib/data";
+import { PaymentQrImage } from "@/components/PaymentSettings";
+import { uploadPaymentImage } from "@/lib/payment-files";
 import { COMMISSION_RATE, availableBalance, formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import { formatDate } from "@/lib/utils";
@@ -20,6 +22,8 @@ export default function WalletPage() {
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
   const [amount, setAmount] = useState("500");
   const [reference, setReference] = useState("");
+  const [receipt, setReceipt] = useState<File | null>(null);
+  const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [message, setMessage] = useState("");
   const [method, setMethod] = useState<"gcash" | "cliqq">("gcash");
@@ -30,8 +34,12 @@ export default function WalletPage() {
     const w = await getWorkerByUid(user!.uid);
     setWorker(w);
     if (w) {
-      setEntries(await listLedger(w.uid));
-      setPendingCount((await listTopUpRequestsForWorker(w.uid)).filter((r) => r.status === "pending").length);
+      const [ledger, requests, settings] = await Promise.all([
+        listLedger(w.uid), listTopUpRequestsForWorker(w.uid), getPaymentSettings(),
+      ]);
+      setEntries(ledger);
+      setPendingCount(requests.filter((r) => r.status === "pending").length);
+      setPaymentSettings(settings);
     }
   };
 
@@ -59,9 +67,13 @@ export default function WalletPage() {
     setBusy(true);
     setError("");
     try {
-      await topUpWallet(worker, value, method, reference);
+      if (!receipt) throw new Error("Upload a screenshot of your payment receipt.");
+      if (method === "gcash" && !paymentSettings) throw new Error("The administrator has not configured the GCash destination yet.");
+      const receiptPath = await uploadPaymentImage(receipt, "receipt");
+      await topUpWallet(worker, value, method, reference, receiptPath);
       setMessage("Request submitted. Your balance changes only after an administrator verifies the payment.");
       setReference("");
+      setReceipt(null);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not submit the top-up request.");
@@ -179,6 +191,18 @@ export default function WalletPage() {
               </div>
             </fieldset>
 
+            {method === "gcash" ? (
+              paymentSettings ? <div className="rounded-lg border border-stone-200 bg-bone p-4">
+                <p className="label mb-2">Pay this official GCash account</p>
+                <dl className="mb-3 grid grid-cols-2 gap-3 text-sm">
+                  <div><dt className="caption">Account name</dt><dd className="mt-1 font-medium text-ink-black">{paymentSettings.gcashAccountName}</dd></div>
+                  <div><dt className="caption">GCash number</dt><dd className="mt-1 font-medium text-ink-black tabular-nums">{paymentSettings.gcashNumber || "Use QR code"}</dd></div>
+                </dl>
+                {paymentSettings.gcashQrPath ? <PaymentQrImage path={paymentSettings.gcashQrPath} /> : null}
+                <p className="mt-3 text-xs leading-relaxed text-stone-600">Confirm the account name before sending. The administrator will compare your receipt and reference with the platform’s GCash history.</p>
+              </div> : <Notice tone="alert">GCash top-ups are temporarily unavailable because the administrator has not configured the official account yet.</Notice>
+            ) : <div className="rounded-lg border border-stone-200 bg-bone p-4 text-sm leading-relaxed text-stone-600">Pay through a 7-Eleven CliQQ terminal or app, then keep the receipt and upload its screenshot below.</div>}
+
             <div>
               <label className="label" htmlFor="topup-amount">
                 Amount (PHP)
@@ -211,18 +235,25 @@ export default function WalletPage() {
                 placeholder="GCash or CliQQ transaction reference" />
             </div>
 
+            <div>
+              <label className="label" htmlFor="topup-receipt">Receipt screenshot</label>
+              <label htmlFor="topup-receipt" className="flex min-h-20 cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-stone-300 bg-bone p-4 text-sm text-stone-700 hover:border-stone-500">
+                <Upload size={15} />{receipt ? receipt.name : "Choose receipt image"}
+              </label>
+              <input id="topup-receipt" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(e) => setReceipt(e.target.files?.[0] ?? null)} />
+              <p className="caption mt-1">Required. Upload a clear JPG, PNG, or WebP image under 4 MB.</p>
+            </div>
+
             <ActionButton
               onClick={topUp}
               busy={busy}
-              disabled={!(Number(amount) > 0) || reference.trim().length < 4}
+              disabled={!(Number(amount) > 0) || reference.trim().length < 4 || !receipt || (method === "gcash" && !paymentSettings)}
             >
               Request {formatPeso(Number(amount) || 0)} top-up
             </ActionButton>
 
             <p className="caption border-t border-stone-200 pt-3">
-              {pendingCount} pending request{pendingCount === 1 ? "" : "s"}. Arrange payment with the platform team through your chosen
-              channel, then enter its transaction reference. An administrator
-              must verify payment before funds are credited.
+              {pendingCount} pending request{pendingCount === 1 ? "" : "s"}. Pay using the official destination shown above, then submit the reference and receipt. An administrator must verify the payment before funds are credited.
             </p>
           </Card>
 

@@ -571,17 +571,22 @@ export async function topUpWallet(
   amount: number,
   method: "gcash" | "cliqq",
   reference: string,
+  receiptPath: string,
 ) {
   if (!Number.isFinite(amount) || amount <= 0 || amount > 100000) {
     throw new Error("Enter an amount between ₱1 and ₱100,000.");
   }
   if (reference.trim().length < 4) throw new Error("Enter the payment reference.");
+  if (!receiptPath.startsWith(`topup-receipts/${worker.uid}/`)) {
+    throw new Error("Upload the payment receipt screenshot.");
+  }
   await addDoc(collection(db(), "topupRequests"), {
     workerId: worker.id,
     workerUid: worker.uid,
     amount: pesos(amount),
     method,
     reference: reference.trim(),
+    receiptPath,
     status: "pending",
     createdAt: new Date().toISOString(),
   });
@@ -594,8 +599,32 @@ export interface TopUpRequest {
   amount: number;
   method: "gcash" | "cliqq";
   reference: string;
+  receiptPath: string;
   status: "pending" | "approved" | "rejected";
   createdAt: string;
+}
+
+export interface PaymentSettings {
+  gcashAccountName: string;
+  gcashNumber: string;
+  gcashQrPath: string;
+  updatedAt?: string;
+}
+
+export async function getPaymentSettings(): Promise<PaymentSettings | null> {
+  const snap = await getDoc(doc(db(), "platformSettings", "payments"));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    gcashAccountName: String(data.gcashAccountName ?? ""),
+    gcashNumber: String(data.gcashNumber ?? ""),
+    gcashQrPath: String(data.gcashQrPath ?? ""),
+    updatedAt: data.updatedAt,
+  };
+}
+
+export async function savePaymentSettings(settings: PaymentSettings) {
+  await marketplaceAction({ operation: "savePaymentSettings", paymentSettings: settings });
 }
 
 export async function listTopUpRequestsForWorker(workerUid: string): Promise<TopUpRequest[]> {
