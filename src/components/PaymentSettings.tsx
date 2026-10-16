@@ -77,7 +77,8 @@ export function PaymentSettingsCard() {
             <input id="gcash-number" className="field" inputMode="numeric" value={settings.gcashNumber} onChange={(e) => setSettings({ ...settings, gcashNumber: e.target.value })} placeholder="09XXXXXXXXX" /></div>
           <div><label className="label" htmlFor="gcash-qr">GCash QR image (optional if a number is provided)</label>
             <input ref={input} id="gcash-qr" type="file" accept="image/jpeg,image/png,image/webp" className="field" onChange={(e) => setQr(e.target.files?.[0] ?? null)} />
-            <p className="caption mt-1">JPG, PNG, or WebP; maximum 4 MB. Uploading a new image replaces the QR shown to workers.</p></div>
+            <p className="caption mt-1">JPG, PNG, or WebP; maximum 4 MB. Uploading a new image replaces the QR shown to workers.</p>
+            {qr ? <button type="button" className="mt-2 text-xs text-stone-600 underline underline-offset-2" onClick={() => { setQr(null); if (input.current) input.current.value = ""; }}>Remove selected image and save number only</button> : null}</div>
         </div>
         <div>{qr ? <LocalImagePreview file={qr} />
           : settings.gcashQrPath ? <PaymentQrImage path={settings.gcashQrPath} />

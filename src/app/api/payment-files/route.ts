@@ -46,6 +46,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ path });
   } catch (error) {
     console.error("[payment-file-upload]", error);
+    const message = error instanceof Error ? error.message : "";
+    if (/specified bucket does not exist|bucket.*not found/i.test(message)) {
+      return NextResponse.json({
+        error: "Firebase Storage has no bucket yet. You can save the GCash number without a QR for now. To enable QR uploads, create the default Storage bucket in Firebase Console and set NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET in Vercel to the bucket name shown there.",
+      }, { status: 503 });
+    }
     return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed." }, { status: 400 });
   }
 }
