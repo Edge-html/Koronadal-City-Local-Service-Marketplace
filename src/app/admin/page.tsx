@@ -59,6 +59,17 @@ export default function AdminPage() {
     return () => { cancelled = true; };
   }, [authLoading, role, adminRevision, load]);
 
+  useEffect(() => {
+    const syncSection = () => {
+      const target = window.location.hash.slice(1);
+      if (target === "payments") setSection("payments");
+      if (target === "oversight") setSection("oversight");
+    };
+    syncSection();
+    window.addEventListener("hashchange", syncSection);
+    return () => window.removeEventListener("hashchange", syncSection);
+  }, []);
+
   if (authLoading) return null;
 
   if (role !== "admin") {
@@ -103,10 +114,15 @@ export default function AdminPage() {
 
   async function decidePayment(request: TopUpRequest, approve: boolean) {
     if (approve && !window.confirm("Confirm you independently verified this payment before crediting the wallet.")) return;
+    const reviewNote = approve ? "" : window.prompt("Why are you rejecting this top-up? The worker will see this reason.")?.trim() ?? "";
+    if (!approve && reviewNote.length < 5) {
+      if (reviewNote) setError("Please enter a rejection reason of at least 5 characters.");
+      return;
+    }
     setBusyId(request.id);
     setError("");
     try {
-      await decideTopUp(request.id, approve);
+      await decideTopUp(request.id, approve, reviewNote);
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not process this top-up.");
@@ -133,8 +149,8 @@ export default function AdminPage() {
   return (
     <DashboardShell
       eyebrow="Administration"
-      title="Review queue"
-      subtitle="Worker credential review, payment verification, dispute handling, and price monitoring."
+      title="Admin workspace"
+      subtitle="Review worker applications, configure worker payments, and handle top-ups and disputes."
     >
       <div className="flex flex-col gap-4">
         {error || adminError ? <Notice tone="alert">{error || adminError}</Notice> : null}
@@ -144,10 +160,10 @@ export default function AdminPage() {
           { title: "Check the evidence", detail: "Open worker documents or verify the payment with the provider before making a decision." },
           { title: "Record the decision", detail: "Approve or reject the application or payment. Add review notes when checking credentials." },
         ]} />
-        <div className="flex flex-wrap gap-2" aria-label="Review sections">
+        <div id="admin-sections" className="flex flex-wrap gap-2 scroll-mt-24" aria-label="Review sections">
           {([
             { id: "workers", label: "Worker applications", count: pending?.length ?? 0 },
-            { id: "payments", label: "Wallet top-ups", count: topUps.length },
+            { id: "payments", label: "Payment setup & top-ups", count: topUps.length },
             { id: "oversight", label: "Disputes & pricing", count: openDisputes.length },
           ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
             className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-ink-black bg-white font-semibold text-ink-black" : "border-stone-200 text-stone-700"}`}>

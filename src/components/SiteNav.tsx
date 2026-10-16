@@ -10,11 +10,12 @@ import { useAuth } from "@/context/AuthContext";
 import { useActivity } from "@/context/ActivityContext";
 import { firebaseConfigured } from "@/lib/firebase";
 import { initials } from "@/lib/utils";
+import { ActionNotifications } from "@/components/ActionNotifications";
 
 export function SiteNav() {
   const pathname = usePathname();
   const { user, role, loading, logout } = useAuth();
-  const { customerCount, workerCount, adminCount } = useActivity();
+  const { customerCount, workerCount, adminCount, customerJobs, workerJobs, admin } = useActivity();
   const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const account = useRef<HTMLDivElement>(null);
@@ -61,6 +62,7 @@ export function SiteNav() {
       <div className="container-page flex h-16 items-center justify-between gap-3">
         <div className="flex items-center gap-6"><Wordmark href={user ? "/" : "/landing"} /><nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">{renderLinks()}</nav></div>
         <div className="flex items-center gap-2">
+          {user && role ? <ActionNotifications role={role} customerJobs={customerJobs} workerJobs={workerJobs} admin={admin} /> : null}
           {loading ? <span className="h-9 w-20 animate-pulse rounded bg-stone-200" /> : user ? (
             <div className="relative" ref={account} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false); }}>
               <button type="button" ref={accountButton} className="btn-ghost gap-2" aria-expanded={accountOpen} aria-controls="account-panel" aria-label={`Open account menu for ${accountName}`} onClick={() => setAccountOpen((v) => !v)}>

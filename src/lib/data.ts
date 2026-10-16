@@ -601,6 +601,7 @@ export interface TopUpRequest {
   reference: string;
   receiptPath: string;
   status: "pending" | "approved" | "rejected";
+  reviewNote?: string;
   createdAt: string;
 }
 
@@ -647,8 +648,8 @@ export async function migrateLegacyWorkers() {
   await marketplaceAction({ operation: "migrateLegacyWorkers" });
 }
 
-export async function decideTopUp(requestId: string, approve: boolean) {
-  await marketplaceAction({ operation: approve ? "approveTopUp" : "rejectTopUp", requestId });
+export async function decideTopUp(requestId: string, approve: boolean, reviewNote = "") {
+  await marketplaceAction({ operation: approve ? "approveTopUp" : "rejectTopUp", requestId, reviewNote });
 }
 
 export async function listLedger(workerUid: string) {

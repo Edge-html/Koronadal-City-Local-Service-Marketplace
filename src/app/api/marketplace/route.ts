@@ -36,6 +36,7 @@ export async function POST(request: NextRequest) {
       operation?: Operation;
       jobId?: string;
       requestId?: string;
+      reviewNote?: string;
       rating?: number;
       text?: string;
       credentials?: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt: string; reviewState: string }>;
@@ -347,7 +348,9 @@ export async function POST(request: NextRequest) {
         const topUp = requestSnap.data();
         if (!topUp || topUp.status !== "pending") throw new Error("This request has already been processed.");
         if (operation === "rejectTopUp") {
-          tx.update(topUpRef, { status: "rejected", reviewedBy: user.uid, reviewedAt: new Date().toISOString() });
+          const reviewNote = input.reviewNote?.trim() ?? "";
+          if (reviewNote.length < 5 || reviewNote.length > 500) throw new MarketplaceError("Add a short reason so the worker knows what to correct.");
+          tx.update(topUpRef, { status: "rejected", reviewNote, reviewedBy: user.uid, reviewedAt: new Date().toISOString() });
           return;
         }
         if (typeof topUp.receiptPath !== "string"

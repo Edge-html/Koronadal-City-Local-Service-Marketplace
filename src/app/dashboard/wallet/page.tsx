@@ -25,6 +25,7 @@ export default function WalletPage() {
   const [receipt, setReceipt] = useState<File | null>(null);
   const [paymentSettings, setPaymentSettings] = useState<PaymentSettings | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [topUpRequests, setTopUpRequests] = useState<Awaited<ReturnType<typeof listTopUpRequestsForWorker>>>([]);
   const [message, setMessage] = useState("");
   const [method, setMethod] = useState<"gcash" | "cliqq">("gcash");
   const [busy, setBusy] = useState(false);
@@ -39,6 +40,7 @@ export default function WalletPage() {
       ]);
       setEntries(ledger);
       setPendingCount(requests.filter((r) => r.status === "pending").length);
+      setTopUpRequests(requests.slice(0, 5));
       setPaymentSettings(settings);
     }
   };
@@ -106,9 +108,9 @@ export default function WalletPage() {
     >
       <div className="flex flex-col gap-4">
         <FlowGuide steps={[
-          { title: "Make your payment", detail: "Choose a payment method and pay the amount you want to add to your platform balance." },
-          { title: "Submit the reference", detail: "Enter the amount and payment reference below so an admin can verify it." },
-          { title: "Wait for verification", detail: "Your balance is credited after approval. This balance covers your platform commission." },
+          { title: "1. Pay the platform", detail: "Use the official GCash number or QR shown below, or pay through CliQQ. This deposit is for your platform commission, not your job earnings." },
+          { title: "2. Upload proof", detail: "Enter the exact amount and transaction reference, then upload a clear receipt screenshot." },
+          { title: "3. Wait for admin review", detail: "An admin checks the receipt and approves or rejects the request. Your wallet changes only after approval." },
         ]} />
         {breached ? (
           <Card className="flex items-start gap-3 attention-border p-5">
@@ -163,7 +165,7 @@ export default function WalletPage() {
                 Top up
               </h2>
               <p className="caption mt-1">
-                Submit a payment reference for administrator verification
+                Pay the platform commission deposit and submit proof for admin review.
               </p>
             </div>
 
@@ -253,8 +255,20 @@ export default function WalletPage() {
             </ActionButton>
 
             <p className="caption border-t border-stone-200 pt-3">
-              {pendingCount} pending request{pendingCount === 1 ? "" : "s"}. Pay using the official destination shown above, then submit the reference and receipt. An administrator must verify the payment before funds are credited.
+              {pendingCount} pending request{pendingCount === 1 ? "" : "s"}. The customer still pays you directly for the job; this wallet only covers your separate platform commission.
             </p>
+          </Card>
+
+          <Card className="overflow-hidden p-0">
+            <div className="border-b border-stone-200 px-5 py-4">
+              <h2 className="text-[16px] font-medium text-ink-black">Top-up request status</h2>
+              <p className="caption mt-1">Check whether your payment is waiting for review or has been processed.</p>
+            </div>
+            {topUpRequests.length === 0 ? <p className="px-5 py-6 text-sm text-stone-500">No top-up requests yet.</p> :
+              <ul className="divide-y divide-stone-200">{topUpRequests.map((request) => <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3">
+                <div><p className="text-sm font-medium text-ink-black">{formatPeso(request.amount)} via {request.method.toUpperCase()}</p><p className="caption mt-1">Reference: {request.reference} · {formatDate(request.createdAt)}</p>{request.status === "rejected" ? <p className="mt-1 text-xs text-stone-700">Admin note: {request.reviewNote || "Please submit a new request with a clear receipt and valid reference."} Submit a new request after correcting it.</p> : null}</div>
+                <span className="rounded-md border border-stone-200 px-2.5 py-1 text-xs text-stone-700">{request.status === "approved" ? "Approved · wallet credited" : request.status === "rejected" ? "Rejected · action needed" : "Pending admin review"}</span>
+              </li>)}</ul>}
           </Card>
 
           {/* Ledger */}
