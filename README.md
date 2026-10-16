@@ -311,7 +311,6 @@ The repository is connected to Vercel.
    | `NEXT_PUBLIC_FIREBASE_API_KEY` | `AIzaSyBG1wcxGu6blff0neiewvqWraKQzOssJdU` |
    | `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN` | `cycu-trip-planner.firebaseapp.com` |
    | `NEXT_PUBLIC_FIREBASE_PROJECT_ID` | `cycu-trip-planner` |
-   | `NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET` | `cycu-trip-planner.firebasestorage.app` |
    | `NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID` | `173000508891` |
    | `NEXT_PUBLIC_FIREBASE_APP_ID` | `1:173000508891:web:eab4e1b8b120b70a8693fe` |
    | `NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID` | `G-4MF8DRVBVR` |
@@ -333,6 +332,22 @@ The repository is connected to Vercel.
 > designed to be public; access is governed by `firestore.rules`. Keep the
 > service account key only in the private `FIREBASE_SERVICE_ACCOUNT_JSON`
 > environment variable, and never commit it or expose it with `NEXT_PUBLIC_`.
+
+### Private file uploads (Supabase Storage)
+
+Firebase remains responsible for accounts, roles, and marketplace records.
+Receipt screenshots, payment QR images, and worker credential files are stored
+in a **private** Supabase Storage bucket named `private-files`.
+
+1. Create a Supabase project and a private bucket named `private-files`.
+2. Limit the bucket to 4 MB per file. Allow `image/jpeg`, `image/png`,
+   `image/webp`, and `application/pdf`.
+3. In Vercel, add `SUPABASE_URL` and `SUPABASE_SECRET_KEY` for Production,
+   Preview, and Development. Find both in Supabase Project Settings → API.
+   The secret key stays server-side; never prefix it with `NEXT_PUBLIC_` or put
+   it in browser code.
+4. Redeploy Vercel. The server verifies Firebase sign-in and role before it
+   reads or writes files, so keep the bucket private.
 
 ### If the build fails with `auth/invalid-api-key`
 

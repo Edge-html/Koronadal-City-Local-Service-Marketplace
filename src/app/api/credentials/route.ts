@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getStorage } from "firebase-admin/storage";
 import { adminServices } from "@/lib/firebase-admin";
+import { downloadPrivateFile, uploadPrivateFile } from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
 
@@ -11,12 +11,6 @@ async function caller(request: NextRequest) {
   if (!token) throw new Error("Sign in to continue.");
   const user = await auth.verifyIdToken(token);
   return { user, db };
-}
-
-function bucket() {
-  const name = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  if (!name) throw new Error("Firebase Storage bucket is not configured.");
-  return getStorage().bucket(name);
 }
 
 export async function POST(request: NextRequest) {
@@ -32,11 +26,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Use a PDF or image." }, { status: 400 });
     }
     const path = "credentials/" + user.uid + "/" + randomUUID();
-    await bucket().file(path).save(Buffer.from(await file.arrayBuffer()), {
-      resumable: false,
-      contentType: file.type,
-      metadata: { cacheControl: "private, no-store" },
-    });
+    await uploadPrivateFile(path, file);
     return NextResponse.json({ path });
   } catch (error) {
     console.error("[credentials-upload]", error);
@@ -55,12 +45,10 @@ export async function GET(request: NextRequest) {
     if (!path.startsWith("credentials/" + user.uid + "/") && role !== "admin") {
       return NextResponse.json({ error: "Access denied." }, { status: 403 });
     }
-    const file = bucket().file(path);
-    const [metadata] = await file.getMetadata();
-    const [bytes] = await file.download();
-    return new NextResponse(new Uint8Array(bytes), {
+    const file = await downloadPrivateFile(path);
+    return new NextResponse(new Uint8Array(await file.arrayBuffer()), {
       headers: {
-        "content-type": metadata.contentType || "application/octet-stream",
+        "content-type": file.type || "application/octet-stream",
         "cache-control": "private, no-store",
         "x-content-type-options": "nosniff",
         "content-security-policy": "sandbox",

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { getStorage } from "firebase-admin/storage";
 import { adminServices } from "@/lib/firebase-admin";
+import { downloadPrivateFile, uploadPrivateFile } from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
 
@@ -12,12 +12,6 @@ async function caller(request: NextRequest) {
   const user = await auth.verifyIdToken(token);
   const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
   return { user, role };
-}
-
-function bucket() {
-  const name = process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET;
-  if (!name) throw new Error("Firebase Storage bucket is not configured.");
-  return getStorage().bucket(name);
 }
 
 export async function POST(request: NextRequest) {
@@ -38,18 +32,14 @@ export async function POST(request: NextRequest) {
     }
     const prefix = kind === "qr" ? "payment-qr" : "topup-receipts";
     const path = `${prefix}/${user.uid}/${randomUUID()}`;
-    await bucket().file(path).save(Buffer.from(await file.arrayBuffer()), {
-      resumable: false,
-      contentType: file.type,
-      metadata: { cacheControl: "private, no-store" },
-    });
+    await uploadPrivateFile(path, file);
     return NextResponse.json({ path });
   } catch (error) {
     console.error("[payment-file-upload]", error);
     const message = error instanceof Error ? error.message : "";
-    if (/specified bucket does not exist|bucket.*not found/i.test(message)) {
+    if (/bucket.*not found|bucket.*does not exist/i.test(message)) {
       return NextResponse.json({
-        error: "Firebase Storage has no bucket yet. You can save the GCash number without a QR for now. To enable QR uploads, create the default Storage bucket in Firebase Console and set NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET in Vercel to the bucket name shown there.",
+        error: "The private-files bucket was not found in Supabase Storage. Create a private bucket named private-files in your Supabase project.",
       }, { status: 503 });
     }
     return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed." }, { status: 400 });
@@ -70,12 +60,10 @@ export async function GET(request: NextRequest) {
       && role !== "admin") {
       return NextResponse.json({ error: "Access denied." }, { status: 403 });
     }
-    const file = bucket().file(path);
-    const [metadata] = await file.getMetadata();
-    const [bytes] = await file.download();
-    return new NextResponse(new Uint8Array(bytes), {
+    const file = await downloadPrivateFile(path);
+    return new NextResponse(new Uint8Array(await file.arrayBuffer()), {
       headers: {
-        "content-type": metadata.contentType || "application/octet-stream",
+        "content-type": file.type || "application/octet-stream",
         "cache-control": "private, no-store",
         "x-content-type-options": "nosniff",
         "content-security-policy": "sandbox",
