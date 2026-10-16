@@ -14,6 +14,18 @@ function fail(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+/**
+ * An error whose message is safe to show the caller.
+ *
+ * Anything thrown as a plain Error is treated as a bug: it is logged in full
+ * and replaced with a generic message. That matters because this catch sits at
+ * the top of a route that reaches an Admin SDK, and a thrown SDK error can
+ * carry the project id, a collection path, or the text "FIREBASE_SERVICE_ACCOUNT
+ * _JSON is not configured" straight into a customer-facing response. A caller
+ * that needs a specific message says so by using this type.
+ */
+class MarketplaceError extends Error {}
+
 export async function POST(request: NextRequest) {
   try {
     const { auth, db } = adminServices();
@@ -80,7 +92,21 @@ export async function POST(request: NextRequest) {
         const balance = Number(worker.walletBalance ?? 0);
         const locked = Number(worker.walletLocked ?? 0);
         if (money(balance - locked) < commission) {
-          throw new Error("The worker needs more prepaid commission balance before this quote can be approved.");
+          // A household cannot resolve this and should not be told about
+          // somebody else's wallet. They get a stable, actionable message; the
+          // diagnostic stays in the server log where an operator can act on it.
+          //
+          // The quote form refuses to send an un-coverable quote in the first
+          // place, so reaching this means the worker's balance moved between
+          // quoting and approval -- two quotes competing for the same funds.
+          console.warn(
+            `[approveQuote] worker ${job.workerUid} is ${money(commission - (balance - locked))} short ` +
+            `on a ${money(commission)} commission (job ${input.jobId})`,
+          );
+          throw new MarketplaceError(
+            "This worker needs to top up their platform balance before you can approve. " +
+            "Message them to sort it out, or approve later once they have.",
+          );
         }
         tx.update(jobRef, {
           status: "in_progress",
@@ -338,7 +364,16 @@ export async function POST(request: NextRequest) {
 
     return fail("Unknown operation.");
   } catch (error) {
+    if (error instanceof MarketplaceError) {
+      // An expected refusal. Logged at a glance, message passed through.
+      console.warn("[marketplace] refused:", error.message);
+      return fail(error.message);
+    }
+
+    // Everything else is a bug or a transient fault, including anything the
+    // Admin SDK throws. Its text can name the project, a collection, or a
+    // missing server-side secret, none of which belongs in a response body.
     console.error("[marketplace]", error);
-    return fail(error instanceof Error ? error.message : "Could not complete the action.", 400);
+    return fail("Could not complete the action. Please try again.", 500);
   }
 }

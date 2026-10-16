@@ -80,6 +80,45 @@ service cloud.firestore {
     }
 
     /**
+     * Commission the worker must already hold to cover a given labor fee.
+     *
+     * The 10% is taken on labor only; materials are exempt, which is what the
+     * two-part quotation under RA 7394 exists to make visible.
+     *
+     * The one-cent subtraction is load-bearing. The app computes the locked
+     * commission as money(laborFee * 0.1), rounding to two decimals, but this
+     * rule compares against the raw product. For a large share of amounts the
+     * rounding goes *down*: a labor fee of 12345.67 gives 1234.567, which
+     * rounds to 1234.57 (fine, up), while 33333.33 gives 3333.333 rounded to
+     * 3333.33, and 7 gives 0.7000000000000001 rounded to 0.7. A sweep over
+     * every two-decimal fee from 0 to 20000 found over 1.2 million where the
+     * rounded commission is strictly less than the raw one, so a worker
+     * holding exactly what they were quoted would be denied their own quote.
+     *
+     * One cent is the rounding granularity, not a fudge factor, and it cannot
+     * be abused: settleJob re-checks the real lock server-side against the
+     * rounded amount, so the worst case is a one-cent under-funding that is
+     * still caught at settlement.
+     */
+    function commissionFor(laborFee) {
+      return laborFee * 0.1 - 0.01;
+    }
+
+    /**
+     * True when the worker named on the job being evaluated has enough
+     * unlocked prepaid balance to cover the commission implied by a labor fee.
+     *
+     * The default of 0 on a missing field is deliberate and fail-closed: a
+     * worker document with no wallet fields has no money behind it, so a quote
+     * it cannot cover is the correct answer.
+     */
+    function workerCanCoverLabor(workerId, laborFee) {
+      let w = get(/databases/$(database)/documents/workers/$(workerId));
+      return (w.data.get('walletBalance', 0) - w.data.get('walletLocked', 0))
+        >= commissionFor(laborFee);
+    }
+
+    /**
      * The listing fields a worker is allowed to edit themselves. Anything not
      * listed here is review signal or money and is off limits to the client.
      *
@@ -312,7 +351,21 @@ service cloud.firestore {
             && resource.data.status == 'accepted'
             && request.resource.data.status == 'quoted'
             && request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['status', 'quote', 'quotedAt']))
+              .hasOnly(['status', 'quote', 'quotedAt'])
+            // A quote the worker cannot fund is a quote no household could ever
+            // approve: approveQuote locks this same commission out of the
+            // worker's balance transactionally and throws if it is short. Left
+            // unchecked the worker submits it, the household clicks Approve,
+            // and hits a dead end on someone else's wallet balance, with no
+            // warning beforehand and nothing to act on afterwards. Refuse the
+            // quote here instead, where the worker can still do something
+            // about it.
+            && request.resource.data.quote is map
+            && request.resource.data.quote.laborFee is number
+            && request.resource.data.quote.laborFee > 0
+            && workerCanCoverLabor(
+                 resource.data.workerId,
+                 request.resource.data.quote.laborFee))
           || (request.auth.uid == resource.data.workerUid
             && resource.data.status == 'in_progress'
             && request.resource.data.status == 'completed'

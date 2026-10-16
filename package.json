@@ -9,6 +9,7 @@
                     "build":  "next build",
                     "start":  "next start",
                     "lint":  "next lint",
+                    "test":  "node --test \"scripts/*.cjs\"",
                     "seed":  "node scripts/seed.mjs",
                     "make-admin":  "node scripts/make-admin.mjs"
                 },

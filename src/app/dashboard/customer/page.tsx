@@ -233,7 +233,8 @@ function ApproveButton({
     try {
       await approveQuote(job);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not approve the quote.");
+      console.error("[approve-quote] failed:", err);
+      setError(translateApprovalFailure(err));
     } finally {
       setBusy(false);
     }
@@ -247,6 +248,31 @@ function ApproveButton({
       {error ? <span className="caption attention">{error}</span> : null}
     </span>
   );
+}
+
+/**
+ * Turn an approval failure into something a household can act on.
+ *
+ * The server's raw message names the worker's prepaid commission balance. That
+ * is an accurate description of the platform's internals and useless to the
+ * person reading it: the household does not hold the worker's wallet, cannot
+ * top it up, and has no way to resolve it. What they can do is contact the
+ * worker, wait, or choose someone else — so say that, and keep the internal
+ * wording out of a screen a customer will read.
+ */
+function translateApprovalFailure(err: unknown): string {
+  const message = err instanceof Error ? err.message : "";
+
+  if (/prepaid commission balance/i.test(message)) {
+    return "This worker needs to top up their platform balance before you can approve. Message them to sort it out, or approve later once they have.";
+  }
+  if (/no longer available|not active|Worker profile not found/i.test(message)) {
+    return "This quote can no longer be approved. The worker may have revised or withdrawn it.";
+  }
+  if (/permission|MISSING_PERMISSION|insufficient/i.test(message)) {
+    return "Could not approve. This usually means the Firestore rules are out of date — publish firestore.rules from the repository, then reload.";
+  }
+  return message || "Could not approve the quote. Please try again.";
 }
 
 function ReviewForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) {

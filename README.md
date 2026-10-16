@@ -356,10 +356,54 @@ the same as a working marketplace. Work through these in order:
 | "No workers listed yet" | Database genuinely empty | `npm run seed` (needs a service account key) |
 | Sign-up `operation-not-allowed` | Email/Password provider disabled | Firebase console -> Authentication -> Sign-in method |
 | Stuck on "Checking your account" | Firebase Auth never settled | Should self-resolve after 8s; check the console for a `[auth] session check did not settle` warning |
+| Approve fails and the worker insists they funded it | Worker underfunded the commission lock | See "Why a quote can be un-approvable" below |
 
 The rules in this repo must be published for the app to work. A GitHub push
 does not update them; use the Firebase CLI command above or publish the file
 in Firebase Console → Firestore Database → Rules.
+
+### Why a quote can be un-approvable
+
+The platform locks 10% of the labor fee out of the worker's **prepaid wallet**
+at the moment a household approves. Materials are exempt. If the worker's
+unlocked balance cannot cover that commission, `approveQuote` refuses and the
+job cannot start.
+
+That creates a trap, because the symptom looks like a bug and is not one:
+
+- A worker with an empty wallet could quote work they could never fund. The
+  household would click Approve and be told the problem was the worker's
+  balance — something they cannot fix, top up, or usefully report.
+- The worker had no way to know in advance. The quote form checked the price
+  *floor* but never the worker's *coverage*.
+
+Both are closed now:
+
+- **The quote form blocks it.** It computes the commission on the labor fee as
+  you type, compares it against unlocked headroom, refuses to enable the
+  button, and names the exact shortfall with a link to the wallet.
+- **The rules refuse it too.** The `accepted -> quoted` transition calls
+  `workerCanCoverLabor()`, so an un-coverable quote cannot be written even from
+  the console. A client check is a guardrail; this is the guarantee.
+- **The household is told what to do.** `approveQuote` returns a message about
+  contacting the worker, not a readout of somebody else's wallet ledger.
+  `MarketplaceError` in `src/app/api/marketplace/route.ts` marks messages safe
+  to show a caller; anything else is logged server-side and replaced with a
+  generic message, so an SDK error cannot leak the project id or a missing
+  secret into a response body.
+
+`commissionFor()` in the rules carries a one-cent tolerance, and it is
+load-bearing. The app rounds the locked commission to two decimals while the
+rule compares the raw product, and rounding goes *down* for over 1.2 million of
+the possible two-decimal labor fees — a worker holding exactly what they were
+quoted would otherwise be denied their own quote. `npm test` covers this, and
+pins the invariant that actually matters: the client must never be *more*
+lenient than the rules, or a worker would pass the form's check and get a bare
+permission-denied on submit.
+
+The remaining race is legitimate: two quotes competing for the same funds, with
+the second worker topping up in between. That surfaces as the household
+message, and the worker sees the shortfall on their own quote.
 
 ---
 

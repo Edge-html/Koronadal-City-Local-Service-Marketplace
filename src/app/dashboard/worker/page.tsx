@@ -20,7 +20,7 @@ import {
   settleJob,
   submitQuote,
 } from "@/lib/data";
-import { computeTotals, formatPeso } from "@/lib/commission";
+import { availableBalance, computeTotals, formatPeso } from "@/lib/commission";
 
 import { useActivity } from "@/context/ActivityContext";
 import { AttentionNotice, FlowGuide, JobFilters, WORKER_STEPS } from "@/components/FlowGuide";
@@ -286,7 +286,7 @@ export default function WorkerDashboardPage() {
                   </>
                 }
               >
-                {quoting === job.id && job.status === "accepted" ? <QuoteForm key={job.id} job={job} onDone={async () => { setQuoting(null); await refresh(); }} /> : null}
+                {quoting === job.id && job.status === "accepted" && worker ? <QuoteForm key={job.id} job={job} worker={worker} onDone={async () => { setQuoting(null); await refresh(); }} /> : null}
               </JobCard>
             ))}
           </div>
@@ -301,9 +301,11 @@ export default function WorkerDashboardPage() {
 
 function QuoteForm({
   job,
+  worker,
   onDone,
 }: {
   job: Job;
+  worker: Worker;
   onDone: () => Promise<void>;
 }) {
   const [labor, setLabor] = useState(String(job.quote?.laborFee ?? ""));
@@ -316,7 +318,25 @@ function QuoteForm({
   const laborNum = Number(labor) || 0;
   const materialsNum = Number(materials) || 0;
   const totals = computeTotals(laborNum, materialsNum);
-  const valid = laborNum > 0 && notes.trim().length >= 5;
+
+  /**
+   * Can this worker fund the commission on this quote?
+   *
+   * The platform locks 10% of labor out of the worker's prepaid balance at the
+   * moment the household approves, and approveQuote refuses if it is short. So
+   * a quote beyond the worker's headroom is not merely risky — it is a quote no
+   * household can ever approve. The worker would send it, the household would
+   * click Approve, and they would be told the problem is the worker's wallet,
+   * which is not something the household can fix or even report usefully.
+   *
+   * Check it here, where the worker still controls the number, and say exactly
+   * how much is missing.
+   */
+  const headroom = availableBalance(worker.walletBalance, worker.walletLocked);
+  const shortfall = totals.commission - headroom;
+  const cannotFund = laborNum > 0 && shortfall > 0;
+
+  const valid = laborNum > 0 && notes.trim().length >= 5 && !cannotFund;
 
   async function run() {
     setBusy(true);
@@ -329,8 +349,11 @@ function QuoteForm({
         validDays: Math.max(1, Number(validDays) || 7),
       });
       await onDone();
-    } catch {
-      setError("Could not send the quote. Please try again.");
+    } catch (err) {
+      console.error("[quote] submit failed:", err);
+      setError(
+        "Could not send the quote. If the balance in your wallet has changed since this page loaded, reload and try again.",
+      );
     } finally {
       setBusy(false);
     }
@@ -433,6 +456,24 @@ function QuoteForm({
         <Notice tone="alert">
           This labor fee sits below the monitored floor for this service. Quotes
           under floor can be flagged during admin review.
+        </Notice>
+      ) : null}
+
+      {cannotFund ? (
+        <Notice tone="alert">
+          <span className="flex flex-col gap-2">
+            <span>
+              Your unlocked balance is {formatPeso(headroom)}, but approving this
+              quote locks {formatPeso(totals.commission)} of platform commission
+              against it. A household cannot approve it until you top up by{" "}
+              <span className="attention">{formatPeso(shortfall)}</span>.
+            </span>
+            <span>
+              <Link href="/dashboard/wallet" className="btn-neutral btn-sm no-underline">
+                Top up your wallet
+              </Link>
+            </span>
+          </span>
         </Notice>
       ) : null}
 
