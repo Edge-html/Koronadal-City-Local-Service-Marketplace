@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { Star, Wallet } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton, JobCard } from "@/components/JobCard";
@@ -14,14 +14,14 @@ import {
 } from "@/components/ui";
 import {
   approveQuote,
-  listConsumerJobs,
   logDispute,
   submitReview,
 } from "@/lib/data";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
-import { ModeSwitcher } from "@/components/ModeSwitcher";
-import { getWorkerByUid } from "@/lib/data";
+import { useActivity } from "@/context/ActivityContext";
+import { AttentionNotice, FlowGuide, JobFilters, CUSTOMER_STEPS } from "@/components/FlowGuide";
+import { visibleJobs, type JobFilter } from "@/lib/job-flow";
 import type { Job } from "@/lib/types";
 
 export default function CustomerDashboardPage() {
@@ -33,51 +33,15 @@ export default function CustomerDashboardPage() {
 }
 
 function CustomerDashboard() {
-  const { user, loading: authLoading } = useAuth();
-  const [hasWorkerProfile, setHasWorkerProfile] = useState(false);
+  const { role } = useAuth();
   const params = useSearchParams();
 
-  const [jobs, setJobs] = useState<Job[] | null>(null);
-  const [error, setError] = useState("");
+  const { customerJobs: jobs, customerError, customerCount } = useActivity();
+  const [filter, setFilter] = useState<JobFilter>("all");
   const [reviewing, setReviewing] = useState<string | null>(null);
   const [disputing, setDisputing] = useState<string | null>(null);
 
   const sent = params.get("sent") === "1";
-
-  // Resolve whether this household also has a worker profile, which decides if
-  // the "working as a provider" switch is offered.
-  useEffect(() => {
-    if (authLoading || !user) return;
-    let cancelled = false;
-    getWorkerByUid(user.uid)
-      .then((w) => {
-        if (!cancelled) setHasWorkerProfile(!!w);
-      })
-      .catch(() => {
-        if (!cancelled) setHasWorkerProfile(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, user]);
-
-  useEffect(() => {
-    if (authLoading || !user) return;
-    let cancelled = false;
-    listConsumerJobs(user.uid)
-      .then((rows) => {
-        if (!cancelled) setJobs(rows);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setJobs([]);
-          setError("Could not load your requests. Please refresh to try again.");
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, user]);
 
   const stats = useMemo(() => {
     if (!jobs) return null;
@@ -102,17 +66,17 @@ function CustomerDashboard() {
   if (stats === null) {
     return (
       <DashboardShell
-        eyebrow="Household console"
+        eyebrow={role === "worker" ? "Hiring a worker · Customer view" : "Customer dashboard"}
         title="My requests"
-        subtitle="Track every job from first contact to settlement."
+        subtitle="Track your requests and review quotes here."
       >
-        <ModeSwitcher available={hasWorkerProfile} />
+        {customerError ? <Notice tone="alert">{customerError}</Notice> : <p className="mb-4 text-sm text-stone-500">Loading your requests…</p>}
 
-        <div className="grid gap-3 sm:grid-cols-4">
-          <StatCard label="In flight" value="—" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <StatCard label="Open requests" value="—" />
           <StatCard label="Awaiting approval" value="—" />
-          <StatCard label="Settled" value="—" />
-          <StatCard label="Total committed" value="—" />
+          <StatCard label="Finished jobs" value="—" />
+          <StatCard label="Completed job value" value="—" />
         </div>
       </DashboardShell>
     );
@@ -120,22 +84,23 @@ function CustomerDashboard() {
 
   return (
     <DashboardShell
-      eyebrow="Household console"
+      eyebrow={role === "worker" ? "Hiring a worker · Customer view" : "Customer dashboard"}
       title="My requests"
-      subtitle="Track every job from first contact to settlement. Approve the quote before any work starts."
+      subtitle="Quotes that need your approval appear first. Each request explains what happens next."
     >
       <div className="flex flex-col gap-4">
         {sent ? (
           <Notice>
-            Request sent. The worker has been alerted by SMS and in-app. You
-            will be notified when they accept.
+            Request sent. It now appears in the worker’s jobs. This page updates automatically when they accept or send a quote.
           </Notice>
         ) : null}
-        {error ? <Notice tone="alert">{error}</Notice> : null}
+        {customerError ? <Notice tone="alert">{customerError}</Notice> : null}
+        <AttentionNotice count={customerCount}>{customerCount ? "Review the quotes and completed jobs below. Use the Needs your action filter to focus on your next steps." : "Your worker's updates will appear here automatically. Find another worker whenever you need a new service."}</AttentionNotice>
+        <FlowGuide steps={CUSTOMER_STEPS} />
 
-        <div className="grid gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard
-            label="In flight"
+            label="Open requests"
             value={stats.inFlight}
             sublabel="Requested or underway"
           />
@@ -145,17 +110,19 @@ function CustomerDashboard() {
             sublabel="Quotes ready to review"
           />
           <StatCard
-            label="Settled"
+            label="Finished jobs"
             value={stats.settled}
             sublabel="Paid direct to worker"
           />
           <StatCard
-            label="Total committed"
+            label="Completed job value"
             value={formatPeso(stats.committed)}
             sublabel="Labor plus materials"
           />
         </div>
 
+        <JobFilters jobs={jobs ?? []} view="customer" value={filter} onChange={setFilter} />
+        {jobs && jobs.length > 0 && visibleJobs(jobs, "customer", filter).length === 0 ? <p className="rounded-lg bg-white p-6 text-sm text-stone-600">No requests in this section. Choose another filter to see your requests.</p> : null}
         {jobs && jobs.length === 0 ? (
           <EmptyState
             title="No requests yet"
@@ -164,18 +131,19 @@ function CustomerDashboard() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            {jobs?.map((job) => (
+            {visibleJobs(jobs ?? [], "customer", filter).map((job) => (
               <JobCard
                 key={job.id}
                 job={job}
                 counterpartLabel="Assigned worker"
                 counterpartName={job.workerName}
                 counterpartPhone={job.workerPhone}
-                showQuote={false}
+                view="customer"
                 actions={
                   <>
                     {job.status === "quoted" ? (
                       <>
+                        <ApproveButton job={job} />
                         <Link
                           href={`/worker/${job.workerId}`}
                           className="btn-neutral btn-sm no-underline"
@@ -189,14 +157,8 @@ function CustomerDashboard() {
                             setDisputing(disputing === job.id ? null : job.id)
                           }
                         >
-                          Dispute
+                          Report a problem
                         </button>
-                        <ApproveButton
-                          job={job}
-                          onDone={async () =>
-                            setJobs(await listConsumerJobs(user!.uid))
-                          }
-                        />
                       </>
                     ) : null}
 
@@ -223,30 +185,13 @@ function CustomerDashboard() {
                     ) : null}
                   </>
                 }
-              />
+              >
+                {reviewing === job.id && job.status === "completed" ? <ReviewForm key={`review-${job.id}`} job={job} onDone={async () => setReviewing(null)} /> : null}
+                {disputing === job.id && job.status === "quoted" ? <DisputeForm key={`dispute-${job.id}`} job={job} onDone={async () => setDisputing(null)} /> : null}
+              </JobCard>
             ))}
           </div>
         )}
-
-        {reviewing && jobs ? (
-          <ReviewForm
-            job={jobs.find((j) => j.id === reviewing)!}
-            onDone={async () => {
-              setReviewing(null);
-              setJobs(await listConsumerJobs(user!.uid));
-            }}
-          />
-        ) : null}
-
-        {disputing && jobs ? (
-          <DisputeForm
-            job={jobs.find((j) => j.id === disputing)!}
-            onDone={async () => {
-              setDisputing(null);
-              setJobs(await listConsumerJobs(user!.uid));
-            }}
-          />
-        ) : null}
 
         <Card className="flex items-start gap-3 p-5">
           <Wallet
@@ -255,10 +200,9 @@ function CustomerDashboard() {
             className="mt-0.5 shrink-0 text-stone-400"
           />
           <p className="text-[13px] leading-[1.5] text-stone-600">
-            Payment is non-custodial: you hand cash or GCash straight to the
-            worker once the work is done, and the platform never holds your
-            funds. Every quote splits labor from materials, so materials carry
-            zero commission.
+            Pay cash or GCash directly to your worker after the work is done.
+            Check the full quote above before approving. The platform commission
+            comes from the worker’s labor fee; it is not an extra charge on top of your total.
           </p>
         </Card>
       </div>
@@ -273,10 +217,8 @@ function CustomerDashboard() {
  */
 function ApproveButton({
   job,
-  onDone,
 }: {
   job: Job;
-  onDone: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -290,13 +232,12 @@ function ApproveButton({
     setError("");
     try {
       await approveQuote(job);
-      await onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not approve the quote.");
     } finally {
       setBusy(false);
     }
-  }, [job, onDone]);
+  }, [job]);
 
   return (
     <span className="flex flex-col gap-1">
@@ -334,7 +275,7 @@ function ReviewForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
           Rate {job.workerName}
         </h3>
         <p className="caption mt-0.5">
-          Reviews are algorithmically audited to prevent malicious feedback.
+          Describe your experience with the completed work.
         </p>
       </div>
 
@@ -389,12 +330,16 @@ function ReviewForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
 function DisputeForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
   async function run() {
     setBusy(true);
+    setError("");
     try {
       await logDispute(job, reason.trim(), "consumer");
       await onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not submit your report.");
     } finally {
       setBusy(false);
     }
@@ -425,6 +370,7 @@ function DisputeForm({ job, onDone }: { job: Job; onDone: () => Promise<void> })
         />
       </div>
 
+      {error ? <Notice tone="alert">{error}</Notice> : null}
       <ActionButton
         onClick={run}
         busy={busy}

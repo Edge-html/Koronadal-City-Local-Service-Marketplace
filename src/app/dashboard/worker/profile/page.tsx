@@ -6,6 +6,7 @@ import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
 import { Badge, Card, Notice, safeAsync, StarRating, StatCard } from "@/components/ui";
 import { CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
+import { PortfolioForm } from "@/components/PortfolioForm";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { getWorkerByUid, listReviews, updateWorker } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
@@ -83,7 +84,8 @@ export default function WorkerProfilePage() {
           <StatCard label="Referral credits" value={worker.referralCredits} sublabel="Single tier, job-verified" />
         </div>
 
-        <ResumeEditor worker={worker} />
+        <details className="rounded-xl border border-stone-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium">Resume and skills</summary><div className="mt-4"><ResumeEditor worker={worker} /></div></details>
+        <details className="rounded-xl border border-stone-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium">Add work to your portfolio</summary><div className="mt-4"><PortfolioForm workerId={worker.id} onDone={async () => { setSaved(true); setWorker(await getWorkerByUid(user!.uid)); }} /></div></details>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
           <Card className="flex flex-col gap-4 p-5">

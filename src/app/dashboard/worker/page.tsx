@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Camera, Check, Upload } from "lucide-react";
+import { AlertTriangle, Check } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton, JobCard } from "@/components/JobCard";
 import {
@@ -14,18 +14,17 @@ import {
 } from "@/components/ui";
 import {
   acceptJob,
-  addPortfolioEntry,
   completeJob,
   declineJob,
   getWorkerByUid,
-  listJobsForWorker,
   settleJob,
   submitQuote,
 } from "@/lib/data";
 import { computeTotals, formatPeso } from "@/lib/commission";
-import { CATEGORIES } from "@/lib/constants";
-import { ResumeEditor } from "@/components/ResumeEditor";
-import { ModeSwitcher } from "@/components/ModeSwitcher";
+
+import { useActivity } from "@/context/ActivityContext";
+import { AttentionNotice, FlowGuide, JobFilters, WORKER_STEPS } from "@/components/FlowGuide";
+import { visibleJobs, type JobFilter } from "@/lib/job-flow";
 import { useAuth } from "@/context/AuthContext";
 import type { Job, Worker } from "@/lib/types";
 
@@ -33,17 +32,18 @@ export default function WorkerDashboardPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [worker, setWorker] = useState<Worker | null>(null);
-  const [jobs, setJobs] = useState<Job[] | null>(null);
+  const { workerJobs: jobs, workerError, workerCount } = useActivity();
+  const [filter, setFilter] = useState<JobFilter>("all");
+  const [profileLoaded, setProfileLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [quoting, setQuoting] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
   const refresh = async () => {
     if (!user) return;
     const w = await getWorkerByUid(user.uid);
     setWorker(w);
-    setJobs(w ? await listJobsForWorker(w.uid) : []);
+    setProfileLoaded(true);
   };
 
   useEffect(() => {
@@ -54,8 +54,9 @@ export default function WorkerDashboardPage() {
         const w = await getWorkerByUid(user.uid);
         if (cancelled) return;
         setWorker(w);
-        setJobs(w ? await listJobsForWorker(w.uid) : []);
+        setProfileLoaded(true);
       } catch {
+        if (!cancelled) setProfileLoaded(true);
         if (!cancelled) setError("Could not load your jobs. Please refresh.");
       }
     })();
@@ -70,7 +71,7 @@ export default function WorkerDashboardPage() {
       newRequests: jobs.filter((j) => j.status === "requested").length,
       quoting: jobs.filter((j) => j.status === "accepted").length,
       active: jobs.filter((j) => j.status === "in_progress").length,
-      toSettle: jobs.filter((j) => j.status === "completed").length,
+      toSettle: jobs.filter((j) => j.status === "completed" && !j.settledAt).length,
       earned: jobs
         .filter((j) => ["completed", "reviewed"].includes(j.status))
         .reduce((sum, job) => {
@@ -83,14 +84,18 @@ export default function WorkerDashboardPage() {
   }, [jobs]);
 
   // A worker who has not finished registration has nothing to act on yet.
-  if (!worker && stats === null) {
+  if (profileLoaded && !worker) return <DashboardShell title="My jobs" subtitle="Set up your worker profile to receive requests.">
+    {error ? <Notice tone="alert">{error}</Notice> : <EmptyState title="Complete your worker profile" description="Add your service and verification documents to start receiving requests." action={{ label: "Set up profile", href: "/dashboard/worker/onboarding" }} />}
+  </DashboardShell>;
+
+  if (!profileLoaded || stats === null) {
     return (
       <DashboardShell
-        eyebrow="Worker console"
-        title="Your jobs"
+        eyebrow="Worker dashboard"
+        title="My jobs"
         subtitle="Accept requests, send quotes, and track settlement."
       >
-        <p className="meta">Loading your worker profile</p>
+        {workerError ? <Notice tone="alert">{workerError}</Notice> : <p className="meta">Loading your jobs…</p>}
       </DashboardShell>
     );
   }
@@ -98,7 +103,7 @@ export default function WorkerDashboardPage() {
   if (worker && !worker.verified) {
     return (
       <DashboardShell
-        eyebrow="Worker console"
+        eyebrow="Worker dashboard"
         title="Awaiting verification"
         subtitle="Your profile is in the admin review queue. Background checks clear within 24 to 48 hours."
       >
@@ -118,11 +123,14 @@ export default function WorkerDashboardPage() {
 
   return (
     <DashboardShell
-      eyebrow="Worker console"
-      title="Your jobs"
-      subtitle="Accept requests, send two-part quotes, and track settlement against your prepaid wallet."
+      eyebrow="Worker dashboard"
+      title="My jobs"
+      subtitle="Requests that need your action appear first. Open each job to see what to do next."
     >
       <div className="flex flex-col gap-4">
+        {workerError ? <Notice tone="alert">{workerError}</Notice> : null}
+        <AttentionNotice count={workerCount}>{workerCount ? `${workerCount} job${workerCount === 1 ? " needs" : "s need"} your response, a quote, or commission settlement. Choose “Needs your action” below.` : "New requests and customer approvals appear here automatically."}</AttentionNotice>
+        <FlowGuide steps={WORKER_STEPS} />
         {error ? <Notice tone="alert">{error}</Notice> : null}
 
         {worker?.status === "paused_wallet" ? (
@@ -148,7 +156,7 @@ export default function WorkerDashboardPage() {
           </Card>
         ) : null}
 
-        <div className="grid gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <StatCard label="New requests" value={stats?.newRequests ?? 0} />
           <StatCard label="To quote" value={stats?.quoting ?? 0} />
           <StatCard label="In progress" value={stats?.active ?? 0} />
@@ -160,45 +168,8 @@ export default function WorkerDashboardPage() {
           />
         </div>
 
-        {worker ? (
-          <Card className="flex flex-wrap items-center justify-between gap-4 p-5">
-            <div>
-              <p className="caption">Prepaid platform balance</p>
-              <p className="mt-1 text-[24px] leading-[1.2] font-medium tracking-[-0.48px] text-ink-black tabular-nums">
-                {formatPeso(worker.walletBalance)}
-              </p>
-              <p className="caption mt-1">
-                {formatPeso(worker.walletLocked)} locked against approved quotes
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Link href="/dashboard/wallet" className="btn-primary btn-sm no-underline">
-                Top up
-              </Link>
-              <ActionButton
-                variant="neutral"
-                onClick={() => setUploading((v) => !v)}
-                icon={<Camera size={13} strokeWidth={1.5} />}
-              >
-                Add portfolio entry
-              </ActionButton>
-            </div>
-          </Card>
-        ) : null}
-
-        {uploading && worker ? (
-          <PortfolioForm workerId={worker.id} onDone={async () => {
-            setUploading(false);
-            await refresh();
-          }} />
-        ) : null}
-
-        {worker ? (
-          <>
-            <ModeSwitcher available={!!worker.id} />
-            <ResumeEditor worker={worker} />
-          </>
-        ) : null}
+        <JobFilters jobs={jobs ?? []} view="worker" value={filter} onChange={setFilter} />
+        {jobs && jobs.length > 0 && visibleJobs(jobs, "worker", filter).length === 0 ? <p className="rounded-lg bg-white p-6 text-sm text-stone-600">No jobs in this section. Choose another filter to see your requests.</p> : null}
 
         {jobs && jobs.length === 0 ? (
           <EmptyState
@@ -208,14 +179,14 @@ export default function WorkerDashboardPage() {
           />
         ) : (
           <div className="flex flex-col gap-3">
-            {jobs?.map((job) => (
+            {visibleJobs(jobs ?? [], "worker", filter).map((job) => (
               <JobCard
                 key={job.id}
                 job={job}
                 counterpartLabel="Household"
                 counterpartName={job.consumerName}
                 counterpartPhone={job.consumerPhone}
-                showQuote={false}
+                view="worker"
                 actions={
                   <>
                     {job.status === "requested" ? (
@@ -259,10 +230,9 @@ export default function WorkerDashboardPage() {
 
                     {job.status === "accepted" ? (
                       <ActionButton
-                        variant="neutral"
                         onClick={() => setQuoting(quoting === job.id ? null : job.id)}
                       >
-                        {job.quote ? "Revise quote" : "Submit quote"}
+                        {quoting === job.id ? "Close quote form" : "Write a quote"}
                       </ActionButton>
                     ) : null}
 
@@ -315,20 +285,13 @@ export default function WorkerDashboardPage() {
                     ) : null}
                   </>
                 }
-              />
+              >
+                {quoting === job.id && job.status === "accepted" ? <QuoteForm key={job.id} job={job} onDone={async () => { setQuoting(null); await refresh(); }} /> : null}
+              </JobCard>
             ))}
           </div>
         )}
 
-        {quoting && jobs ? (
-          <QuoteForm
-            job={jobs.find((j) => j.id === quoting)!}
-            onDone={async () => {
-              setQuoting(null);
-              await refresh();
-            }}
-          />
-        ) : null}
       </div>
     </DashboardShell>
   );
@@ -475,102 +438,6 @@ function QuoteForm({
 
       <ActionButton onClick={run} busy={busy} disabled={!valid}>
         Send quote for approval
-      </ActionButton>
-    </Card>
-  );
-}
-
-function PortfolioForm({
-  workerId,
-  onDone,
-}: {
-  workerId: string;
-  onDone: () => Promise<void>;
-}) {
-  const [title, setTitle] = useState("");
-  const [categoryId, setCategoryId] = useState("carpentry");
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function run() {
-    setBusy(true);
-    try {
-      await addPortfolioEntry(workerId, {
-        id: `pf_${Date.now().toString(36)}`,
-        jobTitle: title.trim(),
-        categoryId,
-        note: note.trim(),
-        createdAt: new Date().toISOString(),
-      });
-      await onDone();
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div>
-        <h3 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
-          Add a portfolio entry
-        </h3>
-        <p className="caption mt-0.5">
-          Voluntary after a completed job. Enriches your public profile.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="label" htmlFor="pf-title">
-            Job title
-          </label>
-          <input
-            id="pf-title"
-            className="field"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Built-in kitchen cabinets"
-          />
-        </div>
-        <div>
-          <label className="label" htmlFor="pf-cat">
-            Trade
-          </label>
-          <select
-            id="pf-cat"
-            className="field"
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-          >
-            {CATEGORIES.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div>
-        <label className="label" htmlFor="pf-note">
-          Note
-        </label>
-        <textarea
-          id="pf-note"
-          className="field min-h-[70px] resize-y"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          placeholder="What you built, and any materials worth noting."
-        />
-      </div>
-
-      <ActionButton
-        onClick={run}
-        busy={busy}
-        disabled={title.trim().length < 3}
-        icon={<Upload size={13} strokeWidth={1.5} />}
-      >
-        Publish entry
       </ActionButton>
     </Card>
   );

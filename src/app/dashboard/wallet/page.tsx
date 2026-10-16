@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Wallet as WalletIcon } from "lucide-react";
+import { FlowGuide } from "@/components/FlowGuide";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
 import { Card, Notice, StatCard } from "@/components/ui";
@@ -92,6 +93,11 @@ export default function WalletPage() {
       subtitle="A prepaid balance funds the 10% labor commission without the platform ever handling client funds."
     >
       <div className="flex flex-col gap-4">
+        <FlowGuide steps={[
+          { title: "Make your payment", detail: "Choose a payment method and pay the amount you want to add to your platform balance." },
+          { title: "Submit the reference", detail: "Enter the amount and payment reference below so an admin can verify it." },
+          { title: "Wait for verification", detail: "Your balance is credited after approval. This balance covers your platform commission." },
+        ]} />
         {breached ? (
           <Card className="flex items-start gap-3 border-alert-coral/40 p-5">
             <AlertTriangle

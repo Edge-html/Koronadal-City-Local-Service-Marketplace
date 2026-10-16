@@ -1,5 +1,7 @@
 "use client";
 
+import { useActivity } from "@/context/ActivityContext";
+import { AttentionNotice, FlowGuide, CUSTOMER_STEPS } from "@/components/FlowGuide";
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Categories } from "@/components/sections/Categories";
@@ -77,6 +79,7 @@ export default function HomePage() {
  * thing on the screen that is not doing work.
  */
 function CustomerMasthead() {
+  const { customerCount, customerError } = useActivity();
   return (
     <section className="container-page pb-4 pt-14 sm:pb-6 sm:pt-20">
       <p className="font-[family-name:var(--font-system-ui)] text-[10px] uppercase tracking-[-0.3px] text-stone-500">
@@ -89,6 +92,10 @@ function CustomerMasthead() {
         Search verified local workers by name, service, or trade. Compare their
         profiles and offers, then send a request when you find the right fit.
       </p>
+      <div className="mt-6 flex flex-col gap-3">
+        {customerError ? <p role="alert" className="text-sm text-red-700">{customerError}</p> : <AttentionNotice count={customerCount} href="/dashboard/customer">{customerCount ? "You have quotes or completed jobs waiting for your response in My requests." : "Start by choosing a worker below. Track your requests and quotes in My requests."}</AttentionNotice>}
+        <FlowGuide steps={CUSTOMER_STEPS} />
+      </div>
     </section>
   );
 }

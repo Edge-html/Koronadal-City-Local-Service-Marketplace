@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
 import "./globals.css";
+import { ActivityProvider } from "@/context/ActivityContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { SiteNav } from "@/components/SiteNav";
@@ -74,11 +75,13 @@ export default function RootLayout({
       <body style={{ fontVariationSettings: "normal" }}>
         <ErrorBoundary>
           <AuthProvider>
+          <ActivityProvider>
             <div className="flex min-h-dvh flex-col">
               <SiteNav />
               <main className="flex-1">{children}</main>
               <SiteFooter />
             </div>
+          </ActivityProvider>
           </AuthProvider>
         </ErrorBoundary>
       </body>

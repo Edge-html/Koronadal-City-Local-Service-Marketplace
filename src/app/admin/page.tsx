@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
@@ -9,7 +9,6 @@ import {
   Card,
   EmptyState,
   Notice,
-  StatCard,
 } from "@/components/ui";
 import { CATEGORY_MAP } from "@/lib/constants";
 import { DOC_TYPES, type Job, type Worker } from "@/lib/types";
@@ -17,10 +16,14 @@ import { decideTopUp, decideVerification, listAllJobs, listPendingTopUpRequests,
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
+import { useActivity } from "@/context/ActivityContext";
+import { CountBadge, FlowGuide } from "@/components/FlowGuide";
 import { openCredential } from "@/lib/credentials";
 
 export default function AdminPage() {
   const { role, loading: authLoading } = useAuth();
+  const { adminRevision, adminError, adminDisputes } = useActivity();
+  const [section, setSection] = useState<"workers" | "payments" | "oversight">("workers");
 
   const [pending, setPending] = useState<Worker[] | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -31,10 +34,13 @@ export default function AdminPage() {
   const [migrationDone, setMigrationDone] = useState(false);
   const [migrating, setMigrating] = useState(false);
 
-  const load = async () => {
-    setPending(await listPendingWorkers());
-    setJobs(await listAllJobs());
-    setTopUps(await listPendingTopUpRequests());
+  const load = useCallback(async () => {
+    const [workers, allJobs, payments] = await Promise.all([listPendingWorkers(), listAllJobs(), listPendingTopUpRequests()]);
+    return { workers, allJobs, payments };
+  }, []);
+  const refresh = async () => {
+    const data = await load();
+    setPending(data.workers); setJobs(data.allJobs); setTopUps(data.payments);
   };
 
   useEffect(() => {
@@ -44,8 +50,12 @@ export default function AdminPage() {
       setPending([]);
       return;
     }
-    load().catch(() => setError("Could not load the review queue."));
-  }, [authLoading, role]);
+    let cancelled = false;
+    load().then((data) => {
+      if (!cancelled) { setPending(data.workers); setJobs(data.allJobs); setTopUps(data.payments); }
+    }).catch(() => { if (!cancelled) setError("Could not load the review queue. Refresh to retry."); });
+    return () => { cancelled = true; };
+  }, [authLoading, role, adminRevision, load]);
 
   if (authLoading) return null;
 
@@ -65,7 +75,7 @@ export default function AdminPage() {
     );
   }
 
-  const openDisputes = jobs.filter((j) => j.status === "disputed");
+  const openDisputes = adminDisputes;
   const underFloor = jobs.filter((j) => {
     const trade = CATEGORY_MAP[j.categoryId];
     if (!j.quote || !trade) return false;
@@ -81,7 +91,7 @@ export default function AdminPage() {
         approve,
         notes[worker.id]?.trim() ?? "",
       );
-      await load();
+      await refresh();
     } catch {
       setError("Could not record that decision. Please retry.");
     } finally {
@@ -95,7 +105,7 @@ export default function AdminPage() {
     setError("");
     try {
       await decideTopUp(request.id, approve);
-      await load();
+      await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not process this top-up.");
     } finally {
@@ -110,7 +120,7 @@ export default function AdminPage() {
     try {
       await migrateLegacyWorkers();
       setMigrationDone(true);
-      await load();
+      await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not migrate legacy records.");
     } finally {
@@ -125,45 +135,29 @@ export default function AdminPage() {
       subtitle="Worker credential review, payment verification, dispute handling, and price monitoring."
     >
       <div className="flex flex-col gap-4">
-        {error ? <Notice tone="alert">{error}</Notice> : null}
+        {error || adminError ? <Notice tone="alert">{error || adminError}</Notice> : null}
         {migrationDone ? <Notice>Legacy worker contact and document fields were moved to private records.</Notice> : null}
-        <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
-          <div>
-            <h2 className="text-[15px] font-medium">Protect existing worker records</h2>
-            <p className="caption mt-1">Run once after deployment to move older contact and document fields out of the public directory.</p>
-          </div>
-          <ActionButton variant="neutral" busy={migrating} onClick={protectLegacyRecords}>
-            Migrate legacy records
-          </ActionButton>
-        </Card>
-
-        <div className="grid gap-3 sm:grid-cols-4">
-          <StatCard
-            label="Awaiting verification"
-            value={pending?.length ?? 0}
-            sublabel="Background check queue"
-          />
-          <StatCard
-            label="Open disputes"
-            value={openDisputes.length}
-            sublabel="Logged under RA 7394"
-          />
-          <StatCard
-            label="Below price floor"
-            value={underFloor.length}
-            sublabel="Monitored for predatory pricing"
-          />
-          <StatCard
-            label="Tracked jobs"
-            value={jobs.length}
-            sublabel="Most recent 200"
-          />
+        <FlowGuide steps={[
+          { title: "Choose a queue", detail: "Use the counts below to find worker applications, payments, or disputes that need attention." },
+          { title: "Check the evidence", detail: "Open worker documents or verify the payment with the provider before making a decision." },
+          { title: "Record the decision", detail: "Approve or reject the application or payment. Add review notes when checking credentials." },
+        ]} />
+        <div className="flex flex-wrap gap-2" aria-label="Review sections">
+          {([
+            { id: "workers", label: "Worker applications", count: pending?.length ?? 0 },
+            { id: "payments", label: "Wallet top-ups", count: topUps.length },
+            { id: "oversight", label: "Disputes & pricing", count: openDisputes.length },
+          ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
+            className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-blue-600 bg-white font-semibold text-blue-700" : "border-stone-200 text-stone-700"}`}>
+            {item.label}<CountBadge count={item.count} />
+          </button>)}
         </div>
+        <p className="text-xs text-stone-500" role="status">{pending === null ? "Loading review queues…" : "Queue counts update automatically as requests arrive or are reviewed."}</p>
 
-        <Card className="overflow-hidden p-0">
+        {section === "payments" ? <Card className="overflow-hidden p-0">
           <div className="border-b border-stone-200 px-5 py-4">
             <h2 className="text-[16px] font-medium text-ink-black">Top-up verification</h2>
-            <p className="caption mt-1">Check the payment with the provider before approving. A reference alone is not proof of payment.</p>
+            <p className="caption mt-1">1. Check the amount and reference. 2. Verify receipt with the payment provider. 3. Select Payment verified or Reject.</p>
           </div>
           {topUps.length === 0 ? (
             <p className="px-5 py-8 text-[14px] text-stone-500">No top-ups awaiting verification.</p>
@@ -185,17 +179,16 @@ export default function AdminPage() {
               ))}
             </ul>
           )}
-        </Card>
+        </Card> : null}
 
         {/* Verification queue */}
-        <Card className="overflow-hidden p-0">
+        {section === "workers" ? <Card className="overflow-hidden p-0">
           <div className="border-b border-stone-200 px-5 py-4">
             <h2 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
               Credential review
             </h2>
             <p className="caption mt-0.5">
-              Three mandatory documents required; TESDA certification is
-              optional and grants a profile badge
+              1. Open each document. 2. Add your review notes. 3. Approve or reject the application. TESDA certification is optional.
             </p>
           </div>
 
@@ -325,10 +318,10 @@ export default function AdminPage() {
               })}
             </ul>
           )}
-        </Card>
+        </Card> : null}
 
         {/* Oversight */}
-        <div className="grid gap-4 lg:grid-cols-2">
+        {section === "oversight" ? <div className="grid gap-4 lg:grid-cols-2">
           <Card className="overflow-hidden p-0">
             <div className="border-b border-stone-200 px-5 py-4">
               <h2 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
@@ -404,7 +397,19 @@ export default function AdminPage() {
               </ul>
             )}
           </Card>
-        </div>
+        </div> : null}
+        <details className="rounded-xl border border-stone-200 p-4"><summary className="cursor-pointer text-sm text-stone-500">Advanced maintenance</summary><div className="mt-4">
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div>
+            <h2 className="text-[15px] font-medium">Protect existing worker records</h2>
+            <p className="caption mt-1">Run once after deployment to move older contact and document fields out of the public directory.</p>
+          </div>
+          <ActionButton variant="neutral" busy={migrating} onClick={protectLegacyRecords}>
+            Migrate legacy records
+          </ActionButton>
+        </Card>
+
+        </div></details>
       </div>
     </DashboardShell>
   );

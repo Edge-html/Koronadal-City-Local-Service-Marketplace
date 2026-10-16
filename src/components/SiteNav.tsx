@@ -2,249 +2,90 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
-import { LayoutGrid, LogOut, Menu, User, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { Wordmark } from "@/components/Wordmark";
+import { CountBadge } from "@/components/FlowGuide";
 import { useAuth } from "@/context/AuthContext";
+import { useActivity } from "@/context/ActivityContext";
 import { firebaseConfigured } from "@/lib/firebase";
-import { cx, initials } from "@/lib/utils";
-
-/**
- * Commission and compliance used to be separate top-level links that both
- * resolved to sections of /platform. Three nav entries pointing into one page
- * is noise, so they fold into a single destination; the on-page index on
- * /platform carries the detail.
- *
- * The primary links follow the signed-in role. A worker's home is their
- * incoming job requests; a household's home is the worker finder.
- */
-const PUBLIC_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/browse", label: "Find a worker" },
-  { href: "/#categories", label: "Services" },
-  { href: "/platform", label: "How it works" },
-];
-const WORKER_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/dashboard/worker", label: "Jobs" },
-  { href: "/dashboard/worker/profile", label: "Profile" },
-  { href: "/dashboard/wallet", label: "Wallet" },
-  { href: "/browse", label: "Find a worker" },
-];
-const CUSTOMER_LINKS = [
-  { href: "/", label: "Home" },
-  { href: "/browse", label: "Find a worker" },
-  { href: "/dashboard/customer", label: "My requests" },
-  { href: "/#categories", label: "Services" },
-];
+import { initials } from "@/lib/utils";
 
 export function SiteNav() {
   const pathname = usePathname();
   const { user, role, loading, logout } = useAuth();
+  const { customerCount, workerCount, adminCount } = useActivity();
   const [open, setOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
+  const account = useRef<HTMLDivElement>(null);
+  const accountButton = useRef<HTMLButtonElement>(null);
+  const links = role === "admin"
+    ? [{ href: "/admin", label: "Review queue", count: adminCount }, { href: "/browse", label: "Worker directory", count: 0 }]
+    : role === "worker"
+      ? [{ href: "/", label: "Home", count: 0 }, { href: "/dashboard/worker", label: "My jobs", count: workerCount }, { href: "/dashboard/wallet", label: "Wallet", count: 0 }]
+      : role === "customer"
+        ? [{ href: "/", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/dashboard/customer", label: "My requests", count: customerCount }]
+        : [{ href: "/landing", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/platform", label: "How it works", count: 0 }];
+  const accountName = user?.displayName?.trim() || user?.email?.split("@")[0] || "Account";
+  const accountLinks = role === "worker" ? [
+    { href: "/dashboard/worker/profile", label: "My profile", count: 0 },
+    { href: "/dashboard/worker/credentials", label: "Verification documents", count: 0 },
+    { href: "/browse", label: "Hire a worker", count: 0 },
+    { href: "/dashboard/customer", label: "My requests as a customer", count: customerCount },
+  ] : role === "admin" ? [{ href: "/admin", label: "Review queue", count: adminCount }]
+    : [{ href: "/dashboard/customer", label: "My requests", count: customerCount }];
 
-  const links =
-    role === "admin"
-      ? [{ href: "/admin", label: "Review queue" }, ...PUBLIC_LINKS]
-      : role === "worker"
-        ? WORKER_LINKS
-        : role === "customer"
-          ? CUSTOMER_LINKS
-          : PUBLIC_LINKS;
-  const accountHref = role === "admin" ? "/admin" : role === "worker" ? "/" : "/dashboard/customer";
-
-  // displayName is set at signup, but fall back to the email local-part so
-  // the header never renders an empty identity chip.
-  const accountName =
-    (user?.displayName as string | undefined)?.trim() ||
-    user?.email?.split("@")[0] ||
-    "Account";
-
-  // Mobile sheet closes on navigation.
-  useEffect(() => setOpen(false), [pathname]);
-
+  useEffect(() => { setOpen(false); setAccountOpen(false); }, [pathname]);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    onScroll();
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+    const outside = (event: PointerEvent) => { if (!account.current?.contains(event.target as Node)) setAccountOpen(false); };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        if (accountOpen) { setAccountOpen(false); accountButton.current?.focus(); }
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [accountOpen]);
 
-  /**
-   * Anchor links to the same parent share one active state — lighting up
-   * "Commission", "Compliance" and "How it works" all at once on /platform
-   * would be noise. Only the parent-level link lights up.
-   */
-  const isActive = (href: string) => {
-    const [path, hash] = href.split("#");
-    if (path !== pathname) return false;
-    // A hash link is a different destination from the bare path, even though
-    // both are `/`. Only the bare one lights up.
-    return !hash;
-  };
+  const renderLinks = (mobile = false) => links.map((link) => <Link key={link.href} href={link.href}
+    onClick={() => setOpen(false)} aria-current={pathname === link.href ? "page" : undefined}
+    className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm no-underline transition-colors ${mobile ? "justify-between" : ""} ${pathname === link.href ? "bg-white font-medium text-blue-700 shadow-sm" : "text-stone-700 hover:bg-white/70"}`}>
+    {link.label}<CountBadge count={link.count} />
+  </Link>);
 
-  return (
-    <>
-      {!firebaseConfigured ? (
-        <div className="border-b border-stone-200 bg-bone no-print">
-          <div className="container-page flex items-center justify-between gap-4 py-2">
-            <p className="font-[family-name:var(--font-system-ui)] text-[11px] leading-[1.4] tracking-[-0.36px] text-stone-700">
-              Preview mode — Firebase is not configured, so accounts and live
-              data are unavailable.
-            </p>
-            <Link href="/browse" className="shrink-0 text-[11px] tracking-[-0.02em] text-ink-black underline underline-offset-2">
-              What&apos;s needed
-            </Link>
-          </div>
-        </div>
-      ) : null}
-
-      <header
-        className={cx(
-          "sticky top-0 z-50 border-b transition-colors duration-200",
-          scrolled
-            ? "border-stone-200 bg-newsprint/90 backdrop-blur-sm"
-            : "border-transparent bg-newsprint",
-        )}
-      >
-      <div className="container-page flex h-16 items-center justify-between gap-6">
-        <div className="flex items-center gap-8">
-          <Wordmark />
-          <nav
-            className="hidden items-center gap-1 lg:flex"
-            aria-label="Primary"
-          >
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={cx(
-                  "rounded-md px-3 py-2 text-[14px] tracking-[-0.02em] no-underline transition-colors",
-                  isActive(link.href)
-                    ? "text-ink-black"
-                    : "text-stone-700 hover:bg-bone hover:text-ink-black",
-                )}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
-        </div>
-
-        <div className="hidden items-center gap-2 lg:flex">
-          {loading ? (
-            <span className="h-9 w-24 animate-pulse rounded-md bg-stone-200/70" />
-          ) : user ? (
-            <>
-              <Link
-                href={accountHref}
-                className="btn-ghost gap-2"
-                title="Open your account"
-              >
-                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bone text-[10px] font-medium text-stone-700">
-                  {initials(accountName)}
-                </span>
-                <span className="max-w-[18ch] truncate text-[14px] tracking-[-0.02em] text-ink-black">
-                  {accountName}
-                </span>
-              </Link>
-              <button
-                type="button"
-                onClick={logout}
-                className="btn-ghost"
-                aria-label="Sign out"
-              >
-                <LogOut size={14} strokeWidth={1.5} />
-                Sign out
+  return <>
+    {!firebaseConfigured ? <div className="border-b border-stone-200 bg-bone py-2"><p className="container-page text-xs text-stone-700">Preview mode — accounts and live data are unavailable.</p></div> : null}
+    <header className="sticky top-0 z-50 border-b border-stone-200 bg-newsprint/95 backdrop-blur-sm">
+      <div className="container-page flex h-16 items-center justify-between gap-3">
+        <div className="flex items-center gap-6"><Wordmark href={user ? "/" : "/landing"} /><nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">{renderLinks()}</nav></div>
+        <div className="flex items-center gap-2">
+          {loading ? <span className="h-9 w-20 animate-pulse rounded bg-stone-200" /> : user ? (
+            <div className="relative" ref={account} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false); }}>
+              <button type="button" ref={accountButton} className="btn-ghost gap-2" aria-expanded={accountOpen} aria-controls="account-panel" aria-label={`Open account menu for ${accountName}`} onClick={() => setAccountOpen((v) => !v)}>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-medium">{initials(accountName)}</span>
+                <span className="hidden max-w-[14ch] truncate text-sm sm:inline">{accountName}</span>
+                {role === "worker" ? <CountBadge count={customerCount} /> : null}
+                <ChevronDown size={14} />
               </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="btn-ghost">
-                Sign in
-              </Link>
-              <Link href="/signup" className="btn-neutral">
-                Join as a worker
-              </Link>
-              <Link href="/browse" className="btn-primary">
-                Find a worker
-              </Link>
-            </>
-          )}
-        </div>
-
-        <button
-          type="button"
-          className="btn-ghost -mr-2 px-2 lg:hidden"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          aria-controls="mobile-nav"
-          aria-label={open ? "Close menu" : "Open menu"}
-        >
-          {open ? (
-            <X size={18} strokeWidth={1.5} />
-          ) : (
-            <Menu size={18} strokeWidth={1.5} />
-          )}
-        </button>
-      </div>
-
-      {open ? (
-        <div
-          id="mobile-nav"
-          className="animate-in border-t border-stone-200 bg-newsprint lg:hidden"
-        >
-          <nav
-            className="container-page flex flex-col gap-1 py-4"
-            aria-label="Mobile"
-          >
-            {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="rounded-md px-3 py-3 text-[15px] tracking-[-0.02em] text-ink-black no-underline hover:bg-bone"
-              >
-                {link.label}
-              </Link>
-            ))}
-
-            <div className="mt-3 flex flex-col gap-2 border-t border-stone-200 pt-4">
-              {user ? (
-                <>
-                  <Link href={accountHref} className="btn-neutral w-full">
-                    <LayoutGrid size={14} strokeWidth={1.5} />
-                    {accountName}
-                  </Link>
-                  {/* Review queue is already the first link in the list above. */}
-                  <button
-                    type="button"
-                    onClick={logout}
-                    className="btn-ghost w-full"
-                  >
-                    <LogOut size={14} strokeWidth={1.5} />
-                    Sign out
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link href="/browse" className="btn-primary w-full">
-                    Find a worker
-                  </Link>
-                  <Link href="/signup" className="btn-neutral w-full">
-                    <User size={14} strokeWidth={1.5} />
-                    Join as a worker
-                  </Link>
-                  <Link href="/login" className="btn-ghost w-full">
-                    Sign in
-                  </Link>
-                </>
-              )}
+              {accountOpen ? <div id="account-panel" className="absolute right-0 top-full mt-2 w-64 max-w-[85vw] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
+                <div className="border-b border-stone-100 px-3 py-3"><p className="truncate text-sm font-semibold">{accountName}</p><p className="mt-1 text-xs capitalize text-stone-500">{role === "customer" ? "Customer" : role} account</p></div>
+                <nav aria-label="Account">{accountLinks.map((link) => <Link key={link.href} href={link.href} onClick={() => { setAccountOpen(false); setOpen(false); }} className="flex min-h-11 items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-stone-800 no-underline hover:bg-stone-100">
+                  {link.label}<CountBadge count={link.count} />
+                </Link>)}</nav>
+                <button type="button" onClick={async () => { setAccountOpen(false); await logout(); }} className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-lg border-t border-stone-100 px-3 py-2 text-sm hover:bg-stone-100"><LogOut size={14} />Sign out</button>
+              </div> : null}
             </div>
-          </nav>
+          ) : <div className="hidden items-center gap-2 sm:flex"><Link href="/login" className="btn-ghost">Sign in</Link><Link href="/signup" className="btn-primary">Create account</Link></div>}
+          <button type="button" className="btn-ghost px-2 lg:hidden" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="mobile-nav" aria-label={open ? "Close navigation" : "Open navigation"}>
+            {open ? <X size={20} /> : <Menu size={20} />}<CountBadge count={role === "worker" ? workerCount : role === "admin" ? adminCount : customerCount} />
+          </button>
         </div>
-      ) : null}
-      </header>
-    </>
-  );
+      </div>
+      {open ? <nav id="mobile-nav" aria-label="Mobile" className="container-page flex flex-col gap-1 border-t border-stone-200 py-3 lg:hidden">
+        {renderLinks(true)}{!user ? <><Link href="/login" className="btn-neutral">Sign in</Link><Link href="/signup" className="btn-primary">Create account</Link></> : null}
+      </nav> : null}
+    </header>
+  </>;
 }

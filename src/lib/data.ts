@@ -400,7 +400,7 @@ export async function listInquiriesForWorker(workerUid: string) {
 /* Jobs — the six-stage lifecycle                                       */
 /* ------------------------------------------------------------------ */
 
-function toJob(id: string, data: DocumentData): Job {
+export function toJob(id: string, data: DocumentData): Job {
   return {
     id,
     consumerId: data.consumerId ?? "",

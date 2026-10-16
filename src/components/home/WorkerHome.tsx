@@ -15,15 +15,18 @@ import {
   safeAsync,
 } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
-import { acceptJob, declineJob, getWorkerByUid, listJobsForWorker } from "@/lib/data";
+import { acceptJob, declineJob, getWorkerByUid } from "@/lib/data";
+import { useActivity } from "@/context/ActivityContext";
+import { AttentionNotice, FlowGuide, WORKER_STEPS } from "@/components/FlowGuide";
+import { nextStep } from "@/lib/job-flow";
 import { formatDate } from "@/lib/utils";
-import type { Job, Worker } from "@/lib/types";
+import type { Worker } from "@/lib/types";
 
 /**
  * The worker home is the incoming job request queue.
  *
  * Only the two actions that matter on arrival — accept and decline — are here.
- * Quoting, completing, settling, wallet and portfolio stay in the full console
+ * Quoting, completing, settlement and wallet stay in the jobs dashboard
  * at /dashboard/worker, which this links to. A worker should be able to clear
  * an incoming request from the home page without the home page growing a
  * second copy of the whole six-stage lifecycle.
@@ -32,7 +35,9 @@ export function WorkerHome() {
   const { user, loading: authLoading } = useAuth();
 
   const [worker, setWorker] = useState<Worker | null>(null);
-  const [jobs, setJobs] = useState<Job[] | null>(null);
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const { workerJobs: jobs, workerError, workerCount } = useActivity();
+  const [message, setMessage] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
@@ -40,7 +45,7 @@ export function WorkerHome() {
     if (!user) return;
     const w = await getWorkerByUid(user.uid);
     setWorker(w);
-    setJobs(w ? await listJobsForWorker(w.uid) : []);
+
   }, [user]);
 
   useEffect(() => {
@@ -51,11 +56,13 @@ export function WorkerHome() {
         const w = await getWorkerByUid(user.uid);
         if (cancelled) return;
         setWorker(w);
-        setJobs(w ? await listJobsForWorker(w.uid) : []);
+        setProfileLoaded(true);
+
       } catch (err) {
         console.error("[home] worker load failed:", err);
         if (cancelled) return;
-        setJobs([]);
+
+        setProfileLoaded(true);
         setError("Could not load your jobs. Please refresh to try again.");
       }
     })();
@@ -72,13 +79,13 @@ export function WorkerHome() {
 
   const open = (jobs ?? []).filter((j) => j.status === "requested");
   const active = (jobs ?? []).filter((j) =>
-    ["accepted", "in_progress"].includes(j.status),
+    ["accepted", "quoted", "in_progress"].includes(j.status),
   );
   const closed = (jobs ?? []).filter((j) =>
     ["completed", "reviewed"].includes(j.status),
   );
 
-  if (jobs !== null && !worker && !error) {
+  if (profileLoaded && jobs !== null && !worker && !error) {
     return (
       <section className="section container-page">
         <p className="label">Worker home</p>
@@ -118,10 +125,10 @@ export function WorkerHome() {
         <SectionHeader
           eyebrow="My jobs"
           title="Requests waiting on you"
-          description="Households that selected you from the directory. Accepting one locks it to you; declining returns it without penalty."
+          description="Check new requests here. After accepting, open My jobs to send your quote and track the work."
           action={
             <Link href="/dashboard/worker" className="btn-neutral no-underline">
-              Open the full console
+              Go to My jobs
             </Link>
           }
         />
@@ -132,6 +139,12 @@ export function WorkerHome() {
           </Notice>
         ) : null}
 
+        <div className="mt-6 flex flex-col gap-3">
+          {workerError ? <Notice tone="alert">{workerError}</Notice> : null}
+          {message ? <Notice>{message} <Link href="/dashboard/worker" className="font-medium underline">Open My jobs to write your quote.</Link></Notice> : null}
+          <AttentionNotice count={workerCount} href="/dashboard/worker">{workerCount ? `${workerCount} ${workerCount === 1 ? "job needs" : "jobs need"} a response, a quote, or settlement. New requests are below; all next steps are in My jobs.` : "New requests will appear here automatically. Track accepted jobs from My jobs."}</AttentionNotice>
+          <FlowGuide steps={WORKER_STEPS} />
+        </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
           <StatCard label="New requests" value={open.length} />
           <StatCard label="In progress" value={active.length} />
@@ -162,6 +175,7 @@ export function WorkerHome() {
                   <JobCard
                     key={job.id}
                     job={job}
+                    view="worker"
                     counterpartLabel="Household"
                     counterpartName={job.consumerName}
                     showQuote={false}
@@ -172,7 +186,9 @@ export function WorkerHome() {
                           onClick={safeAsync(async () => {
                             setBusyId(job.id);
                             try {
+                              setError("");
                               await acceptJob(job.id);
+                              setMessage("Request accepted.");
                               await refresh();
                             } catch (err) {
                               setError(err instanceof Error ? err.message : "Could not update this request.");
@@ -213,7 +229,7 @@ export function WorkerHome() {
                   </p>
                   <p className="mt-1 text-[13px] leading-[1.5] text-stone-600">
                     {active.length
-                      ? `${active.length} ${active.length === 1 ? "job is" : "jobs are"} accepted and under way. Quotes, completion and settlement are in the console.`
+                      ? `${active.length} ${active.length === 1 ? "job is" : "jobs are"} accepted and under way. Open My jobs to send quotes and track the next step.`
                       : `${closed.length} ${closed.length === 1 ? "job" : "jobs"} closed out. New requests will appear here the moment they arrive.`}
                   </p>
                 </Card>
@@ -229,9 +245,9 @@ export function WorkerHome() {
                         key={job.id}
                         className="flex items-center justify-between gap-3 py-2.5"
                       >
-                        <span className="min-w-0 flex-1 truncate text-[13px] tracking-[-0.02em] text-stone-700">
-                          {job.title}
-                        </span>
+                        <Link href={`/dashboard/worker#job-${job.id}`} className="min-w-0 flex-1 text-sm text-blue-700 underline underline-offset-2">
+                          {job.title}<span className="mt-1 block text-xs text-stone-500">{nextStep(job, "worker").title}</span>
+                        </Link>
                         <span className="shrink-0 text-[12px] text-stone-500">
                           {formatDate(job.requestedAt)}
                         </span>
@@ -262,7 +278,8 @@ export function WorkerHome() {
 
 const STATUS_LABEL: Record<string, string> = {
   requested: "New",
-  accepted: "Accepted",
+  accepted: "Needs a quote",
+  quoted: "Awaiting approval",
   in_progress: "In progress",
   completed: "To settle",
   reviewed: "Closed",

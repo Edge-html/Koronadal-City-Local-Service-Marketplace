@@ -6,6 +6,7 @@ import { CATEGORY_MAP, JOB_STATUS_META } from "@/lib/constants";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { formatDate, timeAgo } from "@/lib/utils";
 import type { Tone } from "@/components/ui";
+import { needsAction, nextStep, type JobView } from "@/lib/job-flow";
 import type { Job, JobStatus } from "@/lib/types";
 
 /** Shared pipeline timeline. The active stage is the first unfinished step. */
@@ -59,8 +60,8 @@ const STAGE_LABELS: Record<string, string> = {
   requested: "Requested",
   accepted: "Accepted",
   quoted: "Quoted",
-  in_progress: "Execution",
-  completed: "Settled",
+  in_progress: "In progress",
+  completed: "Completed",
   reviewed: "Reviewed",
 };
 
@@ -83,18 +84,13 @@ export function QuoteBreakdown({ job }: { job: Job }) {
         )}
       </div>
 
-      <dl className="grid sm:grid-cols-4">
+      <dl className="grid sm:grid-cols-3">
         {[
-          { label: "Labor fee", value: t.laborFee, note: "Subject to 10%" },
+          { label: "Labor fee", value: t.laborFee, note: "Cost of the work" },
           {
             label: "Materials",
             value: t.materialsCost,
-            note: "Zero commission",
-          },
-          {
-            label: "Platform fee",
-            value: t.commission,
-            note: "10% of labor",
+            note: "Supplies and parts",
           },
           { label: "Total payable", value: t.total, note: "Paid to worker" },
         ].map((row, i) => (
@@ -115,6 +111,7 @@ export function QuoteBreakdown({ job }: { job: Job }) {
         ))}
       </dl>
 
+      <p className="border-t border-stone-200 px-4 py-2 text-xs leading-relaxed text-stone-500">The worker’s {formatPeso(t.commission)} platform commission is included in the labor fee. It is not added to the customer’s total.</p>
       {job.quote.notes ? (
         <p className="border-t border-stone-200 px-4 py-3 text-[13px] leading-[1.45] text-stone-600">
           {job.quote.notes}
@@ -197,6 +194,8 @@ export function JobCard({
   counterpartPhone,
   actions,
   showQuote = true,
+  view,
+  children,
 }: {
   job: Job;
   counterpartLabel: string;
@@ -204,12 +203,15 @@ export function JobCard({
   counterpartPhone?: string;
   actions?: React.ReactNode;
   showQuote?: boolean;
+  view?: JobView;
+  children?: React.ReactNode;
 }) {
   const trade = CATEGORY_MAP[job.categoryId];
+  const guidance = view ? nextStep(job, view) : null;
   const unlocked = !["requested", "cancelled", "disputed"].includes(job.status);
 
   return (
-    <Card className="flex flex-col gap-4 p-5">
+    <Card id={`job-${job.id}`} className="flex scroll-mt-24 flex-col gap-4 p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -233,7 +235,11 @@ export function JobCard({
 
       <p className="text-[13px] leading-[1.5] text-stone-700">{job.description}</p>
 
-      <JobTimeline status={job.status} />
+      {guidance ? <div className={`rounded-lg p-3 ${view && needsAction(job, view) ? "border border-blue-200 bg-blue-50" : "bg-stone-50"}`}>
+        <p className="text-sm font-semibold text-stone-900">{guidance.title}</p>
+        <p className="mt-1 text-sm leading-relaxed text-stone-600">{guidance.detail}</p>
+      </div> : null}
+      <details><summary className="cursor-pointer text-xs text-stone-500">View job progress</summary><div className="mt-3"><JobTimeline status={job.status} /></div></details>
 
       {showQuote && job.quote ? <QuoteBreakdown job={job} /> : null}
 
@@ -250,6 +256,7 @@ export function JobCard({
           {actions}
         </div>
       ) : null}
+      {children}
     </Card>
   );
 }
