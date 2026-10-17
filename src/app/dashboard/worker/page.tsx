@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton, JobCard } from "@/components/JobCard";
+import { ProfileStrength } from "@/components/ProfileStrength";
 import {
   Badge,
   Card,
@@ -107,6 +108,7 @@ export default function WorkerDashboardPage() {
             You will appear in the public directory and can receive job requests
             as soon as your three mandatory credentials are approved.
           </Notice>
+          <ProfileStrength worker={worker} />
           <OnboardingSummary worker={worker} />
           <Link href="/dashboard/worker/credentials" className="btn-primary w-fit no-underline">
             Upload or replace credentials
@@ -124,6 +126,7 @@ export default function WorkerDashboardPage() {
     >
       <div className="flex flex-col gap-4">
         {workerError ? <Notice tone="alert">{workerError}</Notice> : null}
+        {worker ? <ProfileStrength worker={worker} /> : null}
         <AttentionNotice count={workerCount}>{workerCount ? `${workerCount} job${workerCount === 1 ? " needs" : "s need"} your response, a quote, or commission settlement. Choose “Needs your action” below.` : "New requests and customer approvals appear here automatically."}</AttentionNotice>
         <FlowGuide steps={WORKER_STEPS} />
         {error ? <Notice tone="alert">{error}</Notice> : null}

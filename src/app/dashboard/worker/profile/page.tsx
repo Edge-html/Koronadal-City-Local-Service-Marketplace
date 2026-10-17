@@ -13,6 +13,7 @@ import { formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import type { Review, Worker } from "@/lib/types";
 import { ProfilePhotoEditor } from "@/components/ProfilePhotoEditor";
+import { ProfileStrength } from "@/components/ProfileStrength";
 
 export default function WorkerProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -37,6 +38,22 @@ export default function WorkerProfilePage() {
       }
     });
   }, [authLoading, user]);
+
+  useEffect(() => {
+    const id = window.location.hash.slice(1);
+    if (!worker || !["resume-skills", "portfolio"].includes(id)) return;
+    const target = document.getElementById(id);
+    if (target instanceof HTMLDetailsElement) {
+      target.open = true;
+      target.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [worker]);
+
+  async function refreshWorker() {
+    if (!user) return;
+    const updated = await getWorkerByUid(user.uid);
+    if (updated) setWorker(updated);
+  }
 
   async function save() {
     if (!worker) return;
@@ -78,6 +95,7 @@ export default function WorkerProfilePage() {
       subtitle="Your public listing and referral code."
     >
       <div className="flex flex-col gap-4">
+        <ProfileStrength worker={worker} />
         <ProfilePhotoEditor name={worker.fullName} photoUrl={worker.photoUrl} onSaved={(photoUrl) => setWorker({ ...worker, photoUrl })} />
         <div className="grid gap-3 sm:grid-cols-4">
           <StatCard label="Rating" value={worker.rating.toFixed(1)} sublabel={`${worker.reviewCount} reviews`} />
@@ -86,8 +104,8 @@ export default function WorkerProfilePage() {
           <StatCard label="Referral credits" value={worker.referralCredits} sublabel="Single tier, job-verified" />
         </div>
 
-        <details className="rounded-xl border border-stone-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium">Resume and skills</summary><div className="mt-4"><ResumeEditor worker={worker} /></div></details>
-        <details className="rounded-xl border border-stone-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium">Add work to your portfolio</summary><div className="mt-4"><PortfolioForm workerId={worker.id} onDone={async () => { setSaved(true); setWorker(await getWorkerByUid(user!.uid)); }} /></div></details>
+        <details id="resume-skills" className="rounded-xl border border-stone-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium">Resume and skills</summary><div className="mt-4"><ResumeEditor worker={worker} onUpdated={refreshWorker} /></div></details>
+        <details id="portfolio" className="rounded-xl border border-stone-200 bg-white p-4"><summary className="cursor-pointer text-sm font-medium">Add work to your portfolio</summary><div className="mt-4"><PortfolioForm workerId={worker.id} onDone={async () => { setSaved(true); await refreshWorker(); }} /></div></details>
 
         <div className="grid gap-4 lg:grid-cols-[1fr_340px] lg:items-start">
           <Card className="flex flex-col gap-4 p-5">

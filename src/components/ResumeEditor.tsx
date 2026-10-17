@@ -31,7 +31,7 @@ import type { Resume, Worker } from "@/lib/types";
  * corrects before anything is saved. Images have no text layer, so they upload
  * with the fields typed in rather than being silently mis-parsed.
  */
-export function ResumeEditor({ worker }: { worker: Worker }) {
+export function ResumeEditor({ worker, onUpdated }: { worker: Worker; onUpdated?: () => Promise<void> }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -116,6 +116,7 @@ export function ResumeEditor({ worker }: { worker: Worker }) {
     try {
       await updateWorker(worker.id, { skills: skills.slice(0, 20) });
       setSkillsSaved(true);
+      await onUpdated?.();
     } catch (err) {
       console.error("[worker-skills] save failed:", err);
       setSkillsError("Could not save your skills. Please try again.");
@@ -155,6 +156,7 @@ export function ResumeEditor({ worker }: { worker: Worker }) {
       });
 
       setSaved(true);
+      await onUpdated?.();
     } catch (err) {
       console.error("[resume] save failed:", err);
       setError(
@@ -173,6 +175,7 @@ export function ResumeEditor({ worker }: { worker: Worker }) {
       setFileUrl("");
       setParsed(null);
       setSaved(true);
+      await onUpdated?.();
     } finally {
       setBusy(false);
     }
