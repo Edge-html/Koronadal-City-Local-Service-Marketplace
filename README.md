@@ -1,4 +1,4 @@
-# Koronadal City Local Service Marketplace
+# KoroHanap — Koronadal Local Service Marketplace
 
 A verified marketplace connecting Koronadal City households with vetted,
 accountable blue-collar trade professionals across ten essential service
@@ -159,7 +159,7 @@ Six stages, each a discrete state transition:
 | --- | --- | --- | --- |
 | 1 | Browse & select | — | Filter the directory by category, barangay, rating, verified badges |
 | 2 | Request sent | `requested` | In-app request in the worker dashboard |
-| 3 | Acceptance | `accepted` | **Contact details unlock** — phone, SMS, Messenger |
+| 3 | Acceptance | `accepted` | **Contact details unlock** — phone and Messenger |
 | 4 | Quote approved | `quoted` → `in_progress` | Two-part quote; approval **locks 10% of labor** against the wallet |
 | 5 | Completion and payment confirmation | `completed` | Worker sets the direct payment method; finder uploads proof; worker confirms receipt and the reserved commission settles |
 | 6 | Review | `reviewed` | Portfolio entry plus a 1–5 star rating and text review |
@@ -429,14 +429,12 @@ message, and the worker sees the shortfall on their own quote.
 
 ## Notes for production
 
-This build ships the marketplace logic end to end. A few integrations are
-deliberately stubbed at the edges and need wiring before real traffic:
+Configure `RESEND_API_KEY` and `EMAIL_FROM` in Vercel to send worker new-request
+alerts and optional post-payment review links. The `EMAIL_FROM` address must
+belong to a domain verified in Resend. Email links use the site domain that
+received the request. In-app notifications continue to work if email is not
+configured.
 
-- **Review SMS** — after payment is confirmed, the finder receives a review
-  link by SMS only if they opted in when requesting the job and the private
-  Infobip settings (`INFOBIP_BASE_URL`, `INFOBIP_API_KEY`, `INFOBIP_SENDER`,
-  `NEXT_PUBLIC_APP_URL`) are configured. Trial accounts can only message
-  verified destinations. Other job alerts remain in-app notifications.
 - **Payments** — workers submit a reference and an administrator independently
   verifies it before crediting. Provider webhooks remain future work.
 - **File uploads** — receipts, profile photos, credentials, and portfolio

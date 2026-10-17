@@ -32,7 +32,7 @@ function SignUpForm() {
   // one. People start here to hire services and some later offer them.
   const signedInAsCustomer = !!user && accountRole === "customer";
 
-  // Philippine mobile numbers are the SMS fallback channel, so validate loosely.
+  // Phone numbers are used for direct coordination after a request is accepted.
   const phoneValid = useMemo(
     () => phone.trim() === "" || /^(09\d{9}|\+639\d{9})$/.test(phone.trim()),
     [phone],
@@ -271,7 +271,7 @@ function SignUpForm() {
             }
           >
             {phoneValid
-              ? "Used for SMS job alerts. Format: 09XX XXX XXXX"
+              ? "Used to coordinate directly after a worker accepts. Format: 09XX XXX XXXX"
               : "Enter a valid Philippine mobile number."}
           </p>
         </div>

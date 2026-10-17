@@ -23,16 +23,16 @@ export function Wordmark({
         "group inline-flex items-center gap-2 rounded-md no-underline",
         className,
       )}
-      aria-label="Koronadal Local Service Marketplace — landing page"
+      aria-label="KoroHanap — landing page"
     >
       <span
         aria-hidden
         className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-char text-[11px] leading-none font-medium tracking-[-0.04em] text-newsprint"
       >
-        KC
+        KH
       </span>
       <span className="text-[15px] leading-none font-medium tracking-[-0.02em] text-char">
-        Koronadal<span className="text-stone-500"> Service</span>
+        Koro<span className="text-stone-500">Hanap</span>
       </span>
     </Link>
   );

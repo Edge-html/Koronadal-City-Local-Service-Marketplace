@@ -24,8 +24,8 @@ const ui = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "Koronadal Local Service Marketplace",
-    template: "%s · Koronadal Local Service Marketplace",
+    default: "KoroHanap",
+    template: "%s · KoroHanap",
   },
   description:
     "A verified marketplace connecting Koronadal City households with vetted, accountable blue-collar service professionals across ten essential service categories.",
@@ -41,9 +41,10 @@ export const metadata: Metadata = {
     "marketplace",
     "South Cotabato",
   ],
-  authors: [{ name: "Koronadal City Local Service Marketplace" }],
+  applicationName: "KoroHanap",
+  authors: [{ name: "KoroHanap" }],
   openGraph: {
-    title: "Koronadal City Local Service Marketplace",
+    title: "KoroHanap",
     description:
       "Verified local trades. Transparent pricing. Direct payment to the worker.",
     type: "website",

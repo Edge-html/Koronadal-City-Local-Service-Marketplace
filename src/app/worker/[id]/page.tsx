@@ -11,7 +11,7 @@ export async function generateMetadata({
   return {
     title: "Worker profile",
     description:
-      "Verified service professional on the Koronadal City Local Service Marketplace.",
+      "Verified local service professional on KoroHanap in Koronadal City.",
   };
 }
 

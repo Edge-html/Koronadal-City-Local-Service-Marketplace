@@ -322,7 +322,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
   const [description, setDescription] = useState("");
   const [barangay, setBarangay] = useState(worker.barangay);
   const [photoUrl, setPhotoUrl] = useState("");
-  const [reviewSmsOptIn, setReviewSmsOptIn] = useState(false);
+  const [reviewEmailOptIn, setReviewEmailOptIn] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -334,7 +334,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
         consumerId: user!.uid,
         consumerName: user!.displayName || "Household",
         consumerPhotoUrl: typeof profile?.photoUrl === "string" ? profile.photoUrl : "",
-        reviewSmsOptIn,
+        reviewEmailOptIn,
         worker,
         categoryId: worker.categoryId,
         title: title.trim(),
@@ -352,7 +352,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     } finally {
       setBusy(false);
     }
-  }, [user, profile, worker, title, description, photoUrl, barangay, reviewSmsOptIn, router]);
+  }, [user, profile, worker, title, description, photoUrl, barangay, reviewEmailOptIn, router]);
 
   if (loading) {
     return (
@@ -391,8 +391,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
           Send a job request
         </h2>
         <p className="mt-1.5 text-[13px] leading-[1.45] text-stone-600">
-          The worker receives an in-app
-          notification.
+          The worker receives an email and in-app notification.
         </p>
       </div>
 
@@ -461,8 +460,8 @@ function RequestPanel({ worker }: { worker: Worker }) {
           </div>
         </div>
         <label className="flex items-start gap-2 text-[12px] leading-[1.45] text-stone-600">
-          <input type="checkbox" checked={reviewSmsOptIn} onChange={(event) => setReviewSmsOptIn(event.target.checked)} className="mt-0.5 accent-black" />
-          <span>Text me a link to review this worker after payment is confirmed. SMS will only be sent if the service is configured; message/data rates may apply.</span>
+          <input type="checkbox" checked={reviewEmailOptIn} onChange={(event) => setReviewEmailOptIn(event.target.checked)} className="mt-0.5 accent-black" />
+          <span>Email me a link to review this worker after payment is confirmed.</span>
         </label>
       </div>
 

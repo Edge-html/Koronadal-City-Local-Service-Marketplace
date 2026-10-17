@@ -512,7 +512,7 @@ export default function WorkerOnboardingPage() {
                 "Admin reviews your three mandatory documents",
                 "Background check completes within 24 to 48 hours",
                 "Profile goes live in the public directory",
-                "Job requests arrive by SMS and in-app",
+                "Job requests arrive by email and in-app",
               ].map((text, i) => (
                 <li key={text} className="flex gap-2 text-[13px] leading-[1.45] text-stone-700">
                   <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-bone text-[9px] tabular-nums text-stone-600">

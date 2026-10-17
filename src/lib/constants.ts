@@ -215,7 +215,7 @@ export const WORKFLOW_STAGES = [
     key: "accepted",
     name: "Acceptance & Contact Unlocked",
     detail:
-      "Once the worker accepts, the platform unlocks direct contact channels: phone call capabilities, direct SMS routing, and Facebook Messenger deep-linking.",
+      "Once the worker accepts, the platform unlocks direct contact channels: phone and Facebook Messenger.",
   },
   {
     step: 4,

@@ -20,7 +20,7 @@ export function Hero() {
       </h1>
 
       <p className="mt-8 max-w-[58ch] text-[16px] leading-[1.45] text-stone-600 sm:text-[17px]">
-        The Koronadal City Local Service Marketplace connects households with
+        KoroHanap connects Koronadal City households with
         background-checked professionals across ten essential trades. Pay cash
         or GCash directly to the worker. Nothing is held in escrow.
       </p>

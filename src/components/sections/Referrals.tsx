@@ -18,7 +18,7 @@ export function Referrals() {
               },
               {
                 title: "Unique code issuance",
-                body: "Every registered worker is issued a unique 6-character alphanumeric referral code located inside their mobile application dashboard or SMS menu.",
+                body: "Every registered worker is issued a unique 6-character alphanumeric referral code in their worker dashboard.",
               },
               {
                 title: "Qualification rule",

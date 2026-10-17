@@ -414,7 +414,7 @@ export function toJob(id: string, data: DocumentData): Job {
     workerPhotoUrl: data.workerPhotoUrl ?? "",
     workerPhone: data.workerPhone ?? "",
     consumerPhone: data.consumerPhone ?? "",
-    reviewSmsOptIn: data.reviewSmsOptIn === true,
+    reviewEmailOptIn: data.reviewEmailOptIn === true,
     categoryId: data.categoryId ?? "",
     title: data.title ?? "",
     description: data.description ?? "",
@@ -469,7 +469,7 @@ export interface NewJob {
   consumerId: string;
   consumerName: string;
   consumerPhotoUrl?: string;
-  reviewSmsOptIn?: boolean;
+  reviewEmailOptIn?: boolean;
   worker: Worker;
   categoryId: string;
   title: string;
@@ -478,13 +478,13 @@ export interface NewJob {
   barangay: string;
 }
 
-/** Stage 1 -> 2. Creates the in-app request for the worker. */
+/** Stage 1 -> 2. Creates the request and emails the worker as a best effort. */
 export async function createJobRequest(input: NewJob) {
   const ref = await addDoc(jobsCol(), {
     consumerId: input.consumerId,
     consumerName: input.consumerName,
     consumerPhotoUrl: input.consumerPhotoUrl ?? "",
-    reviewSmsOptIn: input.reviewSmsOptIn === true,
+    reviewEmailOptIn: input.reviewEmailOptIn === true,
     workerId: input.worker.id,
     workerUid: input.worker.uid,
     workerName: input.worker.fullName,
@@ -498,6 +498,13 @@ export async function createJobRequest(input: NewJob) {
     requestedAt: new Date().toISOString(),
     createdAt: serverTimestamp(),
   });
+  try {
+    await marketplaceAction({ operation: "notifyWorkerNewRequest", jobId: ref.id });
+  } catch (error) {
+    // The request is already saved in Firestore and remains visible in-app.
+    // A mail provider outage must not make the household think it was lost.
+    console.warn("[email] worker request alert could not be sent:", error);
+  }
   return ref.id;
 }
 

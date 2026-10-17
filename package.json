@@ -2,7 +2,7 @@
     "name": "koronadal-local-service-marketplace",
     "version": "1.0.0",
     "private": true,
-    "description": "Koronadal City Local Service Marketplace Ã¢â‚¬â€ connecting households with verified blue-collar trade professionals.",
+    "description": "KoroHanap connects Koronadal households with verified local service professionals.",
     "scripts": {
         "postinstall": "node scripts/copy-pdf-worker.mjs",
         "dev": "next dev",

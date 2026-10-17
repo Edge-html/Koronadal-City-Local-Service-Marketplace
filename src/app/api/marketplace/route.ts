@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminServices } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
+import { escapeEmailHtml, sendTransactionalEmail } from "@/lib/server-email";
 
 export const runtime = "nodejs";
 
-type Operation = "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
+type Operation = "notifyWorkerNewRequest" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -26,48 +27,25 @@ function fail(message: string, status = 400) {
  */
 class MarketplaceError extends Error {}
 
-/** Send the post-settlement review link through Infobip when configured. */
-async function sendReviewLinkSms(phone: string, jobId: string, origin: string) {
-  const baseUrl = process.env.INFOBIP_BASE_URL?.replace(/\/$/, "");
-  const apiKey = process.env.INFOBIP_API_KEY;
-  const sender = process.env.INFOBIP_SENDER;
-  if (!baseUrl || !apiKey || !sender) {
-    console.info("[review-sms] not sent: Infobip is not configured.");
-    return;
-  }
-  let apiUrl: URL;
-  try {
-    apiUrl = new URL(`${baseUrl}/sms/2/text/advanced`);
-  } catch {
-    console.error("[review-sms] not sent: invalid Infobip base URL.");
-    return;
-  }
-  if (apiUrl.protocol !== "https:" || !apiUrl.hostname.endsWith(".api.infobip.com")) {
-    console.error("[review-sms] not sent: invalid Infobip API host.");
-    return;
-  }
-  const digits = phone.replace(/[^\d+]/g, "");
-  const to = digits.startsWith("+63") ? digits : digits.startsWith("63") ? `+${digits}` : digits.startsWith("09") ? `+63${digits.slice(1)}` : "";
-  if (!/^\+639\d{9}$/.test(to)) {
-    console.warn("[review-sms] not sent: customer phone is not a valid Philippine mobile number.");
-    return;
-  }
+/** Email the consumer their review link after the payment is confirmed. */
+async function sendReviewLinkEmail(to: string, jobId: string, origin: string) {
   const reviewUrl = new URL(`/dashboard/customer?review=${encodeURIComponent(jobId)}`, origin).toString();
-  try {
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: { Authorization: `App ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ messages: [{ from: sender, destinations: [{ to }], text: `Your payment is confirmed. Please rate your worker and leave a review: ${reviewUrl}` }] }),
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!response.ok) {
-      console.error(`[review-sms] provider returned HTTP ${response.status}.`);
-      return;
-    }
-    console.info("[review-sms] review invitation submitted to provider.");
-  } catch (error) {
-    console.error("[review-sms] delivery request failed.", error);
-  }
+  const safeUrl = escapeEmailHtml(reviewUrl);
+  return sendTransactionalEmail({
+    to,
+    subject: "How did your KoroHanap service go?",
+    text: `Your payment is confirmed. Please rate your worker and leave a review: ${reviewUrl}`,
+    html: `<p>Your payment is confirmed. Please take a moment to rate your worker and share a review.</p><p><a href="${safeUrl}">Leave a review</a></p><p>Thank you for using KoroHanap.</p>`,
+  });
+}
+
+function jobRequestEmailHtml(job: { title: string; description: string; barangay: string; consumerName: string }, link: string) {
+  const safeTitle = escapeEmailHtml(job.title);
+  const safeDescription = escapeEmailHtml(job.description);
+  const safeBarangay = escapeEmailHtml(job.barangay);
+  const safeConsumer = escapeEmailHtml(job.consumerName);
+  const safeLink = escapeEmailHtml(link);
+  return `<div style="font-family:Arial,sans-serif;color:#171513;line-height:1.5"><h1 style="font-size:22px">A new service request is waiting</h1><p>${safeConsumer} sent you a request through KoroHanap.</p><h2 style="font-size:18px">${safeTitle}</h2><p>${safeDescription}</p><p><strong>Barangay:</strong> ${safeBarangay}</p><p><a href="${safeLink}" style="display:inline-block;background:#111;color:white;padding:12px 18px;border-radius:6px;text-decoration:none">Review request</a></p><p>Sign in to KoroHanap to accept or decline it.</p></div>`;
 }
 
 export async function POST(request: NextRequest) {
@@ -110,6 +88,58 @@ export async function POST(request: NextRequest) {
         updatedBy: user.uid,
       }, { merge: true });
       return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "notifyWorkerNewRequest") {
+      if (!input.jobId) return fail("Missing job.");
+      const jobRef = db.collection("jobs").doc(input.jobId);
+      const shouldSend = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(jobRef);
+        const job = snap.data();
+        if (!job || job.consumerId !== user.uid || job.status !== "requested") {
+          throw new MarketplaceError("This request is no longer available to notify.");
+        }
+        if (job.workerRequestEmailSentAt) return false;
+        const claimedAt = Date.parse(String(job.workerRequestEmailClaimedAt ?? ""));
+        if (Number.isFinite(claimedAt) && Date.now() - claimedAt < 2 * 60 * 1000) return false;
+        tx.update(jobRef, { workerRequestEmailClaimedAt: new Date().toISOString() });
+        return true;
+      });
+      if (!shouldSend) return NextResponse.json({ ok: true });
+
+      const jobSnap = await jobRef.get();
+      const job = jobSnap.data()!;
+      try {
+        const workerAccount = await auth.getUser(String(job.workerUid));
+        const to = workerAccount.email?.trim();
+        if (to) {
+          const link = new URL("/dashboard/worker", request.nextUrl.origin).toString();
+          const delivered = await sendTransactionalEmail({
+            to,
+            subject: `New service request: ${String(job.title ?? "KoroHanap")}`,
+            text: `${String(job.consumerName ?? "A household")} sent you a new request: ${String(job.title ?? "Service request")} in ${String(job.barangay ?? "Koronadal City")}. Sign in to review it: ${link}`,
+            html: jobRequestEmailHtml({
+              title: String(job.title ?? "Service request"),
+              description: String(job.description ?? ""),
+              barangay: String(job.barangay ?? "Koronadal City"),
+              consumerName: String(job.consumerName ?? "A household"),
+            }, link),
+          });
+          if (delivered) {
+            await jobRef.update({
+              workerRequestEmailSentAt: new Date().toISOString(),
+              workerRequestEmailClaimedAt: FieldValue.delete(),
+            });
+            return NextResponse.json({ ok: true, emailSent: true });
+          }
+        } else {
+          console.warn("[email] worker account has no sign-up email.");
+        }
+      } catch (error) {
+        console.error("[email] worker request alert failed.", error);
+      }
+      await jobRef.update({ workerRequestEmailClaimedAt: FieldValue.delete() });
+      return NextResponse.json({ ok: true, emailSent: false });
     }
 
     if (operation === "acceptJob") {
@@ -283,9 +313,12 @@ export async function POST(request: NextRequest) {
             note: "First settled job referral: " + worker.fullName, createdAt: now,
           });
         }
-        return { phone: String(job.consumerPhone ?? ""), optedIn: job.reviewSmsOptIn === true };
+        return { consumerId: String(job.consumerId ?? ""), optedIn: job.reviewEmailOptIn === true };
       });
-      if (reviewRecipient.optedIn) await sendReviewLinkSms(reviewRecipient.phone, input.jobId, process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin);
+      if (reviewRecipient.optedIn) {
+        const customer = await auth.getUser(reviewRecipient.consumerId);
+        if (customer.email) await sendReviewLinkEmail(customer.email, input.jobId, request.nextUrl.origin);
+      }
       return NextResponse.json({ ok: true });
     }
 
@@ -344,9 +377,12 @@ export async function POST(request: NextRequest) {
             createdAt: new Date().toISOString(),
           });
         }
-        return { phone: String(job.consumerPhone ?? ""), optedIn: job.reviewSmsOptIn === true };
+        return { consumerId: String(job.consumerId ?? ""), optedIn: job.reviewEmailOptIn === true };
       });
-      if (reviewRecipient.optedIn) await sendReviewLinkSms(reviewRecipient.phone, input.jobId, process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin);
+      if (reviewRecipient.optedIn) {
+        const customer = await auth.getUser(reviewRecipient.consumerId);
+        if (customer.email) await sendReviewLinkEmail(customer.email, input.jobId, request.nextUrl.origin);
+      }
       return NextResponse.json({ ok: true });
     }
 

@@ -1,5 +1,5 @@
 /**
- * Domain model for the Koronadal City Local Service Marketplace.
+ * Domain model for KoroHanap, the Koronadal local service marketplace.
  * Mirrors the six-stage transaction lifecycle defined in the platform
  * specification.
  */
@@ -202,7 +202,7 @@ export interface Job {
   workerPhotoUrl?: string;
   workerPhone?: string;
   consumerPhone?: string;
-  reviewSmsOptIn?: boolean;
+  reviewEmailOptIn?: boolean;
   categoryId: string;
   title: string;
   description: string;
