@@ -17,6 +17,20 @@ function fail(message: string, status = 400) {
   return NextResponse.json({ error: message }, { status });
 }
 
+/** Resolve the email address recorded for this account at sign-up. */
+async function getSignupEmail(
+  db: FirebaseFirestore.Firestore,
+  auth: ReturnType<typeof adminServices>["auth"],
+  uid: string,
+) {
+  if (!uid) return "";
+  const profile = await db.collection("users").doc(uid).get();
+  const signupEmail = String(profile.data()?.email ?? "").trim();
+  if (signupEmail) return signupEmail;
+  const authUser = await auth.getUser(uid);
+  return authUser.email?.trim() ?? "";
+}
+
 /**
  * An error whose message is safe to show the caller.
  *
@@ -88,8 +102,7 @@ async function sendJobStageEmail(
     job = claimed;
     const copy = JOB_EMAIL_COPY[stage];
     const recipientUid = String(copy.recipient === "worker" ? job.workerUid ?? "" : job.consumerId ?? "");
-    const account = recipientUid ? await auth.getUser(recipientUid) : null;
-    const to = account?.email?.trim();
+    const to = await getSignupEmail(db, auth, recipientUid);
     if (!to) return false;
     const title = String(job.title ?? "service request");
     const link = new URL(copy.path, origin).toString();
@@ -130,8 +143,7 @@ async function sendWorkerApprovalEmail(
       return data;
     });
     if (!worker) return false;
-    const account = await auth.getUser(String(worker.uid ?? ""));
-    const to = account.email?.trim();
+    const to = await getSignupEmail(db, auth, String(worker.uid ?? ""));
     if (!to) {
       await workerRef.update({ [claimField]: FieldValue.delete() });
       return false;
@@ -238,8 +250,7 @@ export async function POST(request: NextRequest) {
       const jobSnap = await jobRef.get();
       const job = jobSnap.data()!;
       try {
-        const workerAccount = await auth.getUser(String(job.workerUid));
-        const to = workerAccount.email?.trim();
+        const to = await getSignupEmail(db, auth, String(job.workerUid ?? ""));
         if (to) {
           const link = new URL("/dashboard/worker", request.nextUrl.origin).toString();
           const delivered = await sendTransactionalEmail({
