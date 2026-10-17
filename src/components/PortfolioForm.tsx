@@ -5,6 +5,7 @@ import { Card, Notice } from "@/components/ui";
 import { ActionButton } from "@/components/JobCard";
 import { addPortfolioEntry } from "@/lib/data";
 import { CATEGORIES } from "@/lib/constants";
+import { uploadPortfolioImages } from "@/lib/portfolio-files";
 
 export function PortfolioForm({
   workerId,
@@ -16,6 +17,8 @@ export function PortfolioForm({
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState("carpentry");
   const [note, setNote] = useState("");
+  const [beforePhoto, setBeforePhoto] = useState<File | null>(null);
+  const [afterPhoto, setAfterPhoto] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -23,11 +26,18 @@ export function PortfolioForm({
     setBusy(true);
     setError("");
     try {
+      const id = `pf_${crypto.randomUUID()}`;
+      const photos = beforePhoto || afterPhoto
+        ? await uploadPortfolioImages(workerId, id, beforePhoto, afterPhoto)
+        : {};
       await addPortfolioEntry(workerId, {
-        id: `pf_${Date.now().toString(36)}`,
+        id,
         jobTitle: title.trim(),
         categoryId,
         note: note.trim(),
+        ...photos,
+        ...(photos.beforePath ? { beforeUrl: `/api/portfolio-files?workerId=${encodeURIComponent(workerId)}&entryId=${encodeURIComponent(id)}&side=before` } : {}),
+        ...(photos.afterPath ? { afterUrl: `/api/portfolio-files?workerId=${encodeURIComponent(workerId)}&entryId=${encodeURIComponent(id)}&side=after` } : {}),
         createdAt: new Date().toISOString(),
       });
       await onDone();
@@ -93,6 +103,18 @@ export function PortfolioForm({
           placeholder="What you built, and any materials worth noting."
         />
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="pf-before">Before photo (optional)</label>
+          <input id="pf-before" className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setBeforePhoto(event.target.files?.[0] ?? null)} />
+        </div>
+        <div>
+          <label className="label" htmlFor="pf-after">After photo (optional)</label>
+          <input id="pf-after" className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setAfterPhoto(event.target.files?.[0] ?? null)} />
+        </div>
+      </div>
+      <p className="caption">JPG, PNG, or WebP; up to 4 MB per photo. Photos appear on your public profile.</p>
 
       {error ? <Notice tone="alert">{error}</Notice> : null}
       <ActionButton

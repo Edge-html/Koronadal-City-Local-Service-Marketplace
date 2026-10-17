@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { Star, Wallet } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton, JobCard } from "@/components/JobCard";
@@ -36,7 +36,7 @@ export default function CustomerDashboardPage() {
 }
 
 function CustomerDashboard() {
-  const { role } = useAuth();
+  const { role, user } = useAuth();
   const params = useSearchParams();
 
   const { customerJobs: jobs, customerError, customerCount } = useActivity();
@@ -45,6 +45,16 @@ function CustomerDashboard() {
   const [disputing, setDisputing] = useState<string | null>(null);
 
   const sent = params.get("sent") === "1";
+  const reviewLinkJobId = params.get("review");
+
+  useEffect(() => {
+    if (!reviewLinkJobId || !user || !jobs) return;
+    const target = jobs.find((job) => job.id === reviewLinkJobId
+      && job.consumerId === user.uid
+      && job.status === "completed"
+      && !!job.settledAt);
+    if (target) setReviewing(target.id);
+  }, [jobs, reviewLinkJobId, user]);
 
   const stats = useMemo(() => {
     if (!jobs) return null;
@@ -190,7 +200,7 @@ function CustomerDashboard() {
                 }
               >
                 {job.status === "completed" && !job.settledAt && job.paymentMethod ? <FinderPaymentPanel job={job} onDone={() => Promise.resolve()} /> : null}
-                {reviewing === job.id && job.status === "completed" ? <ReviewForm key={`review-${job.id}`} job={job} onDone={async () => setReviewing(null)} /> : null}
+                {(reviewing === job.id || reviewLinkJobId === job.id) && job.status === "completed" && job.settledAt ? <ReviewForm key={`review-${job.id}`} job={job} onDone={async () => setReviewing(null)} /> : null}
                 {disputing === job.id && job.status === "quoted" ? <DisputeForm key={`dispute-${job.id}`} job={job} onDone={async () => setDisputing(null)} /> : null}
               </JobCard>
             ))}

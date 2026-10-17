@@ -13,7 +13,10 @@ export function DashboardShell({ title, subtitle, eyebrow, children }: {
   const router = useRouter();
   const pathname = usePathname();
   useEffect(() => {
-    if (!loading && !user) router.replace(`/login?next=${encodeURIComponent(pathname)}`);
+    if (!loading && !user) {
+      const requestedPage = `${pathname}${window.location.search}`;
+      router.replace(`/login?next=${encodeURIComponent(requestedPage)}`);
+    }
   }, [loading, user, router, pathname]);
   if (loading) return <LoadingBlock label="Loading your account" />;
   if (!user) return null;

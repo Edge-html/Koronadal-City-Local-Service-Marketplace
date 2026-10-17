@@ -40,6 +40,6 @@ test("actionable requests sort first without mutating the live snapshot", () => 
 test("guidance changes with role and settlement, so completed does not mean settled", () => {
   assert.match(nextStep(job("accepted"), "worker").title, /Send your quote/);
   assert.match(nextStep(job("accepted"), "customer").title, /Waiting/);
-  assert.match(nextStep(job("completed"), "worker").title, /Settle/);
+  assert.match(nextStep(job("completed"), "worker").title, /Waiting for finder payment/);
   assert.match(nextStep(job("completed", { settledAt: "2026-10-16" }), "customer").title, /Leave a review/);
 });

@@ -432,13 +432,14 @@ message, and the worker sees the shortfall on their own quote.
 This build ships the marketplace logic end to end. A few integrations are
 deliberately stubbed at the edges and need wiring before real traffic:
 
-- **SMS alerts** — job requests and quote notifications create Firestore
-  records but do not dispatch SMS. Add a provider (Semaphore, Infobip, or an
-  SMS gateway) behind a Cloud Function triggered on `jobs` writes.
+- **Review SMS** — after payment is confirmed, the finder receives a review
+  link by SMS only if they opted in when requesting the job and the private
+  Infobip settings (`INFOBIP_BASE_URL`, `INFOBIP_API_KEY`, `INFOBIP_SENDER`,
+  `NEXT_PUBLIC_APP_URL`) are configured. Trial accounts can only message
+  verified destinations. Other job alerts remain in-app notifications.
 - **Payments** — workers submit a reference and an administrator independently
   verifies it before crediting. Provider webhooks remain future work.
-- **File uploads** — verification documents upload to private Firebase Storage
-  through an authenticated server route. Job photos still use a URL and need a
-  proper upload path.
+- **File uploads** — receipts, profile photos, credentials, and portfolio
+  before/after images use the private Supabase `private-files` bucket.
 - **Admin roles** — `users/{uid}.role` is trusted as written. Gate admin
   routes with Firebase custom claims.

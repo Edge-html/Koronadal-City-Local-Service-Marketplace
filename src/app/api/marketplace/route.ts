@@ -26,6 +26,50 @@ function fail(message: string, status = 400) {
  */
 class MarketplaceError extends Error {}
 
+/** Send the post-settlement review link through Infobip when configured. */
+async function sendReviewLinkSms(phone: string, jobId: string, origin: string) {
+  const baseUrl = process.env.INFOBIP_BASE_URL?.replace(/\/$/, "");
+  const apiKey = process.env.INFOBIP_API_KEY;
+  const sender = process.env.INFOBIP_SENDER;
+  if (!baseUrl || !apiKey || !sender) {
+    console.info("[review-sms] not sent: Infobip is not configured.");
+    return;
+  }
+  let apiUrl: URL;
+  try {
+    apiUrl = new URL(`${baseUrl}/sms/2/text/advanced`);
+  } catch {
+    console.error("[review-sms] not sent: invalid Infobip base URL.");
+    return;
+  }
+  if (apiUrl.protocol !== "https:" || !apiUrl.hostname.endsWith(".api.infobip.com")) {
+    console.error("[review-sms] not sent: invalid Infobip API host.");
+    return;
+  }
+  const digits = phone.replace(/[^\d+]/g, "");
+  const to = digits.startsWith("+63") ? digits : digits.startsWith("63") ? `+${digits}` : digits.startsWith("09") ? `+63${digits.slice(1)}` : "";
+  if (!/^\+639\d{9}$/.test(to)) {
+    console.warn("[review-sms] not sent: customer phone is not a valid Philippine mobile number.");
+    return;
+  }
+  const reviewUrl = new URL(`/dashboard/customer?review=${encodeURIComponent(jobId)}`, origin).toString();
+  try {
+    const response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { Authorization: `App ${apiKey}`, "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ messages: [{ from: sender, destinations: [{ to }], text: `Your payment is confirmed. Please rate your worker and leave a review: ${reviewUrl}` }] }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!response.ok) {
+      console.error(`[review-sms] provider returned HTTP ${response.status}.`);
+      return;
+    }
+    console.info("[review-sms] review invitation submitted to provider.");
+  } catch (error) {
+    console.error("[review-sms] delivery request failed.", error);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { auth, db } = adminServices();
@@ -198,7 +242,7 @@ export async function POST(request: NextRequest) {
     if (operation === "approveJobPayment") {
       if (!input.jobId) return fail("Missing job.");
       const jobRef = db.collection("jobs").doc(input.jobId);
-      await db.runTransaction(async (tx) => {
+      const reviewRecipient = await db.runTransaction(async (tx) => {
         const jobSnap = await tx.get(jobRef);
         const job = jobSnap.data();
         if (!job || job.workerUid !== user.uid || job.status !== "completed" || job.settledAt
@@ -239,14 +283,16 @@ export async function POST(request: NextRequest) {
             note: "First settled job referral: " + worker.fullName, createdAt: now,
           });
         }
+        return { phone: String(job.consumerPhone ?? ""), optedIn: job.reviewSmsOptIn === true };
       });
+      if (reviewRecipient.optedIn) await sendReviewLinkSms(reviewRecipient.phone, input.jobId, process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 
     if (operation === "settleJob") {
       if (!input.jobId) return fail("Missing job.");
       const jobRef = db.collection("jobs").doc(input.jobId);
-      await db.runTransaction(async (tx) => {
+      const reviewRecipient = await db.runTransaction(async (tx) => {
         const jobSnap = await tx.get(jobRef);
         const job = jobSnap.data();
         if (!job || job.workerUid !== user.uid || job.status !== "completed" || job.settledAt || job.paymentMethod) {
@@ -298,7 +344,9 @@ export async function POST(request: NextRequest) {
             createdAt: new Date().toISOString(),
           });
         }
+        return { phone: String(job.consumerPhone ?? ""), optedIn: job.reviewSmsOptIn === true };
       });
+      if (reviewRecipient.optedIn) await sendReviewLinkSms(reviewRecipient.phone, input.jobId, process.env.NEXT_PUBLIC_APP_URL || request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 

@@ -100,6 +100,9 @@ export interface PortfolioEntry {
   categoryId: string;
   beforeUrl?: string;
   afterUrl?: string;
+  /** Private Supabase object paths served through the public-profile image route. */
+  beforePath?: string;
+  afterPath?: string;
   note: string;
   createdAt: string;
 }
@@ -199,6 +202,7 @@ export interface Job {
   workerPhotoUrl?: string;
   workerPhone?: string;
   consumerPhone?: string;
+  reviewSmsOptIn?: boolean;
   categoryId: string;
   title: string;
   description: string;

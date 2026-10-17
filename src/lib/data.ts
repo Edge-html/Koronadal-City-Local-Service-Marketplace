@@ -414,6 +414,7 @@ export function toJob(id: string, data: DocumentData): Job {
     workerPhotoUrl: data.workerPhotoUrl ?? "",
     workerPhone: data.workerPhone ?? "",
     consumerPhone: data.consumerPhone ?? "",
+    reviewSmsOptIn: data.reviewSmsOptIn === true,
     categoryId: data.categoryId ?? "",
     title: data.title ?? "",
     description: data.description ?? "",
@@ -468,6 +469,7 @@ export interface NewJob {
   consumerId: string;
   consumerName: string;
   consumerPhotoUrl?: string;
+  reviewSmsOptIn?: boolean;
   worker: Worker;
   categoryId: string;
   title: string;
@@ -482,6 +484,7 @@ export async function createJobRequest(input: NewJob) {
     consumerId: input.consumerId,
     consumerName: input.consumerName,
     consumerPhotoUrl: input.consumerPhotoUrl ?? "",
+    reviewSmsOptIn: input.reviewSmsOptIn === true,
     workerId: input.worker.id,
     workerUid: input.worker.uid,
     workerName: input.worker.fullName,

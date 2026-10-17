@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -213,6 +214,22 @@ export function WorkerProfile({ id }: { id: string }) {
                         {entry.note}
                       </p>
                     ) : null}
+                    {entry.beforeUrl || entry.afterUrl ? (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {entry.beforeUrl ? (
+                          <figure>
+                            <Image src={entry.beforeUrl} alt={`Before: ${entry.jobTitle}`} width={720} height={480} unoptimized className="aspect-[3/2] w-full rounded-md border border-stone-200 object-cover" />
+                            <figcaption className="caption mt-1">Before</figcaption>
+                          </figure>
+                        ) : null}
+                        {entry.afterUrl ? (
+                          <figure>
+                            <Image src={entry.afterUrl} alt={`After: ${entry.jobTitle}`} width={720} height={480} unoptimized className="aspect-[3/2] w-full rounded-md border border-stone-200 object-cover" />
+                            <figcaption className="caption mt-1">After</figcaption>
+                          </figure>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </li>
                 ))}
               </ul>
@@ -305,6 +322,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
   const [description, setDescription] = useState("");
   const [barangay, setBarangay] = useState(worker.barangay);
   const [photoUrl, setPhotoUrl] = useState("");
+  const [reviewSmsOptIn, setReviewSmsOptIn] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -316,6 +334,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
         consumerId: user!.uid,
         consumerName: user!.displayName || "Household",
         consumerPhotoUrl: typeof profile?.photoUrl === "string" ? profile.photoUrl : "",
+        reviewSmsOptIn,
         worker,
         categoryId: worker.categoryId,
         title: title.trim(),
@@ -333,7 +352,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     } finally {
       setBusy(false);
     }
-  }, [user, profile, worker, title, description, photoUrl, barangay, router]);
+  }, [user, profile, worker, title, description, photoUrl, barangay, reviewSmsOptIn, router]);
 
   if (loading) {
     return (
@@ -441,6 +460,10 @@ function RequestPanel({ worker }: { worker: Worker }) {
             </span>
           </div>
         </div>
+        <label className="flex items-start gap-2 text-[12px] leading-[1.45] text-stone-600">
+          <input type="checkbox" checked={reviewSmsOptIn} onChange={(event) => setReviewSmsOptIn(event.target.checked)} className="mt-0.5 accent-black" />
+          <span>Text me a link to review this worker after payment is confirmed. SMS will only be sent if the service is configured; message/data rates may apply.</span>
+        </label>
       </div>
 
       <button
