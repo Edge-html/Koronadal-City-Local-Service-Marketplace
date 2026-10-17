@@ -111,6 +111,20 @@ export const CATEGORY_MAP = Object.fromEntries(
   CATEGORIES.map((c) => [c.id, c]),
 ) as Record<string, Category>;
 
+/** Predefined profile skills workers can select without typing. */
+export const SKILLS_BY_CATEGORY: Record<string, string[]> = {
+  carpentry: ["Furniture repair", "Door installation", "Cabinet making", "Roof framing", "Wood framing", "Ceiling repair", "Custom shelving", "Window fitting"],
+  plumbing: ["Leak repair", "Faucet installation", "Toilet installation", "Drain unclogging", "Pipe installation", "Water tank servicing", "Shower repair", "Septic line clearing"],
+  electrical: ["Lighting installation", "Outlet installation", "Wiring repair", "Breaker troubleshooting", "Ceiling fan installation", "Panel upgrades", "Short-circuit diagnosis", "Conduit installation"],
+  "aircon-appliance": ["Aircon cleaning", "Aircon repair", "Refrigerator repair", "Washing machine repair", "Freon recharge", "Appliance diagnostics", "Small appliance repair", "Preventive maintenance"],
+  masonry: ["Tile setting", "Wall plastering", "Concrete repair", "Block laying", "Cement finishing", "Grouting", "Driveway repair", "Wall construction"],
+  roofing: ["Roof leak repair", "Roof sheet installation", "Gutter cleaning", "Gutter installation", "Waterproofing", "Roof flashing repair", "Ridge cap sealing", "Roof inspection"],
+  painting: ["Interior painting", "Exterior painting", "Surface preparation", "Wall priming", "Wood staining", "Gate painting", "Anti-rust coating", "Repainting"],
+  welding: ["Gate repair", "Metal fabrication", "Window grills", "Steel frame assembly", "Hinge repair", "Metal cutting", "Structural welding", "Custom metalwork"],
+  mechanical: ["Motorcycle tune-up", "Oil change", "Brake repair", "Carburetor cleaning", "Generator repair", "Water pump repair", "Engine diagnostics", "Small engine maintenance"],
+  groundskeeping: ["Lawn mowing", "Tree trimming", "Brush clearing", "Land clearing", "Garden cleanup", "Hedge trimming", "Debris removal", "Basic landscaping"],
+};
+
 export const BARANGAYS = [
   "Assumption (Bulol)",
   "Avanceña (Barrio III)",

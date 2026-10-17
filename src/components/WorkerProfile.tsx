@@ -160,6 +160,20 @@ export function WorkerProfile({ id }: { id: string }) {
 
           <ResumeSummary worker={worker} />
 
+          {worker.skills?.length ? (
+            <Card className="p-6">
+              <h2 className="text-[18px] leading-[1.3] font-medium tracking-[-0.36px] text-ink-black">
+                Skills and services
+              </h2>
+              <p className="caption mt-1">Work this worker has selected as part of their profile</p>
+              <ul className="mt-3 flex flex-wrap gap-2">
+                {worker.skills.map((skill) => (
+                  <li key={skill}><Badge tone="neutral">{skill}</Badge></li>
+                ))}
+              </ul>
+            </Card>
+          ) : null}
+
           <WorkerOffers worker={worker} />
 
           {/* Portfolio */}

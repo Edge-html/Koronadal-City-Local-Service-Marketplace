@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { ActionButton } from "@/components/JobCard";
 import { Badge, Card, Notice, safeAsync } from "@/components/ui";
-import { CATEGORY_MAP } from "@/lib/constants";
+import { CATEGORY_MAP, SKILLS_BY_CATEGORY } from "@/lib/constants";
 import {
   MIN_EXTRACTABLE_CHARS,
   describeConfidence,
@@ -41,13 +41,18 @@ export function ResumeEditor({ worker }: { worker: Worker }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
+  const [skillsBusy, setSkillsBusy] = useState(false);
+  const [skillsSaved, setSkillsSaved] = useState(false);
+  const [skillsError, setSkillsError] = useState("");
 
   // Editable confirmations of what the parser suggested.
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [years, setYears] = useState("");
-  const [skills, setSkills] = useState<string[]>([]);
+  const [skills, setSkills] = useState<string[]>(() =>
+    worker.skills?.length ? worker.skills : worker.resume?.skills ?? [],
+  );
   const [category, setCategory] = useState(worker.categoryId);
 
   async function onPick(next: File) {
@@ -84,7 +89,7 @@ export function ResumeEditor({ worker }: { worker: Worker }) {
       if (suggested) setCategory(suggested);
 
       // Prefill skills the dictionary found, plus any the worker already had.
-      setSkills(result.skills);
+      setSkills([...new Set([...(worker.skills ?? []), ...result.skills])]);
     } catch (err) {
       console.error("[resume] could not read PDF:", err);
       setError(
@@ -103,6 +108,21 @@ export function ResumeEditor({ worker }: { worker: Worker }) {
     );
 
   const canSave = !!file && fullName.trim().length >= 2;
+
+  const saveSkills = safeAsync(async () => {
+    setSkillsBusy(true);
+    setSkillsError("");
+    setSkillsSaved(false);
+    try {
+      await updateWorker(worker.id, { skills: skills.slice(0, 20) });
+      setSkillsSaved(true);
+    } catch (err) {
+      console.error("[worker-skills] save failed:", err);
+      setSkillsError("Could not save your skills. Please try again.");
+    } finally {
+      setSkillsBusy(false);
+    }
+  }, "save-worker-skills");
 
   const save = safeAsync(async () => {
     setBusy(true);
@@ -264,6 +284,50 @@ export function ResumeEditor({ worker }: { worker: Worker }) {
           stored but the fields below have to be filled in by hand.
         </p>
       </div>
+
+      <section className="border-t border-stone-200 pt-4" aria-labelledby="worker-skills-heading">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 id="worker-skills-heading" className="text-[14px] font-medium text-ink-black">
+              Skills you offer
+            </h3>
+            <p className="caption mt-1">
+              Select the work you can do. These appear on your public profile; you do not need to type anything.
+            </p>
+          </div>
+          <span className="caption">{skills.length} selected</span>
+        </div>
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+          {(SKILLS_BY_CATEGORY[worker.categoryId] ?? []).map((skill) => {
+            const selected = skills.includes(skill);
+            return (
+              <li key={skill}>
+                <label className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-[13px] ${selected ? "border-ink-black bg-stone-50 text-ink-black" : "border-stone-200 text-stone-600"}`}>
+                  <input
+                    type="checkbox"
+                    checked={selected}
+                    disabled={skillsBusy || (skills.length >= 20 && !selected)}
+                    onChange={() => {
+                      setSkillsSaved(false);
+                      setSkills((current) => selected
+                        ? current.filter((item) => item !== skill)
+                        : current.length < 20 ? [...current, skill] : current);
+                    }}
+                    className="accent-black"
+                  />
+                  {skill}
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+        <p className="caption mt-2">Choose up to 20 skills. Your main trade is {CATEGORY_MAP[worker.categoryId]?.name ?? "your service category"}.</p>
+        {skillsError ? <Notice tone="alert">{skillsError}</Notice> : null}
+        {skillsSaved && !skillsError ? <Notice>Your skills are saved to your public profile.</Notice> : null}
+        <button type="button" className="btn-primary btn-sm mt-3" onClick={saveSkills} disabled={skillsBusy}>
+          {skillsBusy ? "Saving skills…" : "Save skills"}
+        </button>
+      </section>
 
       {parsed?.confidence === "none" && file ? (
         <Notice tone="alert">

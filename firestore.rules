@@ -137,8 +137,12 @@ service cloud.firestore {
           'hourlyRate',
           'portfolio',
           'resume',
+          'skills',
           'updatedAt'
         ])
+        && (!('skills' in request.resource.data)
+            || (request.resource.data.skills is list
+                && request.resource.data.skills.size() <= 20))
         && (!('resume' in request.resource.data)
             || request.resource.data.resume == null
             || (!('rawText' in request.resource.data.resume)

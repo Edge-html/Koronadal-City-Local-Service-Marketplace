@@ -87,6 +87,8 @@ export interface Worker {
   /** Code of the worker who referred this one, if any. */
   referredBy?: string;
   resume?: Resume | null;
+  /** Worker-selected services and skills shown on the public profile. */
+  skills: string[];
   portfolio: PortfolioEntry[];
   verificationDocs: VerificationDoc[];
   createdAt: string;

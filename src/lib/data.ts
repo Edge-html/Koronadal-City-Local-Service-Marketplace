@@ -118,6 +118,7 @@ function toWorker(id: string, data: DocumentData): Worker {
     hourlyRate: data.hourlyRate ?? 0,
     referredBy: data.referredBy,
     resume: data.resume ?? null,
+    skills: Array.isArray(data.skills) ? data.skills : [],
     portfolio: data.portfolio ?? [],
     verificationDocs: data.verificationDocs ?? [],
     createdAt: data.createdAt ?? "",
