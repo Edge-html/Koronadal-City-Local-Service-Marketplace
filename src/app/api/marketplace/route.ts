@@ -5,7 +5,8 @@ import { escapeEmailHtml, sendTransactionalEmail } from "@/lib/server-email";
 
 export const runtime = "nodejs";
 
-type Operation = "notifyWorkerNewRequest" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
+type JobEmailStage = "request_accepted" | "request_declined" | "quote_sent" | "quote_approved" | "work_completed" | "payment_proof_submitted" | "payment_confirmed" | "review_received";
+type Operation = "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -48,6 +49,111 @@ function jobRequestEmailHtml(job: { title: string; description: string; barangay
   return `<div style="font-family:Arial,sans-serif;color:#171513;line-height:1.5"><h1 style="font-size:22px">A new service request is waiting</h1><p>${safeConsumer} sent you a request through KoroHanap.</p><h2 style="font-size:18px">${safeTitle}</h2><p>${safeDescription}</p><p><strong>Barangay:</strong> ${safeBarangay}</p><p><a href="${safeLink}" style="display:inline-block;background:#111;color:white;padding:12px 18px;border-radius:6px;text-decoration:none">Review request</a></p><p>Sign in to KoroHanap to accept or decline it.</p></div>`;
 }
 
+const JOB_EMAIL_COPY: Record<JobEmailStage, { recipient: "consumer" | "worker"; subject: (title: string) => string; heading: string; detail: string; path: string }> = {
+  request_accepted: { recipient: "consumer", subject: (title) => `Worker accepted your request: ${title}`, heading: "Your request was accepted", detail: "The worker accepted your service request. Sign in to review the request and coordinate the next step.", path: "/dashboard/customer" },
+  request_declined: { recipient: "consumer", subject: (title) => `Update on your service request: ${title}`, heading: "The worker can’t take this request", detail: "This request was declined. Sign in to KoroHanap to review its status and choose another worker if you wish.", path: "/dashboard/customer" },
+  quote_sent: { recipient: "consumer", subject: (title) => `A quote is ready: ${title}`, heading: "Your worker sent a quote", detail: "Review the labor fee, materials, and notes in your request. If you agree, approve the quote in KoroHanap to begin the job.", path: "/dashboard/customer" },
+  quote_approved: { recipient: "worker", subject: (title) => `The customer approved your quote: ${title}`, heading: "Your quote was approved", detail: "The customer approved the quote. You can coordinate and begin the agreed work.", path: "/dashboard/worker" },
+  work_completed: { recipient: "consumer", subject: (title) => `Work marked complete: ${title}`, heading: "The worker marked the job complete", detail: "Check the job details and pay the worker using the agreed method. If you pay digitally, submit the payment proof in KoroHanap.", path: "/dashboard/customer" },
+  payment_proof_submitted: { recipient: "worker", subject: (title) => `Payment proof submitted: ${title}`, heading: "The customer submitted payment proof", detail: "Review the payment in your job dashboard. Confirm it only after you have verified that you received the payment.", path: "/dashboard/worker" },
+  payment_confirmed: { recipient: "consumer", subject: (title) => `Payment confirmed: ${title}`, heading: "Your payment was confirmed", detail: "The worker confirmed payment and the platform commission was settled. You can now leave a rating and review.", path: "/dashboard/customer" },
+  review_received: { recipient: "worker", subject: (title) => `A customer reviewed your work: ${title}`, heading: "You received a customer review", detail: "The customer has submitted a rating and review for this job. Sign in to view your updated profile rating.", path: "/dashboard/worker" },
+};
+
+/** Claim and send a single stage email without making email availability a job-flow dependency. */
+async function sendJobStageEmail(
+  db: FirebaseFirestore.Firestore,
+  auth: ReturnType<typeof adminServices>["auth"],
+  jobId: string,
+  stage: JobEmailStage,
+  origin: string,
+) {
+  const jobRef = db.collection("jobs").doc(jobId);
+  const sentField = `email_${stage}_sentAt`;
+  const claimedField = `email_${stage}_claimedAt`;
+  let job: FirebaseFirestore.DocumentData | undefined;
+  try {
+    const claimed = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(jobRef);
+      const current = snap.data();
+      if (!current) return null;
+      if (current[sentField]) return null;
+      const claimTime = Date.parse(String(current[claimedField] ?? ""));
+      if (Number.isFinite(claimTime) && Date.now() - claimTime < 2 * 60 * 1000) return null;
+      tx.update(jobRef, { [claimedField]: new Date().toISOString() });
+      return current;
+    });
+    if (!claimed) return false;
+    job = claimed;
+    const copy = JOB_EMAIL_COPY[stage];
+    const recipientUid = String(copy.recipient === "worker" ? job.workerUid ?? "" : job.consumerId ?? "");
+    const account = recipientUid ? await auth.getUser(recipientUid) : null;
+    const to = account?.email?.trim();
+    if (!to) return false;
+    const title = String(job.title ?? "service request");
+    const link = new URL(copy.path, origin).toString();
+    const html = `<div style="font-family:Arial,sans-serif;color:#171513;line-height:1.5"><h1 style="font-size:22px">${escapeEmailHtml(copy.heading)}</h1><p>${escapeEmailHtml(copy.detail)}</p><p><strong>Service:</strong> ${escapeEmailHtml(title)}</p><p><a href="${escapeEmailHtml(link)}" style="display:inline-block;background:#111;color:white;padding:12px 18px;border-radius:6px;text-decoration:none">Open KoroHanap</a></p></div>`;
+    const delivered = await sendTransactionalEmail({
+      to,
+      subject: copy.subject(title),
+      text: `${copy.heading}. ${copy.detail} Service: ${title}. Open KoroHanap: ${link}`,
+      html,
+    });
+    if (delivered) await jobRef.update({ [sentField]: new Date().toISOString(), [claimedField]: FieldValue.delete() });
+    else await jobRef.update({ [claimedField]: FieldValue.delete() });
+    return delivered;
+  } catch (error) {
+    console.error(`[email] ${stage} alert failed.`, error);
+    try { await jobRef.update({ [claimedField]: FieldValue.delete() }); } catch { /* keep the original action successful */ }
+    return false;
+  }
+}
+
+async function sendWorkerApprovalEmail(
+  db: FirebaseFirestore.Firestore,
+  auth: ReturnType<typeof adminServices>["auth"],
+  workerId: string,
+  origin: string,
+) {
+  const workerRef = db.collection("workers").doc(workerId);
+  const sentField = "approvalEmailSentAt";
+  const claimField = "approvalEmailClaimedAt";
+  try {
+    const worker = await db.runTransaction(async (tx) => {
+      const snap = await tx.get(workerRef);
+      const data = snap.data();
+      if (!data?.verified || data.status !== "active" || data[sentField]) return null;
+      const claimAt = Date.parse(String(data[claimField] ?? ""));
+      if (Number.isFinite(claimAt) && Date.now() - claimAt < 2 * 60 * 1000) return null;
+      tx.update(workerRef, { [claimField]: new Date().toISOString() });
+      return data;
+    });
+    if (!worker) return false;
+    const account = await auth.getUser(String(worker.uid ?? ""));
+    const to = account.email?.trim();
+    if (!to) {
+      await workerRef.update({ [claimField]: FieldValue.delete() });
+      return false;
+    }
+    const link = new URL("/dashboard/worker", origin).toString();
+    const name = String(worker.fullName ?? "there");
+    const delivered = await sendTransactionalEmail({
+      to,
+      subject: "Your KoroHanap worker application is approved",
+      text: `Hi ${name}, your worker application has been approved. Your profile can now appear in the KoroHanap directory. Sign in to view your worker dashboard: ${link}`,
+      html: `<div style="font-family:Arial,sans-serif;color:#171513;line-height:1.5"><h1 style="font-size:22px">Your worker application is approved</h1><p>Hi ${escapeEmailHtml(name)},</p><p>Your credentials have been reviewed and your KoroHanap worker profile is approved. You can now sign in and manage your services and requests.</p><p><a href="${escapeEmailHtml(link)}" style="display:inline-block;background:#111;color:white;padding:12px 18px;border-radius:6px;text-decoration:none">Open worker dashboard</a></p></div>`,
+    });
+    await workerRef.update(delivered
+      ? { [sentField]: new Date().toISOString(), [claimField]: FieldValue.delete() }
+      : { [claimField]: FieldValue.delete() });
+    return delivered;
+  } catch (error) {
+    console.error("[email] worker approval alert failed.", error);
+    try { await workerRef.update({ [claimField]: FieldValue.delete() }); } catch { /* best effort */ }
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { auth, db } = adminServices();
@@ -57,6 +163,8 @@ export async function POST(request: NextRequest) {
     const input = await request.json() as {
       operation?: Operation;
       jobId?: string;
+      emailStage?: JobEmailStage;
+      workerId?: string;
       requestId?: string;
       reviewNote?: string;
       rating?: number;
@@ -142,6 +250,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, emailSent: false });
     }
 
+    if (operation === "notifyJobStage") {
+      if (!input.jobId || !input.emailStage || !["request_declined", "quote_sent"].includes(input.emailStage)) return fail("Invalid job alert.");
+      const job = (await db.collection("jobs").doc(input.jobId).get()).data();
+      if (!job || job.workerUid !== user.uid) return fail("Only the assigned worker can send this update.", 403);
+      if (input.emailStage === "request_declined" && (job.status !== "cancelled" || !job.cancelledAt)) return fail("This request has not been declined.");
+      if (input.emailStage === "quote_sent" && (job.status !== "quoted" || !job.quotedAt || !job.quote)) return fail("A quote has not been sent for this request.");
+      const emailSent = await sendJobStageEmail(db, auth, input.jobId, input.emailStage, request.nextUrl.origin);
+      return NextResponse.json({ ok: true, emailSent });
+    }
+
+    if (operation === "notifyWorkerApproval") {
+      if (!input.workerId) return fail("Missing worker.");
+      const caller = await db.collection("users").doc(user.uid).get();
+      if (caller.data()?.role !== "admin") return fail("Administrators only.", 403);
+      const worker = await db.collection("workers").doc(input.workerId).get();
+      if (worker.data()?.verified !== true || worker.data()?.status !== "active") return fail("This worker application is not approved yet.");
+      const emailSent = await sendWorkerApprovalEmail(db, auth, input.workerId, request.nextUrl.origin);
+      return NextResponse.json({ ok: true, emailSent });
+    }
+
     if (operation === "acceptJob") {
       if (!input.jobId) return fail("Missing job.");
       const jobRef = db.collection("jobs").doc(input.jobId);
@@ -168,6 +296,7 @@ export async function POST(request: NextRequest) {
           consumerPhone: customerUserSnap.data()?.phone ?? "",
         });
       });
+      await sendJobStageEmail(db, auth, input.jobId, "request_accepted", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 
@@ -224,6 +353,7 @@ export async function POST(request: NextRequest) {
           createdAt: new Date().toISOString(),
         });
       });
+      await sendJobStageEmail(db, auth, input.jobId, "quote_approved", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 
@@ -250,6 +380,7 @@ export async function POST(request: NextRequest) {
           paymentQrPath: qrPath,
         });
       });
+      await sendJobStageEmail(db, auth, input.jobId, "work_completed", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 
@@ -266,6 +397,7 @@ export async function POST(request: NextRequest) {
         if (!job || job.consumerId !== user.uid || job.status !== "completed" || job.settledAt || job.paymentApprovedAt) throw new Error("This job is not waiting for a payment proof.");
         tx.update(jobRef, { paymentProofPath: proofPath, paymentReference: reference, paymentSubmittedAt: new Date().toISOString() });
       });
+      await sendJobStageEmail(db, auth, input.jobId, "payment_proof_submitted", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 
@@ -319,6 +451,7 @@ export async function POST(request: NextRequest) {
         const customer = await auth.getUser(reviewRecipient.consumerId);
         if (customer.email) await sendReviewLinkEmail(customer.email, input.jobId, request.nextUrl.origin);
       }
+      await sendJobStageEmail(db, auth, input.jobId, "payment_confirmed", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 
@@ -383,6 +516,7 @@ export async function POST(request: NextRequest) {
         const customer = await auth.getUser(reviewRecipient.consumerId);
         if (customer.email) await sendReviewLinkEmail(customer.email, input.jobId, request.nextUrl.origin);
       }
+      await sendJobStageEmail(db, auth, input.jobId, "payment_confirmed", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 
@@ -423,6 +557,7 @@ export async function POST(request: NextRequest) {
         tx.update(jobRef, { status: "reviewed", rating: submittedRating, reviewText: text });
         tx.update(workerRef, { rating, reviewCount: count + 1 });
       });
+      await sendJobStageEmail(db, auth, input.jobId, "review_received", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
     }
 

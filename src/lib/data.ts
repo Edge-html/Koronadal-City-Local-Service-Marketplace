@@ -519,6 +519,11 @@ export async function declineJob(jobId: string, reason: string) {
     cancelledAt: new Date().toISOString(),
     cancelReason: reason,
   });
+  try {
+    await marketplaceAction({ operation: "notifyJobStage", jobId, emailStage: "request_declined" });
+  } catch (error) {
+    console.warn("[email] finder decline alert could not be sent:", error);
+  }
 }
 
 /** Stage 4. Worker submits the mandatory two-part quote. */
@@ -528,6 +533,11 @@ export async function submitQuote(jobId: string, quote: NonNullable<Job["quote"]
     status: "quoted",
     quotedAt: new Date().toISOString(),
   });
+  try {
+    await marketplaceAction({ operation: "notifyJobStage", jobId, emailStage: "quote_sent" });
+  } catch (error) {
+    console.warn("[email] finder quote alert could not be sent:", error);
+  }
 }
 
 /**
@@ -741,6 +751,15 @@ export async function decideVerification(
     reviewedAt: new Date().toISOString(),
   });
   await batch.commit();
+  if (approve) {
+    try {
+      await marketplaceAction({ operation: "notifyWorkerApproval", workerId: worker.id });
+    } catch (error) {
+      // The credential decision is already saved; an email outage must not
+      // make the admin think it failed or cause a duplicate review action.
+      console.warn("[email] worker approval alert could not be sent:", error);
+    }
+  }
 }
 
 export async function listAllJobs(max = 200) {
