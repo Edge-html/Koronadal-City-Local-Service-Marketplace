@@ -207,6 +207,7 @@ export interface Job {
   title: string;
   description: string;
   photoUrl?: string;
+  photoPath?: string;
   barangay: string;
   status: JobStatus;
   quote?: Quote;

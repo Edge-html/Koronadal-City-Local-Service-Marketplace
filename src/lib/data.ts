@@ -424,6 +424,7 @@ export function toJob(id: string, data: DocumentData): Job {
     title: data.title ?? "",
     description: data.description ?? "",
     photoUrl: data.photoUrl ?? "",
+    photoPath: data.photoPath ?? "",
     barangay: data.barangay ?? "",
     status: data.status ?? "requested",
     quote: data.quote,
@@ -480,6 +481,7 @@ export interface NewJob {
   title: string;
   description: string;
   photoUrl?: string;
+  photoPath?: string;
   barangay: string;
 }
 
@@ -498,6 +500,7 @@ export async function createJobRequest(input: NewJob) {
     title: input.title,
     description: input.description,
     photoUrl: input.photoUrl ?? "",
+    photoPath: input.photoPath ?? "",
     barangay: input.barangay,
     status: "requested",
     requestedAt: new Date().toISOString(),

@@ -8,6 +8,7 @@ import { formatDate, timeAgo } from "@/lib/utils";
 import type { Tone } from "@/components/ui";
 import { needsAction, nextStep, type JobView } from "@/lib/job-flow";
 import type { Job, JobStatus } from "@/lib/types";
+import { RequestPhoto } from "@/components/RequestPhoto";
 
 /** Shared pipeline timeline. The active stage is the first unfinished step. */
 const STAGES: JobStatus[] = [
@@ -232,6 +233,7 @@ export function JobCard({
       </div>
 
       <p className="text-[13px] leading-[1.5] text-stone-700">{job.description}</p>
+      {job.photoPath || job.photoUrl ? <RequestPhoto jobId={job.id} path={job.photoPath} legacyUrl={job.photoUrl} /> : null}
 
       {guidance ? (
         <div

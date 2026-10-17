@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -32,6 +32,7 @@ import { useAuth } from "@/context/AuthContext";
 import { createJobRequest, getWorker, listReviews } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
 import { timeAgo } from "@/lib/utils";
+import { uploadRequestPhoto } from "@/lib/request-files";
 import type { Review, Worker } from "@/lib/types";
 
 export function WorkerProfile({ id }: { id: string }) {
@@ -321,7 +322,8 @@ function RequestPanel({ worker }: { worker: Worker }) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [barangay, setBarangay] = useState(worker.barangay);
-  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [reviewEmailOptIn, setReviewEmailOptIn] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -330,6 +332,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     setError("");
     setBusy(true);
     try {
+      const photoPath = photoFile ? await uploadRequestPhoto(photoFile) : "";
       await createJobRequest({
         consumerId: user!.uid,
         consumerName: user!.displayName || "Household",
@@ -339,7 +342,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
         categoryId: worker.categoryId,
         title: title.trim(),
         description: description.trim(),
-        photoUrl: photoUrl.trim(),
+        photoPath,
         barangay: barangay.trim(),
       });
       router.push("/dashboard?sent=1");
@@ -348,11 +351,12 @@ function RequestPanel({ worker }: { worker: Worker }) {
       // report of an extension blocking firestore.googleapis.com down the
       // wrong path entirely.
       console.error("[job-request] send failed:", err);
-      setError(describeRequestFailure(err));
+      const message = err instanceof Error ? err.message : "";
+      setError(/photo|image|upload/i.test(message) ? message : describeRequestFailure(err));
     } finally {
       setBusy(false);
     }
-  }, [user, profile, worker, title, description, photoUrl, barangay, reviewEmailOptIn, router]);
+  }, [user, profile, worker, title, description, photoFile, barangay, reviewEmailOptIn, router]);
 
   if (loading) {
     return (
@@ -445,19 +449,36 @@ function RequestPanel({ worker }: { worker: Worker }) {
           <label className="label" htmlFor="req-photo">
             Photo of the issue (optional)
           </label>
-          <div className="flex gap-2">
-            <input
-              id="req-photo"
-              className="field"
-              value={photoUrl}
-              onChange={(e) => setPhotoUrl(e.target.value)}
-              placeholder="Paste an image URL"
-              inputMode="url"
-            />
-            <span className="flex w-10 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-bone text-stone-400">
+          <input
+            ref={photoInputRef}
+            id="req-photo"
+            className="sr-only"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(event) => {
+              const file = event.target.files?.[0] ?? null;
+              if (file && file.size > 4 * 1024 * 1024) {
+                setError("Choose an image smaller than 4 MB.");
+                event.target.value = "";
+                return;
+              }
+              setError("");
+              setPhotoFile(file);
+            }}
+          />
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="btn-neutral flex min-h-10 flex-1 justify-start gap-2 truncate text-left"
+              onClick={() => photoInputRef.current?.click()}
+              aria-label="Choose a photo of the issue"
+            >
               <Camera size={14} strokeWidth={1.5} aria-hidden />
-            </span>
+              <span className="truncate">{photoFile?.name ?? "Choose a photo"}</span>
+            </button>
+            {photoFile ? <button type="button" className="btn-ghost btn-sm" onClick={() => { setPhotoFile(null); if (photoInputRef.current) photoInputRef.current.value = ""; }}>Remove</button> : null}
           </div>
+          <p className="caption mt-1">JPG, PNG, or WebP · up to 4 MB</p>
         </div>
         <label className="flex items-start gap-2 text-[12px] leading-[1.45] text-stone-600">
           <input type="checkbox" checked={reviewEmailOptIn} onChange={(event) => setReviewEmailOptIn(event.target.checked)} className="mt-0.5 accent-black" />
