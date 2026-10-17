@@ -100,6 +100,7 @@ function toWorker(id: string, data: DocumentData): Worker {
     fullName: data.fullName ?? "",
     phone: data.phone ?? "",
     email: data.email ?? "",
+    photoUrl: data.photoUrl ?? "",
     categoryId: data.categoryId ?? "",
     barangay: data.barangay ?? "",
     bio: data.bio ?? "",
@@ -405,9 +406,11 @@ export function toJob(id: string, data: DocumentData): Job {
     id,
     consumerId: data.consumerId ?? "",
     consumerName: data.consumerName ?? "",
+    consumerPhotoUrl: data.consumerPhotoUrl ?? "",
     workerId: data.workerId ?? "",
     workerUid: data.workerUid ?? "",
     workerName: data.workerName ?? "",
+    workerPhotoUrl: data.workerPhotoUrl ?? "",
     workerPhone: data.workerPhone ?? "",
     consumerPhone: data.consumerPhone ?? "",
     categoryId: data.categoryId ?? "",
@@ -422,6 +425,13 @@ export function toJob(id: string, data: DocumentData): Job {
     acceptedAt: data.acceptedAt,
     completedAt: data.completedAt,
     settledAt: data.settledAt,
+    paymentMethod: data.paymentMethod,
+    paymentInstructions: data.paymentInstructions ?? "",
+    paymentQrPath: data.paymentQrPath ?? "",
+    paymentProofPath: data.paymentProofPath ?? "",
+    paymentReference: data.paymentReference ?? "",
+    paymentSubmittedAt: data.paymentSubmittedAt,
+    paymentApprovedAt: data.paymentApprovedAt,
     rating: data.rating,
     reviewText: data.reviewText,
   };
@@ -456,6 +466,7 @@ export async function getJob(id: string): Promise<Job | null> {
 export interface NewJob {
   consumerId: string;
   consumerName: string;
+  consumerPhotoUrl?: string;
   worker: Worker;
   categoryId: string;
   title: string;
@@ -469,9 +480,11 @@ export async function createJobRequest(input: NewJob) {
   const ref = await addDoc(jobsCol(), {
     consumerId: input.consumerId,
     consumerName: input.consumerName,
+    consumerPhotoUrl: input.consumerPhotoUrl ?? "",
     workerId: input.worker.id,
     workerUid: input.worker.uid,
     workerName: input.worker.fullName,
+    workerPhotoUrl: input.worker.photoUrl ?? "",
     categoryId: input.categoryId,
     title: input.title,
     description: input.description,
@@ -514,23 +527,32 @@ export async function approveQuote(job: Job) {
   await marketplaceAction({ operation: "approveQuote", jobId: job.id });
 }
 
-/** Stage 5. Worker marks the job complete. */
-export async function completeJob(jobId: string) {
-  await updateDoc(doc(db(), "jobs", jobId), {
-    status: "completed",
-    completedAt: new Date().toISOString(),
-  });
+/** Stage 5. Worker marks the job complete and records how the finder can pay directly. */
+export async function completeJob(jobId: string, payment: {
+  method: NonNullable<Job["paymentMethod"]>;
+  instructions: string;
+  qrPath?: string;
+}) {
+  await marketplaceAction({ operation: "completeJob", jobId, payment });
 }
 
 /**
  * Stage 5 settlement. The locked commission is drawn down.
  *
- * The household's cash or GCash transfer to the worker already happened
- * outside the platform, so nothing further moves here — this only books the
- * commission against the prepaid balance and counters the job.
+ * Legacy jobs without finder payment proof can still settle using the earlier
+ * flow. New jobs settle only through approveJobPayment after the worker checks
+ * the finder’s uploaded proof.
  */
 export async function settleJob(job: Job) {
   await marketplaceAction({ operation: "settleJob", jobId: job.id });
+}
+
+export async function submitJobPayment(jobId: string, proofPath: string, reference: string) {
+  await marketplaceAction({ operation: "submitJobPayment", jobId, proofPath, reference });
+}
+
+export async function approveJobPayment(jobId: string) {
+  await marketplaceAction({ operation: "approveJobPayment", jobId });
 }
 
 

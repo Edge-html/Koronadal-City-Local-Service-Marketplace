@@ -161,7 +161,7 @@ Six stages, each a discrete state transition:
 | 2 | Request sent | `requested` | In-app request in the worker dashboard |
 | 3 | Acceptance | `accepted` | **Contact details unlock** — phone, SMS, Messenger |
 | 4 | Quote approved | `quoted` → `in_progress` | Two-part quote; approval **locks 10% of labor** against the wallet |
-| 5 | Completion | `completed` | Cash/GCash paid direct to worker; commission settles |
+| 5 | Completion and payment confirmation | `completed` | Worker sets the direct payment method; finder uploads proof; worker confirms receipt and the reserved commission settles |
 | 6 | Review | `reviewed` | Portfolio entry plus a 1–5 star rating and text review |
 
 ---
@@ -177,7 +177,9 @@ platform   ──0% of materials──▶             (pass-through, no commissi
 ```
 
 On quote approval, 10% of the labor fee is **locked** from the worker's prepaid
-balance and settled on completion. If a balance falls below ₱0 the worker is
+balance. After work is complete, the finder pays the worker directly and uploads
+proof; the worker confirms receipt, which settles the reserved commission. The
+platform never collects that job payment. If a balance falls below ₱0 the worker is
 paused from receiving new requests until they reload. GCash and CliQQ top-up
 requests enter an admin queue and credit the wallet only after payment verification.
 
@@ -336,8 +338,11 @@ The repository is connected to Vercel.
 ### Private file uploads (Supabase Storage)
 
 Firebase remains responsible for accounts, roles, and marketplace records.
-Receipt screenshots, payment QR images, and worker credential files are stored
-in a **private** Supabase Storage bucket named `private-files`.
+Receipt screenshots for worker top-ups and finder-to-worker job payments,
+payment QR images, profile photos, and worker credential files are stored in a
+**private** Supabase Storage bucket named `private-files`. Profile photos are
+served through a narrow public image route; credentials and payment proofs
+remain restricted to the job parties or administrators who need them.
 
 1. Create a Supabase project and a private bucket named `private-files`.
 2. Limit the bucket to 4 MB per file. Allow `image/jpeg`, `image/png`,

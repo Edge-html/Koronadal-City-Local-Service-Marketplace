@@ -66,6 +66,7 @@ export interface Worker {
   /** Masked until a job request is formally accepted. */
   phone: string;
   email: string;
+  photoUrl?: string;
   categoryId: string;
   barangay: string;
   bio: string;
@@ -189,9 +190,11 @@ export interface Job {
   id: string;
   consumerId: string;
   consumerName: string;
+  consumerPhotoUrl?: string;
   workerId: string;
   workerUid: string;
   workerName: string;
+  workerPhotoUrl?: string;
   workerPhone?: string;
   consumerPhone?: string;
   categoryId: string;
@@ -206,6 +209,13 @@ export interface Job {
   acceptedAt?: string;
   completedAt?: string;
   settledAt?: string;
+  paymentMethod?: "cash" | "gcash" | "qr" | "bank_transfer" | "other";
+  paymentInstructions?: string;
+  paymentQrPath?: string;
+  paymentProofPath?: string;
+  paymentReference?: string;
+  paymentSubmittedAt?: string;
+  paymentApprovedAt?: string;
   rating?: number;
   reviewText?: string;
 }

@@ -87,7 +87,7 @@ export function WorkerProfile({ id }: { id: string }) {
         <div className="flex flex-col gap-4">
           <Card className="p-6">
             <div className="flex flex-wrap items-start gap-4">
-              <Avatar name={worker.fullName} size={64} />
+              <Avatar name={worker.fullName} size={64} photoUrl={worker.photoUrl} />
 
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -284,7 +284,7 @@ function describeRequestFailure(error: unknown): string {
 }
 
 function RequestPanel({ worker }: { worker: Worker }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
 
   const [title, setTitle] = useState("");
@@ -301,6 +301,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
       await createJobRequest({
         consumerId: user!.uid,
         consumerName: user!.displayName || "Household",
+        consumerPhotoUrl: typeof profile?.photoUrl === "string" ? profile.photoUrl : "",
         worker,
         categoryId: worker.categoryId,
         title: title.trim(),
@@ -318,7 +319,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     } finally {
       setBusy(false);
     }
-  }, [user, worker, title, description, photoUrl, barangay, router]);
+  }, [user, profile, worker, title, description, photoUrl, barangay, router]);
 
   if (loading) {
     return (

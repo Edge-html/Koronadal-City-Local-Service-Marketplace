@@ -7,19 +7,19 @@ import { ActionButton } from "@/components/JobCard";
 import { getPaymentSettings, savePaymentSettings, type PaymentSettings } from "@/lib/data";
 import { loadPaymentImage, uploadPaymentImage } from "@/lib/payment-files";
 
-export function PaymentQrImage({ path, alt = "Platform GCash QR code" }: { path: string; alt?: string }) {
+export function PaymentQrImage({ path, alt = "Platform GCash QR code", jobId }: { path: string; alt?: string; jobId?: string }) {
   const [src, setSrc] = useState("");
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
     let url = "";
-    loadPaymentImage(path).then((value) => {
+    loadPaymentImage(path, jobId).then((value) => {
       url = value;
       if (active) setSrc(value);
       else URL.revokeObjectURL(value);
     }).catch(() => { if (active) setError("QR image could not be loaded."); });
     return () => { active = false; if (url) URL.revokeObjectURL(url); };
-  }, [path]);
+  }, [path, jobId]);
   if (error) return <p className="text-xs text-stone-500">{error}</p>;
   if (!src) return <div className="h-48 w-48 animate-pulse rounded-lg bg-stone-100" aria-label="Loading QR code" />;
   return <Image src={src} alt={alt} width={192} height={192} unoptimized className="h-48 w-48 rounded-lg border border-stone-200 bg-white object-contain p-2" />;

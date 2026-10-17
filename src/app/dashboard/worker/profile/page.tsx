@@ -12,6 +12,7 @@ import { getWorkerByUid, listReviews, updateWorker } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import type { Review, Worker } from "@/lib/types";
+import { ProfilePhotoEditor } from "@/components/ProfilePhotoEditor";
 
 export default function WorkerProfilePage() {
   const { user, loading: authLoading } = useAuth();
@@ -77,6 +78,7 @@ export default function WorkerProfilePage() {
       subtitle="Your public listing and referral code."
     >
       <div className="flex flex-col gap-4">
+        <ProfilePhotoEditor name={worker.fullName} photoUrl={worker.photoUrl} onSaved={(photoUrl) => setWorker({ ...worker, photoUrl })} />
         <div className="grid gap-3 sm:grid-cols-4">
           <StatCard label="Rating" value={worker.rating.toFixed(1)} sublabel={`${worker.reviewCount} reviews`} />
           <StatCard label="Jobs completed" value={worker.jobsCompleted} />

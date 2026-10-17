@@ -23,6 +23,9 @@ import { useActivity } from "@/context/ActivityContext";
 import { AttentionNotice, FlowGuide, JobFilters, CUSTOMER_STEPS } from "@/components/FlowGuide";
 import { visibleJobs, type JobFilter } from "@/lib/job-flow";
 import type { Job } from "@/lib/types";
+import { uploadPaymentImage } from "@/lib/payment-files";
+import { PaymentQrImage } from "@/components/PaymentSettings";
+import { submitJobPayment } from "@/lib/data";
 
 export default function CustomerDashboardPage() {
   return (
@@ -175,7 +178,7 @@ function CustomerDashboard() {
                     ) : null}
 
                     {job.status === "completed" && !job.settledAt ? (
-                      <span className="caption">Awaiting commission settlement before review.</span>
+                      <span className="caption">{job.paymentMethod ? job.paymentSubmittedAt ? "Your payment proof is with the worker for confirmation." : "Pay the worker directly and submit proof below." : "Awaiting commission settlement before review."}</span>
                     ) : null}
 
                     {job.status === "disputed" ? (
@@ -186,6 +189,7 @@ function CustomerDashboard() {
                   </>
                 }
               >
+                {job.status === "completed" && !job.settledAt && job.paymentMethod ? <FinderPaymentPanel job={job} onDone={() => Promise.resolve()} /> : null}
                 {reviewing === job.id && job.status === "completed" ? <ReviewForm key={`review-${job.id}`} job={job} onDone={async () => setReviewing(null)} /> : null}
                 {disputing === job.id && job.status === "quoted" ? <DisputeForm key={`dispute-${job.id}`} job={job} onDone={async () => setDisputing(null)} /> : null}
               </JobCard>
@@ -208,6 +212,39 @@ function CustomerDashboard() {
       </div>
     </DashboardShell>
   );
+}
+
+function FinderPaymentPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) {
+  const [file, setFile] = useState<File | null>(null);
+  const [reference, setReference] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const label = ({ cash: "Cash", gcash: "GCash", qr: "QR code", bank_transfer: "Bank transfer", other: "Other" } as const)[job.paymentMethod!];
+  async function submit() {
+    if (!file) return;
+    setBusy(true); setError("");
+    try {
+      const path = await uploadPaymentImage(file, "job-payment", job.id);
+      await submitJobPayment(job.id, path, reference.trim());
+      await onDone();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not submit payment proof."); }
+    finally { setBusy(false); }
+  }
+  return <Card className="flex flex-col gap-3 border-ink-black p-4">
+    <div><h3 className="text-sm font-semibold">Pay the worker directly: {label}</h3>
+      <p className="caption mt-1">Send {job.quote ? formatPeso(computeTotals(job.quote.laborFee, job.quote.materialsCost).total) : "the quoted total"} to the worker using the details below. The platform does not collect this payment.</p></div>
+    {job.paymentInstructions ? <p className="whitespace-pre-wrap rounded-md bg-bone p-3 text-sm">{job.paymentInstructions}</p> : null}
+    {job.paymentMethod === "qr" && job.paymentQrPath ? <PaymentQrImage path={job.paymentQrPath} jobId={job.id} alt="Worker payment QR code" /> : null}
+    {job.paymentSubmittedAt ? <Notice>Proof sent. The worker will check it and confirm once they have received the payment.</Notice> : <>
+      <label className="label" htmlFor={`proof-${job.id}`}>Upload payment proof (receipt screenshot/photo)</label>
+      <input id={`proof-${job.id}`} className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+      {job.paymentMethod === "cash" ? <p className="caption">For cash, upload a photo of the receipt or a signed acknowledgement from the worker.</p> : null}
+      <label className="label" htmlFor={`reference-${job.id}`}>Payment reference (optional)</label>
+      <input id={`reference-${job.id}`} className="field" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} placeholder="Transaction or receipt number" />
+      {error ? <Notice tone="alert">{error}</Notice> : null}
+      <ActionButton busy={busy} disabled={!file} onClick={submit}>Send proof to worker</ActionButton>
+    </>}
+  </Card>;
 }
 
 /**

@@ -22,7 +22,7 @@ export function WorkerCard({ worker }: { worker: Worker }) {
         className="card flex h-full flex-col gap-3 p-5 no-underline transition-colors hover:bg-bone"
       >
         <div className="flex items-start gap-3">
-          <Avatar name={worker.fullName} size={44} />
+          <Avatar name={worker.fullName} size={44} photoUrl={worker.photoUrl} />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <h3 className="truncate text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">

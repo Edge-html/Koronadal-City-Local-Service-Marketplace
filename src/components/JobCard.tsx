@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Loader2, MessageCircle, Phone, X } from "lucide-react";
-import { Badge, Card } from "@/components/ui";
+import { Avatar, Badge, Card } from "@/components/ui";
 import { CATEGORY_MAP, JOB_STATUS_META } from "@/lib/constants";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { formatDate, timeAgo } from "@/lib/utils";
@@ -225,12 +225,10 @@ export function JobCard({
             {timeAgo(job.requestedAt)}
           </p>
         </div>
-        <p className="caption shrink-0 text-right">
-          {counterpartLabel}
-          <span className="mt-0.5 block text-[13px] tracking-[-0.02em] text-stone-800">
-            {counterpartName}
-          </span>
-        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <Avatar name={counterpartName} size={32} photoUrl={view === "worker" ? job.consumerPhotoUrl : job.workerPhotoUrl} />
+          <p className="caption text-right">{counterpartLabel}<span className="mt-0.5 block text-[13px] tracking-[-0.02em] text-stone-800">{counterpartName}</span></p>
+        </div>
       </div>
 
       <p className="text-[13px] leading-[1.5] text-stone-700">{job.description}</p>

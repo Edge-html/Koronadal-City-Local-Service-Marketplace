@@ -1,5 +1,9 @@
-﻿import Link from "next/link";
+"use client";
+
+import Link from "next/link";
 import type { ReactNode } from "react";
+import Image from "next/image";
+import { useState } from "react";
 import { Star } from "lucide-react";
 import { cx, initials } from "@/lib/utils";
 
@@ -228,11 +232,14 @@ export function Avatar({
   name,
   size = 40,
   className,
+    photoUrl,
 }: {
   name: string;
   size?: number;
   className?: string;
+    photoUrl?: string;
 }) {
+    const [imageFailed, setImageFailed] = useState(false);
   return (
     <span
       className={cx(
@@ -240,9 +247,9 @@ export function Avatar({
         className,
       )}
       style={{ width: size, height: size, fontSize: Math.round(size * 0.36) }}
-      aria-hidden
+        aria-label={name ? `${name} profile photo` : "Profile photo"}
     >
-      {initials(name)}
+        {photoUrl && !imageFailed ? <Image src={photoUrl} alt="" width={size} height={size} unoptimized onError={() => setImageFailed(true)} className="h-full w-full rounded-full object-cover" /> : initials(name)}
     </span>
   );
 }

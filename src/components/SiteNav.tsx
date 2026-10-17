@@ -9,12 +9,12 @@ import { CountBadge } from "@/components/FlowGuide";
 import { useAuth } from "@/context/AuthContext";
 import { useActivity } from "@/context/ActivityContext";
 import { firebaseConfigured } from "@/lib/firebase";
-import { initials } from "@/lib/utils";
 import { ActionNotifications } from "@/components/ActionNotifications";
+import { Avatar } from "@/components/ui";
 
 export function SiteNav() {
   const pathname = usePathname();
-  const { user, role, loading, logout } = useAuth();
+  const { user, role, loading, logout, profile } = useAuth();
   const { customerCount, workerCount, adminCount, customerJobs, workerJobs, admin } = useActivity();
   const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -34,7 +34,7 @@ export function SiteNav() {
     { href: "/browse", label: "Hire a worker", count: 0 },
     { href: "/dashboard/customer", label: "My requests as a customer", count: customerCount },
   ] : role === "admin" ? [{ href: "/admin", label: "Review queue", count: adminCount }]
-    : [{ href: "/dashboard/customer", label: "My requests", count: customerCount }];
+    : [{ href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/customer/profile", label: "My profile", count: 0 }];
 
   useEffect(() => { setOpen(false); setAccountOpen(false); }, [pathname]);
   useEffect(() => {
@@ -66,7 +66,7 @@ export function SiteNav() {
           {loading ? <span className="h-9 w-20 animate-pulse rounded bg-stone-200" /> : user ? (
             <div className="relative" ref={account} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false); }}>
               <button type="button" ref={accountButton} className="btn-ghost gap-2" aria-expanded={accountOpen} aria-controls="account-panel" aria-label={`Open account menu for ${accountName}`} onClick={() => setAccountOpen((v) => !v)}>
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-xs font-medium">{initials(accountName)}</span>
+                <Avatar name={accountName} size={28} photoUrl={typeof profile?.photoUrl === "string" ? profile.photoUrl : undefined} className="border-0 bg-white text-xs" />
                 <span className="hidden max-w-[14ch] truncate text-sm sm:inline">{accountName}</span>
                 {role === "worker" ? <CountBadge count={customerCount} /> : null}
                 <ChevronDown size={14} />

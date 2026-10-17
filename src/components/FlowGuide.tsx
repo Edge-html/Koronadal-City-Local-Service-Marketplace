@@ -54,10 +54,10 @@ export function JobFilters({ jobs, view, value, onChange }: { jobs: Job[]; view:
 export const CUSTOMER_STEPS = [
   { title: "Find and request", detail: "Choose a worker and describe the service you need." },
   { title: "Review the quote", detail: "Open My requests to check and approve the price before work starts." },
-  { title: "Pay and review", detail: "Pay your worker directly after the work. Leave a review when the job is settled." },
+  { title: "Pay, send proof, and review", detail: "Pay your worker directly using their chosen method. Upload a receipt; they confirm receipt, then you can leave a review." },
 ];
 export const WORKER_STEPS = [
   { title: "Accept a request", detail: "Check the job details and your availability before accepting." },
   { title: "Send a quote", detail: "Open My jobs, send your price, and wait for customer approval." },
-  { title: "Complete and settle", detail: "Finish the work, mark it complete, then settle the commission." },
+  { title: "Confirm payment", detail: "Set the payment method when marking work complete. Check the finder’s proof and confirm only after the money arrives; the commission then settles." },
 ];

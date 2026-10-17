@@ -27,6 +27,8 @@ import { AttentionNotice, FlowGuide, JobFilters, WORKER_STEPS } from "@/componen
 import { visibleJobs, type JobFilter } from "@/lib/job-flow";
 import { useAuth } from "@/context/AuthContext";
 import type { Job, Worker } from "@/lib/types";
+import { uploadPaymentImage, openPaymentImage } from "@/lib/payment-files";
+import { approveJobPayment } from "@/lib/data";
 
 export default function WorkerDashboardPage() {
   const { user, loading: authLoading } = useAuth();
@@ -37,6 +39,7 @@ export default function WorkerDashboardPage() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [quoting, setQuoting] = useState<string | null>(null);
+  const [completing, setCompleting] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   const refresh = async () => {
@@ -71,7 +74,7 @@ export default function WorkerDashboardPage() {
       newRequests: jobs.filter((j) => j.status === "requested").length,
       quoting: jobs.filter((j) => j.status === "accepted").length,
       active: jobs.filter((j) => j.status === "in_progress").length,
-      toSettle: jobs.filter((j) => j.status === "completed" && !j.settledAt).length,
+      toSettle: jobs.filter((j) => j.status === "completed" && !j.settledAt && !!j.paymentProofPath).length,
       earned: jobs
         .filter((j) => ["completed", "reviewed"].includes(j.status))
         .reduce((sum, job) => {
@@ -160,7 +163,7 @@ export default function WorkerDashboardPage() {
           <StatCard label="New requests" value={stats?.newRequests ?? 0} />
           <StatCard label="To quote" value={stats?.quoting ?? 0} />
           <StatCard label="In progress" value={stats?.active ?? 0} />
-          <StatCard label="To settle" value={stats?.toSettle ?? 0} />
+          <StatCard label="Proofs to review" value={stats?.toSettle ?? 0} />
           <StatCard
             label="Billed to households"
             value={formatPeso(stats?.earned ?? 0)}
@@ -238,21 +241,29 @@ export default function WorkerDashboardPage() {
 
                     {job.status === "in_progress" ? (
                       <ActionButton
-                        busy={busyId === job.id}
-                        onClick={safeAsync(async () => {
-                          setBusyId(job.id);
-                          try {
-                            await completeJob(job.id);
-                            await refresh();
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Could not update this job.");
-                          } finally {
-                            setBusyId(null);
-                          }
-                        })}
+                        onClick={() => setCompleting(completing === job.id ? null : job.id)}
                       >
-                        Mark complete
+                        {completing === job.id ? "Cancel" : "Finish work & set payment"}
                       </ActionButton>
+                    ) : null}
+
+                    {job.status === "completed" && !job.settledAt && job.paymentProofPath ? <>
+                      <ActionButton variant="neutral" onClick={() => openPaymentImage(job.paymentProofPath!, job.id)}>View finder’s proof</ActionButton>
+                      <ActionButton busy={busyId === job.id} onClick={safeAsync(async () => {
+                        setBusyId(job.id);
+                        try { await approveJobPayment(job.id); await refresh(); }
+                        catch (err) { setError(err instanceof Error ? err.message : "Could not confirm payment."); }
+                        finally { setBusyId(null); }
+                      })}>Confirm payment & settle commission</ActionButton>
+                    </> : null}
+
+                    {job.status === "completed" && !job.settledAt && !job.paymentMethod ? (
+                      <ActionButton busy={busyId === job.id} onClick={safeAsync(async () => {
+                        setBusyId(job.id);
+                        try { await settleJob(job); await refresh(); }
+                        catch (err) { setError(err instanceof Error ? err.message : "Could not settle the commission."); }
+                        finally { setBusyId(null); }
+                      })}>Settle legacy job</ActionButton>
                     ) : null}
 
                     {job.status === "completed" && !job.settledAt ? (
@@ -286,6 +297,8 @@ export default function WorkerDashboardPage() {
                   </>
                 }
               >
+                {completing === job.id && job.status === "in_progress" ? <CompleteJobForm job={job} onCancel={() => setCompleting(null)} onDone={async () => { setCompleting(null); await refresh(); }} /> : null}
+                {job.status === "completed" && job.paymentMethod ? <Card className="p-4"><p className="text-sm font-medium">Finder payment: {paymentMethodLabel(job.paymentMethod)}</p><p className="caption mt-1">{job.paymentReference ? `Reference: ${job.paymentReference}` : job.paymentSubmittedAt ? "Proof submitted. Check it before confirming receipt." : "Waiting for the finder to pay and submit proof."}</p></Card> : null}
                 {quoting === job.id && job.status === "accepted" && worker ? <QuoteForm key={job.id} job={job} worker={worker} onDone={async () => { setQuoting(null); await refresh(); }} /> : null}
               </JobCard>
             ))}
@@ -511,4 +524,39 @@ function OnboardingSummary({ worker }: { worker: Worker }) {
       </ul>
     </Card>
   );
+}
+
+function paymentMethodLabel(method: NonNullable<Job["paymentMethod"]>) {
+  return ({ cash: "Cash", gcash: "GCash", qr: "QR code", bank_transfer: "Bank transfer", other: "Other" })[method];
+}
+
+function CompleteJobForm({ job, onCancel, onDone }: { job: Job; onCancel: () => void; onDone: () => Promise<void> }) {
+  const [method, setMethod] = useState<NonNullable<Job["paymentMethod"]>>("cash");
+  const [instructions, setInstructions] = useState("");
+  const [qr, setQr] = useState<File | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit() {
+    setError(""); setBusy(true);
+    try {
+      const qrPath = method === "qr" && qr ? await uploadPaymentImage(qr, "worker-qr") : undefined;
+      await completeJob(job.id, { method, instructions: method === "cash" ? "" : instructions.trim(), qrPath });
+      await onDone();
+    } catch (e) { setError(e instanceof Error ? e.message : "Could not complete this job."); }
+    finally { setBusy(false); }
+  }
+  return <Card className="flex flex-col gap-3 border-ink-black p-4">
+    <div><h3 className="text-sm font-semibold">Set how the finder will pay</h3><p className="caption mt-1">Payment goes directly to you. Your platform commission is separate.</p></div>
+    {error ? <Notice tone="alert">{error}</Notice> : null}
+    <label className="label" htmlFor={`pay-method-${job.id}`}>Payment method</label>
+    <select id={`pay-method-${job.id}`} className="field" value={method} onChange={(e) => setMethod(e.target.value as typeof method)}>
+      <option value="cash">Cash</option><option value="gcash">GCash</option><option value="qr">QR code</option><option value="bank_transfer">Bank transfer</option><option value="other">Other</option>
+    </select>
+    {method === "cash" ? <p className="caption">Ask the finder to photograph a receipt or signed acknowledgement when submitting payment proof.</p> : <>
+      <label className="label" htmlFor={`pay-details-${job.id}`}>Your payment details</label>
+      <textarea id={`pay-details-${job.id}`} className="field min-h-20" maxLength={500} value={instructions} onChange={(e) => setInstructions(e.target.value)} placeholder={method === "gcash" ? "Account name and GCash number" : method === "bank_transfer" ? "Bank name, account name, and account number" : method === "qr" ? "Optional instructions for using your QR" : "Tell the finder how to pay"} />
+    </>}
+    {method === "qr" ? <div><label className="label" htmlFor={`pay-qr-${job.id}`}>Your payment QR image</label><input id={`pay-qr-${job.id}`} className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setQr(e.target.files?.[0] ?? null)} /><p className="caption mt-1">JPG, PNG, or WebP, maximum 4 MB.</p></div> : null}
+    <div className="flex gap-2"><ActionButton busy={busy} disabled={method !== "cash" && instructions.trim().length < 3 || method === "qr" && !qr} onClick={submit}>Mark complete</ActionButton><ActionButton variant="neutral" onClick={onCancel}>Cancel</ActionButton></div>
+  </Card>;
 }

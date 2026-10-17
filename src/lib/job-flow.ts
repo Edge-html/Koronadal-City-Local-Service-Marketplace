@@ -5,8 +5,8 @@ export type JobFilter = "all" | "action" | "waiting" | "active" | "history";
 
 export function needsAction(job: Job, view: JobView): boolean {
   return view === "customer"
-    ? job.status === "quoted" || (job.status === "completed" && !!job.settledAt)
-    : ["requested", "accepted"].includes(job.status) || (job.status === "completed" && !job.settledAt);
+    ? job.status === "quoted" || (job.status === "completed" && (!!job.settledAt || (!!job.paymentMethod && !job.paymentSubmittedAt)))
+    : ["requested", "accepted"].includes(job.status) || (job.status === "completed" && !job.settledAt && (!job.paymentMethod || !!job.paymentProofPath));
 }
 
 export function jobGroup(job: Job, view: JobView): JobFilter {
@@ -36,8 +36,12 @@ export function nextStep(job: Job, view: JobView): { title: string; detail: stri
         ? { title: "5. All done", detail: "Commission is settled. The customer can now leave a review." }
         : { title: "5. Leave a review", detail: "The job is complete. Share your experience to help other customers choose a worker." }
       : worker
-        ? { title: "5. Settle the platform commission", detail: "The work is complete. Use Settle commission below to finish the job and unlock the customer's review." }
-        : { title: "5. Waiting for the worker to finish settlement", detail: "Pay the worker directly if you have not yet paid. Reviews open once they settle the platform commission." };
+        ? job.paymentProofPath
+          ? { title: "5. Check payment and confirm receipt", detail: "Review the finder’s receipt. Confirm only after you have received the direct payment; this settles your commission and opens their review." }
+          : { title: "5. Waiting for finder payment", detail: "The finder pays you directly using your chosen method. Review their receipt and confirm when the money arrives." }
+        : job.paymentSubmittedAt
+          ? { title: "5. Waiting for worker confirmation", detail: "Your proof is submitted. The worker will confirm after checking that the payment arrived." }
+          : { title: "5. Pay the worker and send proof", detail: "Pay the worker directly using the method they selected. Upload your receipt; the worker confirms receipt before commission settlement and reviews." };
     case "reviewed": return { title: "Job finished", detail: "The work and review are complete. This request is kept in your history." };
     case "cancelled": return { title: "Request declined", detail: worker ? "This request is closed. No further action is needed." : "The worker was unavailable. Find another worker to send a new request." };
     case "disputed": return { title: "Under admin review", detail: "A dispute has been recorded. Keep your agreement and payment records available for follow-up." };

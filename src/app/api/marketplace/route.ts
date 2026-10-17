@@ -4,7 +4,7 @@ import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 
-type Operation = "acceptJob" | "approveQuote" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
+type Operation = "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -41,6 +41,9 @@ export async function POST(request: NextRequest) {
       text?: string;
       credentials?: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt: string; reviewState: string }>;
       paymentSettings?: { gcashAccountName?: string; gcashNumber?: string; gcashQrPath?: string };
+      payment?: { method?: string; instructions?: string; qrPath?: string };
+      proofPath?: string;
+      reference?: string;
     };
     const operation = input.operation;
     if (!operation) return fail("Missing operation.");
@@ -150,13 +153,103 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (operation === "completeJob") {
+      if (!input.jobId) return fail("Missing job.");
+      const method = input.payment?.method;
+      const instructions = input.payment?.instructions?.trim() ?? "";
+      const qrPath = input.payment?.qrPath?.trim() ?? "";
+      if (!["cash", "gcash", "qr", "bank_transfer", "other"].includes(method ?? "")) return fail("Choose how the finder should pay you.");
+      if (instructions.length > 500) return fail("Payment instructions must be 500 characters or fewer.");
+      if (method !== "cash" && instructions.length < 3) return fail("Add the account details or payment instructions the finder needs.");
+      if (method === "qr" && !new RegExp(`^worker-payment-qr/${user.uid}/[A-Za-z0-9-]+$`).test(qrPath)) return fail("Upload your payment QR code.");
+      if (method !== "qr" && qrPath) return fail("Unexpected QR image.");
+      const jobRef = db.collection("jobs").doc(input.jobId);
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(jobRef);
+        const job = snap.data();
+        if (!job || job.workerUid !== user.uid || job.status !== "in_progress") throw new Error("This job cannot be marked complete.");
+        tx.update(jobRef, {
+          status: "completed",
+          completedAt: new Date().toISOString(),
+          paymentMethod: method,
+          paymentInstructions: method === "cash" ? "Pay the worker in cash and ask for a receipt." : instructions,
+          paymentQrPath: qrPath,
+        });
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "submitJobPayment") {
+      if (!input.jobId) return fail("Missing job.");
+      const proofPath = input.proofPath?.trim() ?? "";
+      const reference = input.reference?.trim() ?? "";
+      if (!new RegExp(`^job-payment-proofs/${input.jobId}/${user.uid}/[A-Za-z0-9-]+$`).test(proofPath)) return fail("Upload a valid payment proof image.");
+      if (reference.length > 120) return fail("Payment reference must be 120 characters or fewer.");
+      const jobRef = db.collection("jobs").doc(input.jobId);
+      await db.runTransaction(async (tx) => {
+        const snap = await tx.get(jobRef);
+        const job = snap.data();
+        if (!job || job.consumerId !== user.uid || job.status !== "completed" || job.settledAt || job.paymentApprovedAt) throw new Error("This job is not waiting for a payment proof.");
+        tx.update(jobRef, { paymentProofPath: proofPath, paymentReference: reference, paymentSubmittedAt: new Date().toISOString() });
+      });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "approveJobPayment") {
+      if (!input.jobId) return fail("Missing job.");
+      const jobRef = db.collection("jobs").doc(input.jobId);
+      await db.runTransaction(async (tx) => {
+        const jobSnap = await tx.get(jobRef);
+        const job = jobSnap.data();
+        if (!job || job.workerUid !== user.uid || job.status !== "completed" || job.settledAt
+          || !job.paymentProofPath || !job.paymentSubmittedAt) throw new Error("This job has no payment proof to approve.");
+        const workerRef = db.collection("workers").doc(job.workerId);
+        const workerSnap = await tx.get(workerRef);
+        const worker = workerSnap.data();
+        if (!worker || worker.uid !== user.uid) throw new Error("Worker profile not found.");
+        const commission = Number(job.commissionAmount);
+        const locked = Number(worker.walletLocked ?? 0);
+        if (!Number.isFinite(commission) || commission < 0 || locked < commission) throw new Error("The commission lock is missing.");
+        const balance = money(Number(worker.walletBalance ?? 0) - commission);
+        const isFirstJob = Number(worker.jobsCompleted ?? 0) === 0;
+        const referrerQuery = isFirstJob && worker.referredBy
+          ? await tx.get(db.collection("workers").where("referralCode", "==", worker.referredBy).limit(1))
+          : null;
+        const referrerDoc = referrerQuery?.docs[0];
+        const referrer = referrerDoc?.data();
+        const now = new Date().toISOString();
+        tx.update(workerRef, {
+          walletBalance: balance,
+          walletLocked: money(locked - commission),
+          jobsCompleted: Number(worker.jobsCompleted ?? 0) + 1,
+          status: balance < 0 ? "paused_wallet" : worker.status,
+        });
+        tx.update(jobRef, { paymentApprovedAt: now, settledAt: now });
+        tx.create(db.collection("ledger").doc(), {
+          workerId: job.workerId, workerUid: user.uid, jobId: input.jobId,
+          kind: "commission_settle", amount: -commission, balanceAfter: balance,
+          note: "Commission settled after confirming finder payment for " + job.title, createdAt: now,
+        });
+        if (referrerDoc && referrer && referrerDoc.id !== job.workerId) {
+          const credits = Number(referrer.referralCredits ?? 0) + 1;
+          tx.update(referrerDoc.ref, { referralCredits: credits });
+          tx.create(db.collection("ledger").doc(), {
+            workerId: referrerDoc.id, workerUid: referrer.uid, jobId: input.jobId,
+            kind: "referral_credit", amount: 1, balanceAfter: credits,
+            note: "First settled job referral: " + worker.fullName, createdAt: now,
+          });
+        }
+      });
+      return NextResponse.json({ ok: true });
+    }
+
     if (operation === "settleJob") {
       if (!input.jobId) return fail("Missing job.");
       const jobRef = db.collection("jobs").doc(input.jobId);
       await db.runTransaction(async (tx) => {
         const jobSnap = await tx.get(jobRef);
         const job = jobSnap.data();
-        if (!job || job.workerUid !== user.uid || job.status !== "completed" || job.settledAt) {
+        if (!job || job.workerUid !== user.uid || job.status !== "completed" || job.settledAt || job.paymentMethod) {
           throw new Error("This job cannot be settled.");
         }
         const workerRef = db.collection("workers").doc(job.workerId);
