@@ -333,7 +333,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     setBusy(true);
     try {
       const photoPath = photoFile ? await uploadRequestPhoto(photoFile) : "";
-      await createJobRequest({
+      const result = await createJobRequest({
         consumerId: user!.uid,
         consumerName: user!.displayName || "Household",
         consumerPhotoUrl: typeof profile?.photoUrl === "string" ? profile.photoUrl : "",
@@ -345,7 +345,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
         photoPath,
         barangay: barangay.trim(),
       });
-      router.push("/dashboard?sent=1");
+      router.push(`/dashboard?sent=1&email=${result.emailSent ? "sent" : "failed"}`);
     } catch (err) {
       // Do not guess the cause. A bare "check your connection" sent a real
       // report of an extension blocking firestore.googleapis.com down the

@@ -45,6 +45,7 @@ function CustomerDashboard() {
   const [disputing, setDisputing] = useState<string | null>(null);
 
   const sent = params.get("sent") === "1";
+  const requestEmail = params.get("email");
   const reviewLinkJobId = params.get("review");
 
   useEffect(() => {
@@ -103,9 +104,15 @@ function CustomerDashboard() {
     >
       <div className="flex flex-col gap-4">
         {sent ? (
-          <Notice>
-            Request sent. It now appears in the worker’s jobs. This page updates automatically when they accept or send a quote.
-          </Notice>
+          requestEmail === "sent" ? (
+            <Notice>
+              Request sent and an email alert was accepted for delivery to the worker’s sign-up email. It now appears in the worker’s jobs. If the worker cannot find the email, ask them to check Spam and Promotions.
+            </Notice>
+          ) : (
+            <Notice tone="alert">
+              Your request was saved and appears in the worker’s jobs, but the email alert could not be sent. Check the Google Apps Script relay URL and secret in Vercel, then redeploy. The worker can still respond in KoroHanap.
+            </Notice>
+          )
         ) : null}
         {customerError ? <Notice tone="alert">{customerError}</Notice> : null}
         <AttentionNotice count={customerCount}>{customerCount ? "Review the quotes and completed jobs below. Use the Needs your action filter to focus on your next steps." : "Your worker's updates will appear here automatically. Find another worker whenever you need a new service."}</AttentionNotice>

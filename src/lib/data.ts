@@ -34,7 +34,7 @@ import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 /** Resolved per call so an unconfigured environment fails at use, not import. */
 const db = getFirebaseDb;
 
-async function marketplaceAction(payload: Record<string, unknown>) {
+async function marketplaceAction(payload: Record<string, unknown>): Promise<{ emailSent?: boolean }> {
   const token = await getFirebaseAuth().currentUser?.getIdToken();
   if (!token) throw new Error("Sign in to continue.");
   const response = await fetch("/api/marketplace", {
@@ -44,12 +44,13 @@ async function marketplaceAction(payload: Record<string, unknown>) {
   });
   const isJson = response.headers.get("content-type")?.includes("application/json");
   const result = isJson
-    ? await response.json().catch(() => null) as { error?: string } | null
+    ? await response.json().catch(() => null) as { error?: string; emailSent?: boolean } | null
     : null;
   if (!response.ok) {
     throw new Error(result?.error || `The server could not complete this action (HTTP ${response.status}). Please try again.`);
   }
   if (!result) throw new Error("The server returned an unexpected response. Please try again.");
+  return result;
 }
 
 import { computeTotals, pesos } from "@/lib/commission";
@@ -485,7 +486,7 @@ export interface NewJob {
   barangay: string;
 }
 
-/** Stage 1 -> 2. Creates the request and emails the worker as a best effort. */
+/** Stage 1 -> 2. Creates the request and reports whether the worker email was sent. */
 export async function createJobRequest(input: NewJob) {
   const ref = await addDoc(jobsCol(), {
     consumerId: input.consumerId,
@@ -507,13 +508,14 @@ export async function createJobRequest(input: NewJob) {
     createdAt: serverTimestamp(),
   });
   try {
-    await marketplaceAction({ operation: "notifyWorkerNewRequest", jobId: ref.id });
+    const notification = await marketplaceAction({ operation: "notifyWorkerNewRequest", jobId: ref.id });
+    return { id: ref.id, emailSent: notification.emailSent === true };
   } catch (error) {
     // The request is already saved in Firestore and remains visible in-app.
     // A mail provider outage must not make the household think it was lost.
     console.warn("[email] worker request alert could not be sent:", error);
   }
-  return ref.id;
+  return { id: ref.id, emailSent: false };
 }
 
 /** Stage 3. Accepting is what unlocks the parties' contact details. */
