@@ -240,6 +240,11 @@ export async function updateWorker(
   });
 }
 
+/** Save selected skills through the authenticated server so the write remains available when deployed Firestore rules lag behind. */
+export async function saveWorkerSkills(workerId: string, skills: string[]) {
+  await marketplaceAction({ operation: "updateWorkerSkills", workerId, skills });
+}
+
 /**
  * Persist the worker's resume.
  *

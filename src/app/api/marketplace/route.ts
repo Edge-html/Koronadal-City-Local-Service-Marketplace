@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminServices } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { escapeEmailHtml, sendTransactionalEmail } from "@/lib/server-email";
+import { SKILLS_BY_CATEGORY } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
 type JobEmailStage = "request_accepted" | "request_declined" | "quote_sent" | "quote_approved" | "work_completed" | "payment_proof_submitted" | "payment_confirmed" | "review_received";
-type Operation = "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
+type Operation = "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -165,6 +166,7 @@ export async function POST(request: NextRequest) {
       jobId?: string;
       emailStage?: JobEmailStage;
       workerId?: string;
+      skills?: string[];
       requestId?: string;
       reviewNote?: string;
       rating?: number;
@@ -195,6 +197,24 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date().toISOString(),
         updatedBy: user.uid,
       }, { merge: true });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "updateWorkerSkills") {
+      if (!input.workerId || !Array.isArray(input.skills) || input.skills.length > 20
+        || input.skills.some((skill) => typeof skill !== "string")) {
+        return fail("Choose up to 20 skills.");
+      }
+      const userProfile = await db.collection("users").doc(user.uid).get();
+      if (userProfile.data()?.role !== "worker") return fail("Only worker accounts can update these skills.", 403);
+      const workerRef = db.collection("workers").doc(input.workerId);
+      const workerSnap = await workerRef.get();
+      const worker = workerSnap.data();
+      if (!worker || worker.uid !== user.uid) return fail("This worker profile does not belong to you.", 403);
+      const allowedSkills = SKILLS_BY_CATEGORY[String(worker.categoryId)] ?? [];
+      const skills = [...new Set(input.skills.map((skill) => skill.trim()).filter(Boolean))];
+      if (skills.some((skill) => !allowedSkills.includes(skill))) return fail("Choose skills from your listed trade.");
+      await workerRef.update({ skills, updatedAt: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
 

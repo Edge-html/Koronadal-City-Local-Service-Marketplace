@@ -20,7 +20,7 @@ import {
   suggestCategory,
   type ParsedResume,
 } from "@/lib/resume";
-import { clearResume, saveResume, updateWorker } from "@/lib/data";
+import { clearResume, saveResume, saveWorkerSkills, updateWorker } from "@/lib/data";
 import { formatDate } from "@/lib/utils";
 import type { Resume, Worker } from "@/lib/types";
 
@@ -114,7 +114,7 @@ export function ResumeEditor({ worker, onUpdated }: { worker: Worker; onUpdated?
     setSkillsError("");
     setSkillsSaved(false);
     try {
-      await updateWorker(worker.id, { skills: skills.slice(0, 20) });
+      await saveWorkerSkills(worker.id, skills.slice(0, 20));
       setSkillsSaved(true);
       await onUpdated?.();
     } catch (err) {
