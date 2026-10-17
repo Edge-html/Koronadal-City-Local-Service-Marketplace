@@ -259,7 +259,7 @@ const REVIEW_TEXT = [
   "Came on time, explained what he found before starting, and the total matched the approved quote exactly.",
   "Very transparent about materials. Explained which parts were still good and which had to go.",
   "Fair price and tidy work. Already booked the next job with him.",
-  "Responded to my SMS within minutes. Work was done the same week.",
+  "Responded to my request within minutes. Work was done the same week.",
   "Recommended them to my neighbour. The before and after difference is obvious.",
   "Handled a problem I had been putting off for two years. No surprises on the bill.",
 ];

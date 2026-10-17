@@ -429,11 +429,20 @@ message, and the worker sees the shortfall on their own quote.
 
 ## Notes for production
 
-Configure `RESEND_API_KEY` and `EMAIL_FROM` in Vercel to send worker new-request
-alerts and optional post-payment review links. The `EMAIL_FROM` address must
-belong to a domain verified in Resend. Email links use the site domain that
-received the request. In-app notifications continue to work if email is not
-configured.
+Deploy `scripts/google-apps-script-email.gs` as a Google Apps Script Web app to
+send worker new-request alerts and optional post-payment review links from a
+Gmail account. Store a shared random secret in Apps Script Script Properties
+and set `GOOGLE_APPS_SCRIPT_URL` and `GOOGLE_APPS_SCRIPT_SECRET` in Vercel.
+Email links use the site domain that received the request. In-app notifications
+continue to work if email is not configured.
+
+Setup: create a project at `script.google.com`, paste the `.gs` file, and add
+the Script Property `KOROHANAP_EMAIL_SECRET`. Deploy it as a Web app that
+executes as you and allows access to anyone; authorize the mail permission when
+prompted. Add the deployed `/exec` URL as `GOOGLE_APPS_SCRIPT_URL` and the same
+random secret as `GOOGLE_APPS_SCRIPT_SECRET` in Vercel Production, then redeploy.
+A consumer Google account currently has a 100-recipient daily Apps Script email
+quota; Google may change quotas.
 
 - **Payments** — workers submit a reference and an administrator independently
   verifies it before crediting. Provider webhooks remain future work.
