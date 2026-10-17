@@ -10,13 +10,20 @@ export type EmailSendResult =
   | { ok: false; reason: "not_configured" | "http_error" | "unauthorized" | "quota_reached" | "invalid_message" | "relay_error" | "invalid_response" | "unreachable" };
 
 export function emailRelayConfigured() {
-  return Boolean(process.env.GOOGLE_APPS_SCRIPT_URL && process.env.GOOGLE_APPS_SCRIPT_SECRET);
+  return emailRelayMissingVariables().length === 0;
+}
+
+export function emailRelayMissingVariables() {
+  return [
+    !process.env.GOOGLE_APPS_SCRIPT_URL?.trim() ? "GOOGLE_APPS_SCRIPT_URL" : null,
+    !process.env.GOOGLE_APPS_SCRIPT_SECRET?.trim() ? "GOOGLE_APPS_SCRIPT_SECRET" : null,
+  ].filter((name): name is string => name !== null);
 }
 
 /** Sends transactional email through the private Google Apps Script relay. */
 export async function sendTransactionalEmailDetailed(message: EmailMessage): Promise<EmailSendResult> {
-  const scriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL;
-  const secret = process.env.GOOGLE_APPS_SCRIPT_SECRET;
+  const scriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL?.trim();
+  const secret = process.env.GOOGLE_APPS_SCRIPT_SECRET?.trim();
   if (!scriptUrl || !secret) {
     console.warn("[email] not sent: configure Google Apps Script email relay variables.");
     return { ok: false, reason: "not_configured" };

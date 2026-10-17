@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminServices } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { emailRelayConfigured, escapeEmailHtml, sendTransactionalEmail, sendTransactionalEmailDetailed } from "@/lib/server-email";
+import { emailRelayConfigured, emailRelayMissingVariables, escapeEmailHtml, sendTransactionalEmail, sendTransactionalEmailDetailed } from "@/lib/server-email";
 import { SKILLS_BY_CATEGORY } from "@/lib/constants";
 
 export const runtime = "nodejs";
@@ -196,16 +196,16 @@ export async function POST(request: NextRequest) {
     if (operation === "emailDiagnostics") {
       const account = (await db.collection("users").doc(user.uid).get()).data();
       if (account?.role !== "admin") return fail("Administrators only.", 403);
-      if (!input.sendTest) return NextResponse.json({ ok: true, configured: emailRelayConfigured() });
+      if (!input.sendTest) return NextResponse.json({ ok: true, configured: emailRelayConfigured(), missingVariables: emailRelayMissingVariables() });
       const to = await getSignupEmail(db, auth, user.uid);
-      if (!to) return NextResponse.json({ ok: true, configured: emailRelayConfigured(), emailSent: false, reason: "no_signup_email" });
+      if (!to) return NextResponse.json({ ok: true, configured: emailRelayConfigured(), missingVariables: emailRelayMissingVariables(), emailSent: false, reason: "no_signup_email" });
       const result = await sendTransactionalEmailDetailed({
         to,
         subject: "KoroHanap email alert test",
         text: "This test confirms that KoroHanap can send email alerts through your Google Apps Script relay.",
         html: "<p>This test confirms that KoroHanap can send email alerts through your Google Apps Script relay.</p>",
       });
-      return NextResponse.json({ ok: true, configured: emailRelayConfigured(), emailSent: result.ok, reason: result.ok ? null : result.reason, recipient: to });
+      return NextResponse.json({ ok: true, configured: emailRelayConfigured(), missingVariables: emailRelayMissingVariables(), emailSent: result.ok, reason: result.ok ? null : result.reason, recipient: to });
     }
 
     if (operation === "savePaymentSettings") {

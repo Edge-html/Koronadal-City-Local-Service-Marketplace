@@ -34,7 +34,7 @@ import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 /** Resolved per call so an unconfigured environment fails at use, not import. */
 const db = getFirebaseDb;
 
-type MarketplaceActionResult = { error?: string; emailSent?: boolean; configured?: boolean; reason?: string | null; recipient?: string };
+type MarketplaceActionResult = { error?: string; emailSent?: boolean; configured?: boolean; missingVariables?: string[]; reason?: string | null; recipient?: string };
 
 async function marketplaceAction(payload: Record<string, unknown>): Promise<MarketplaceActionResult> {
   const token = await getFirebaseAuth().currentUser?.getIdToken();

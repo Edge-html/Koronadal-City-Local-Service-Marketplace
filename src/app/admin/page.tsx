@@ -51,6 +51,7 @@ export default function AdminPage() {
   const [migrationDone, setMigrationDone] = useState(false);
   const [migrating, setMigrating] = useState(false);
   const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
+  const [missingEmailVariables, setMissingEmailVariables] = useState<string[]>([]);
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailResult, setEmailResult] = useState("");
 
@@ -91,7 +92,10 @@ export default function AdminPage() {
 
   useEffect(() => {
     if (section !== "alerts" || role !== "admin") return;
-    checkEmailDiagnostics().then((result) => setEmailConfigured(result.configured === true))
+    checkEmailDiagnostics().then((result) => {
+      setEmailConfigured(result.configured === true);
+      setMissingEmailVariables(result.missingVariables ?? []);
+    })
       .catch(() => setEmailResult("Could not check the email relay. Refresh and try again."));
   }, [section, role]);
 
@@ -101,6 +105,7 @@ export default function AdminPage() {
     try {
       const result = await checkEmailDiagnostics(true);
       setEmailConfigured(result.configured === true);
+      setMissingEmailVariables(result.missingVariables ?? []);
       setEmailResult(result.emailSent
         ? `Test email accepted for ${result.recipient}. Check its Inbox and Spam folders.`
         : emailFailureMessage(result.reason));
@@ -233,7 +238,7 @@ export default function AdminPage() {
         {section === "alerts" ? <Card className="p-5">
           <h2 className="text-[16px] font-medium">Worker email alerts</h2>
           <p className="mt-1 text-sm text-stone-600">Check the email relay, send a test to your admin sign-up email, then retry requests whose alerts were not sent.</p>
-          <p className="mt-3 text-sm" role="status">{emailConfigured === null ? "Checking email settings…" : emailConfigured ? "Email relay variables are present in this deployment." : "Email relay variables are missing. Add GOOGLE_APPS_SCRIPT_URL and GOOGLE_APPS_SCRIPT_SECRET to Vercel Production, then redeploy."}</p>
+          <p className="mt-3 text-sm" role="status">{emailConfigured === null ? "Checking email settings…" : emailConfigured ? "Email relay variables are present in this deployment." : `Missing in this deployment: ${missingEmailVariables.join(", ") || "email relay variables"}. Add them to Vercel Production, then redeploy.`}</p>
           <div className="mt-3"><ActionButton variant="neutral" busy={emailBusy} onClick={testEmail}>Send test email to me</ActionButton></div>
           {emailResult ? <p className="mt-3 rounded-lg border border-stone-200 p-3 text-sm" role="status">{emailResult}</p> : null}
           <h3 className="mt-6 text-sm font-semibold">Requested jobs without a sent email alert</h3>
