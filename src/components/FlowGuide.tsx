@@ -43,7 +43,9 @@ export function JobFilters({ jobs, view, value, onChange }: { jobs: Job[]; view:
   const options: [JobFilter, string][] = [["all", "All"], ["action", "Needs your action"], ["waiting", "Waiting"], ["active", "In progress"], ["history", "History"]];
   return <div className="flex flex-wrap gap-2" aria-label="Filter requests">
     {options.map(([id, label]) => {
-      const count = jobs.filter((j) => id === "all" || jobGroup(j, view) === id).length;
+      const count = jobs.filter((j) => id === "all"
+        ? view !== "worker" || jobGroup(j, view) !== "history"
+        : jobGroup(j, view) === id).length;
       return <button key={id} type="button" aria-pressed={value === id} onClick={() => onChange(id)} className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 py-2 text-sm ${value === id ? "border-char bg-char text-white" : "border-stone-200 bg-white text-stone-700 hover:border-stone-400"}`}>
         {label}<span className={`rounded-full px-1.5 text-xs tabular-nums ${value === id ? "bg-white/20" : "bg-black/10"}`}>{count}</span>
       </button>;

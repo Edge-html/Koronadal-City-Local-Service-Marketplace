@@ -75,14 +75,6 @@ export default function WorkerDashboardPage() {
       quoting: jobs.filter((j) => j.status === "accepted").length,
       active: jobs.filter((j) => j.status === "in_progress").length,
       toSettle: jobs.filter((j) => j.status === "completed" && !j.settledAt && !!j.paymentProofPath).length,
-      earned: jobs
-        .filter((j) => ["completed", "reviewed"].includes(j.status))
-        .reduce((sum, job) => {
-          const t = job.quote
-            ? computeTotals(job.quote.laborFee, job.quote.materialsCost)
-            : null;
-          return sum + (t?.total ?? 0);
-        }, 0),
     };
   }, [jobs]);
 
@@ -159,28 +151,23 @@ export default function WorkerDashboardPage() {
           </Card>
         ) : null}
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <StatCard label="New requests" value={stats?.newRequests ?? 0} />
           <StatCard label="To quote" value={stats?.quoting ?? 0} />
           <StatCard label="In progress" value={stats?.active ?? 0} />
           <StatCard label="Proofs to review" value={stats?.toSettle ?? 0} />
-          <StatCard
-            label="Billed to households"
-            value={formatPeso(stats?.earned ?? 0)}
-            sublabel="Received direct"
-          />
         </div>
 
         <JobFilters jobs={jobs ?? []} view="worker" value={filter} onChange={setFilter} />
-        {jobs && jobs.length > 0 && visibleJobs(jobs, "worker", filter).length === 0 ? <p className="rounded-lg bg-white p-6 text-sm text-stone-600">No jobs in this section. Choose another filter to see your requests.</p> : null}
+        {jobs && jobs.length > 0 && visibleJobs(jobs, "worker", filter).length === 0 ? <div className="rounded-xl border border-stone-200 bg-white p-8 text-center"><h2 className="text-base font-medium text-ink-black">{filter === "all" ? "No Current Jobs" : filter === "history" ? "No job history yet" : "No jobs in this section"}</h2><p className="mt-2 text-sm text-stone-600">{filter === "all" ? "Completed and cancelled jobs are kept in History." : "Choose another tab to view your jobs."}</p></div> : null}
 
         {jobs && jobs.length === 0 ? (
           <EmptyState
-            title="No jobs yet"
-            description="New household requests appear here. Check this dashboard for updates."
+            title="No Current Jobs"
+            description="New household requests will appear here. Completed and cancelled work is kept in History."
             action={{ label: "View your public profile", href: `/worker/${worker?.id ?? ""}` }}
           />
-        ) : (
+        ) : visibleJobs(jobs ?? [], "worker", filter).length === 0 ? null : (
           <div className="flex flex-col gap-3">
             {visibleJobs(jobs ?? [], "worker", filter).map((job) => (
               <JobCard
@@ -264,25 +251,6 @@ export default function WorkerDashboardPage() {
                         catch (err) { setError(err instanceof Error ? err.message : "Could not settle the commission."); }
                         finally { setBusyId(null); }
                       })}>Settle legacy job</ActionButton>
-                    ) : null}
-
-                    {job.status === "completed" && !job.settledAt ? (
-                      <ActionButton
-                        busy={busyId === job.id}
-                        onClick={safeAsync(async () => {
-                          setBusyId(job.id);
-                          try {
-                            await settleJob(job);
-                            await refresh();
-                          } catch (err) {
-                            setError(err instanceof Error ? err.message : "Could not update this job.");
-                          } finally {
-                            setBusyId(null);
-                          }
-                        })}
-                      >
-                        Settle commission
-                      </ActionButton>
                     ) : null}
 
                     {job.status === "completed" && job.settledAt ? (

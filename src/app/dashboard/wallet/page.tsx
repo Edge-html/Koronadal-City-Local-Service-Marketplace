@@ -10,13 +10,15 @@ import { WALLET_TOPUP_METHODS } from "@/lib/constants";
 import { getPaymentSettings, getWorkerByUid, listLedger, listTopUpRequestsForWorker, topUpWallet, type PaymentSettings } from "@/lib/data";
 import { PaymentQrImage } from "@/components/PaymentSettings";
 import { uploadPaymentImage } from "@/lib/payment-files";
-import { COMMISSION_RATE, availableBalance, formatPeso } from "@/lib/commission";
+import { COMMISSION_RATE, availableBalance, computeTotals, formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import { formatDate } from "@/lib/utils";
-import type { LedgerEntry, Worker } from "@/lib/types";
+import type { Job, LedgerEntry, Worker } from "@/lib/types";
+import { useActivity } from "@/context/ActivityContext";
 
 export default function WalletPage() {
   const { user, loading: authLoading } = useAuth();
+  const { workerJobs } = useActivity();
 
   const [worker, setWorker] = useState<Worker | null>(null);
   const [entries, setEntries] = useState<LedgerEntry[]>([]);
@@ -138,7 +140,7 @@ export default function WalletPage() {
           <StatCard
             label="Locked on approvals"
             value={formatPeso(worker.walletLocked)}
-            sublabel="Settles on completion"
+            sublabel="Settles after payment confirmation"
           />
           <StatCard
             label="Unlocked headroom"
@@ -155,6 +157,8 @@ export default function WalletPage() {
             sublabel="Labor only, materials exempt"
           />
         </div>
+
+        <WorkerAnalytics jobs={workerJobs ?? []} entries={entries} rating={worker.rating} reviewCount={worker.reviewCount} />
 
         <div className="grid gap-4 lg:grid-cols-[380px_1fr] lg:items-start">
           {/* Top-up */}
@@ -344,6 +348,43 @@ export default function WalletPage() {
       </div>
     </DashboardShell>
   );
+}
+
+function WorkerAnalytics({ jobs, entries, rating, reviewCount }: { jobs: Job[]; entries: LedgerEntry[]; rating: number; reviewCount: number }) {
+  const finished = jobs.filter((job) => !!job.settledAt || job.status === "reviewed");
+  const billed = finished.reduce((sum, job) => sum + (job.quote ? computeTotals(job.quote.laborFee, job.quote.materialsCost).total : 0), 0);
+  const commission = Math.abs(entries.filter((entry) => entry.kind === "commission_settle").reduce((sum, entry) => sum + entry.amount, 0));
+  const now = new Date();
+  const months = Array.from({ length: 6 }, (_, index) => {
+    const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const total = finished.filter((job) => (job.settledAt ?? job.completedAt ?? "").slice(0, 7) === key)
+      .reduce((sum, job) => sum + (job.quote ? computeTotals(job.quote.laborFee, job.quote.materialsCost).total : 0), 0);
+    return { key, label: new Intl.DateTimeFormat("en-PH", { month: "short", timeZone: "Asia/Manila" }).format(date), total };
+  });
+  const max = Math.max(...months.map((month) => month.total), 0);
+  return <section aria-labelledby="worker-analytics-title" className="flex flex-col gap-3">
+    <div><h2 id="worker-analytics-title" className="text-base font-medium text-ink-black">Work analytics</h2><p className="caption mt-1">Based on jobs you have confirmed and your wallet ledger.</p></div>
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <StatCard label="Billed to households" value={formatPeso(billed)} sublabel="Received directly for completed jobs" />
+      <StatCard label="Platform commission paid" value={formatPeso(commission)} sublabel="Total settled from your wallet" />
+      <StatCard label="Jobs completed" value={finished.length} sublabel="Payment confirmed" />
+      <StatCard label="Average rating" value={reviewCount ? rating.toFixed(1) : "—"} sublabel={`${reviewCount} customer reviews`} />
+    </div>
+    <Card className="p-5">
+      <h3 className="text-sm font-medium text-ink-black">Direct payments by month</h3>
+      <p className="caption mt-1">Last six months, based on the full quoted amount after you confirm receipt.</p>
+      <div className="mt-4 grid gap-3 sm:grid-cols-6">
+        {months.map((month) => <div key={month.key} className="flex min-w-0 flex-col gap-2">
+          <div className="flex h-24 items-end rounded-md bg-bone p-1" aria-label={`${month.label}: ${formatPeso(month.total)}`}>
+            <div className="w-full rounded-sm bg-ink-black" style={{ height: month.total ? `${Math.max(8, month.total / max * 100)}%` : "0%" }} />
+          </div>
+          <p className="text-xs text-stone-500">{month.label}</p><p className="truncate text-xs tabular-nums text-stone-700">{formatPeso(month.total)}</p>
+        </div>)}
+      </div>
+      {!finished.length ? <p className="mt-3 text-sm text-stone-500">Confirmed job totals will appear here after your first completed job.</p> : null}
+    </Card>
+  </section>;
 }
 
 const LEDGER_LABELS: Record<string, string> = {

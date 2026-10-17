@@ -51,6 +51,8 @@ export function nextStep(job: Job, view: JobView): { title: string; detail: stri
 
 export function visibleJobs(jobs: Job[], view: JobView, filter: JobFilter) {
   const priority: Record<JobFilter, number> = { action: 0, active: 1, waiting: 2, history: 3, all: 4 };
-  return jobs.filter((job) => filter === "all" || jobGroup(job, view) === filter)
+  return jobs.filter((job) => filter === "all"
+    ? view !== "worker" || jobGroup(job, view) !== "history"
+    : jobGroup(job, view) === filter)
     .sort((a, b) => priority[jobGroup(a, view)] - priority[jobGroup(b, view)] || b.requestedAt.localeCompare(a.requestedAt));
 }
