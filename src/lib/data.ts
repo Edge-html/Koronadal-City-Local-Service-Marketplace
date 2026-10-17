@@ -34,7 +34,9 @@ import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 /** Resolved per call so an unconfigured environment fails at use, not import. */
 const db = getFirebaseDb;
 
-async function marketplaceAction(payload: Record<string, unknown>): Promise<{ emailSent?: boolean }> {
+type MarketplaceActionResult = { error?: string; emailSent?: boolean; configured?: boolean; reason?: string | null; recipient?: string };
+
+async function marketplaceAction(payload: Record<string, unknown>): Promise<MarketplaceActionResult> {
   const token = await getFirebaseAuth().currentUser?.getIdToken();
   if (!token) throw new Error("Sign in to continue.");
   const response = await fetch("/api/marketplace", {
@@ -44,7 +46,7 @@ async function marketplaceAction(payload: Record<string, unknown>): Promise<{ em
   });
   const isJson = response.headers.get("content-type")?.includes("application/json");
   const result = isJson
-    ? await response.json().catch(() => null) as { error?: string; emailSent?: boolean } | null
+    ? await response.json().catch(() => null) as MarketplaceActionResult | null
     : null;
   if (!response.ok) {
     throw new Error(result?.error || `The server could not complete this action (HTTP ${response.status}). Please try again.`);
@@ -421,6 +423,7 @@ export function toJob(id: string, data: DocumentData): Job {
     workerPhone: data.workerPhone ?? "",
     consumerPhone: data.consumerPhone ?? "",
     reviewEmailOptIn: data.reviewEmailOptIn === true,
+    workerRequestEmailSentAt: data.workerRequestEmailSentAt,
     categoryId: data.categoryId ?? "",
     title: data.title ?? "",
     description: data.description ?? "",
@@ -516,6 +519,14 @@ export async function createJobRequest(input: NewJob) {
     console.warn("[email] worker request alert could not be sent:", error);
   }
   return { id: ref.id, emailSent: false };
+}
+
+export async function checkEmailDiagnostics(sendTest = false) {
+  return marketplaceAction({ operation: "emailDiagnostics", sendTest });
+}
+
+export async function retryWorkerRequestEmail(jobId: string) {
+  return marketplaceAction({ operation: "notifyWorkerNewRequest", jobId });
 }
 
 /** Stage 3. Accepting is what unlocks the parties' contact details. */

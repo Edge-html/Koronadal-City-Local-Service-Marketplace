@@ -203,6 +203,7 @@ export interface Job {
   workerPhone?: string;
   consumerPhone?: string;
   reviewEmailOptIn?: boolean;
+  workerRequestEmailSentAt?: string;
   categoryId: string;
   title: string;
   description: string;

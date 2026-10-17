@@ -5,13 +5,21 @@ type EmailMessage = {
   html: string;
 };
 
+export type EmailSendResult =
+  | { ok: true }
+  | { ok: false; reason: "not_configured" | "http_error" | "unauthorized" | "quota_reached" | "invalid_message" | "relay_error" | "invalid_response" | "unreachable" };
+
+export function emailRelayConfigured() {
+  return Boolean(process.env.GOOGLE_APPS_SCRIPT_URL && process.env.GOOGLE_APPS_SCRIPT_SECRET);
+}
+
 /** Sends transactional email through the private Google Apps Script relay. */
-export async function sendTransactionalEmail(message: EmailMessage) {
+export async function sendTransactionalEmailDetailed(message: EmailMessage): Promise<EmailSendResult> {
   const scriptUrl = process.env.GOOGLE_APPS_SCRIPT_URL;
   const secret = process.env.GOOGLE_APPS_SCRIPT_SECRET;
   if (!scriptUrl || !secret) {
     console.warn("[email] not sent: configure Google Apps Script email relay variables.");
-    return false;
+    return { ok: false, reason: "not_configured" };
   }
 
   try {
@@ -23,18 +31,26 @@ export async function sendTransactionalEmail(message: EmailMessage) {
     });
     if (!response.ok) {
       console.error(`[email] provider returned HTTP ${response.status}.`);
-      return false;
+      return { ok: false, reason: "http_error" };
     }
-    const result = await response.json().catch(() => null) as { ok?: boolean } | null;
+    const result = await response.json().catch(() => null) as { ok?: boolean; error?: string } | null;
     if (!result?.ok) {
-      console.error("[email] Google Apps Script did not accept the message.");
-      return false;
+      const reason = result?.error === "Unauthorized" ? "unauthorized"
+        : result?.error === "Daily email quota reached" ? "quota_reached"
+        : result?.error === "Invalid email message" ? "invalid_message"
+        : result ? "relay_error" : "invalid_response";
+      console.error(`[email] Google Apps Script rejected the message: ${reason}.`);
+      return { ok: false, reason };
     }
-    return true;
+    return { ok: true };
   } catch (error) {
     console.error("[email] delivery request failed.", error);
-    return false;
+    return { ok: false, reason: "unreachable" };
   }
+}
+
+export async function sendTransactionalEmail(message: EmailMessage) {
+  return (await sendTransactionalEmailDetailed(message)).ok;
 }
 
 export function escapeEmailHtml(value: string) {

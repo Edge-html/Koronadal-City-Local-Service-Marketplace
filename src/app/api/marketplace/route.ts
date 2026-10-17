@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminServices } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
-import { escapeEmailHtml, sendTransactionalEmail } from "@/lib/server-email";
+import { emailRelayConfigured, escapeEmailHtml, sendTransactionalEmail, sendTransactionalEmailDetailed } from "@/lib/server-email";
 import { SKILLS_BY_CATEGORY } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
 type JobEmailStage = "request_accepted" | "request_declined" | "quote_sent" | "quote_approved" | "work_completed" | "payment_proof_submitted" | "payment_confirmed" | "review_received";
-type Operation = "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
+type Operation = "emailDiagnostics" | "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -188,9 +188,25 @@ export async function POST(request: NextRequest) {
       payment?: { method?: string; instructions?: string; qrPath?: string };
       proofPath?: string;
       reference?: string;
+      sendTest?: boolean;
     };
     const operation = input.operation;
     if (!operation) return fail("Missing operation.");
+
+    if (operation === "emailDiagnostics") {
+      const account = (await db.collection("users").doc(user.uid).get()).data();
+      if (account?.role !== "admin") return fail("Administrators only.", 403);
+      if (!input.sendTest) return NextResponse.json({ ok: true, configured: emailRelayConfigured() });
+      const to = await getSignupEmail(db, auth, user.uid);
+      if (!to) return NextResponse.json({ ok: true, configured: emailRelayConfigured(), emailSent: false, reason: "no_signup_email" });
+      const result = await sendTransactionalEmailDetailed({
+        to,
+        subject: "KoroHanap email alert test",
+        text: "This test confirms that KoroHanap can send email alerts through your Google Apps Script relay.",
+        html: "<p>This test confirms that KoroHanap can send email alerts through your Google Apps Script relay.</p>",
+      });
+      return NextResponse.json({ ok: true, configured: emailRelayConfigured(), emailSent: result.ok, reason: result.ok ? null : result.reason, recipient: to });
+    }
 
     if (operation === "savePaymentSettings") {
       const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
@@ -236,7 +252,8 @@ export async function POST(request: NextRequest) {
       const shouldSend = await db.runTransaction(async (tx) => {
         const snap = await tx.get(jobRef);
         const job = snap.data();
-        if (!job || job.consumerId !== user.uid || job.status !== "requested") {
+        const admin = job?.consumerId === user.uid ? false : (await tx.get(db.collection("users").doc(user.uid))).data()?.role === "admin";
+        if (!job || (!admin && job.consumerId !== user.uid) || job.status !== "requested") {
           throw new MarketplaceError("This request is no longer available to notify.");
         }
         if (job.workerRequestEmailSentAt) return false;
@@ -245,15 +262,16 @@ export async function POST(request: NextRequest) {
         tx.update(jobRef, { workerRequestEmailClaimedAt: new Date().toISOString() });
         return true;
       });
-      if (!shouldSend) return NextResponse.json({ ok: true });
+      if (!shouldSend) return NextResponse.json({ ok: true, emailSent: Boolean((await jobRef.get()).data()?.workerRequestEmailSentAt) });
 
       const jobSnap = await jobRef.get();
       const job = jobSnap.data()!;
+      let reason = "unknown";
       try {
         const to = await getSignupEmail(db, auth, String(job.workerUid ?? ""));
         if (to) {
           const link = new URL("/dashboard/worker", request.nextUrl.origin).toString();
-          const delivered = await sendTransactionalEmail({
+          const delivery = await sendTransactionalEmailDetailed({
             to,
             subject: `New service request: ${String(job.title ?? "KoroHanap")}`,
             text: `${String(job.consumerName ?? "A household")} sent you a new request: ${String(job.title ?? "Service request")} in ${String(job.barangay ?? "Koronadal City")}. Sign in to review it: ${link}`,
@@ -264,21 +282,24 @@ export async function POST(request: NextRequest) {
               consumerName: String(job.consumerName ?? "A household"),
             }, link),
           });
-          if (delivered) {
+          if (delivery.ok) {
             await jobRef.update({
               workerRequestEmailSentAt: new Date().toISOString(),
               workerRequestEmailClaimedAt: FieldValue.delete(),
             });
             return NextResponse.json({ ok: true, emailSent: true });
           }
+          reason = delivery.reason;
         } else {
           console.warn("[email] worker account has no sign-up email.");
+          reason = "no_signup_email";
         }
       } catch (error) {
         console.error("[email] worker request alert failed.", error);
+        reason = "request_error";
       }
       await jobRef.update({ workerRequestEmailClaimedAt: FieldValue.delete() });
-      return NextResponse.json({ ok: true, emailSent: false });
+      return NextResponse.json({ ok: true, emailSent: false, reason });
     }
 
     if (operation === "notifyJobStage") {

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui";
 import { CATEGORY_MAP } from "@/lib/constants";
 import { DOC_TYPES, type Job, type Worker } from "@/lib/types";
-import { decideTopUp, decideVerification, listAllJobs, listPendingTopUpRequests, listPendingWorkers, migrateLegacyWorkers, type TopUpRequest } from "@/lib/data";
+import { checkEmailDiagnostics, decideTopUp, decideVerification, listAllJobs, listPendingTopUpRequests, listPendingWorkers, migrateLegacyWorkers, retryWorkerRequestEmail, type TopUpRequest } from "@/lib/data";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -22,10 +22,25 @@ import { openCredential } from "@/lib/credentials";
 import { PaymentSettingsCard } from "@/components/PaymentSettings";
 import { openPaymentImage } from "@/lib/payment-files";
 
+function emailFailureMessage(reason?: string | null) {
+  switch (reason) {
+    case "not_configured": return "The email relay variables are missing from this deployment. Check Vercel Production settings and redeploy.";
+    case "unauthorized": return "Google Apps Script rejected the secret. GOOGLE_APPS_SCRIPT_SECRET in Vercel must exactly match KOROHANAP_EMAIL_SECRET in Apps Script Script Properties.";
+    case "quota_reached": return "The Google account reached its Apps Script daily email quota. Try again after the quota resets.";
+    case "invalid_message": return "The relay rejected the email message. Check the worker's sign-up email address.";
+    case "http_error":
+    case "invalid_response": return "The Apps Script URL did not return a valid result. Use the deployed Web app /exec URL with Execute as Me and Anyone access.";
+    case "unreachable": return "The server could not reach the Apps Script Web app. Check the URL and the Apps Script deployment.";
+    case "no_signup_email": return "This account has no sign-up email saved. Check its Firebase Auth and users profile records.";
+    case "relay_error": return "Apps Script could not send the message. Open Apps Script → Executions to inspect the failure.";
+    default: return "The email alert was not accepted. Check Vercel function logs and Apps Script → Executions.";
+  }
+}
+
 export default function AdminPage() {
   const { role, loading: authLoading } = useAuth();
   const { adminRevision, adminError, adminDisputes } = useActivity();
-  const [section, setSection] = useState<"workers" | "payments" | "oversight">("workers");
+  const [section, setSection] = useState<"workers" | "payments" | "oversight" | "alerts">("workers");
 
   const [pending, setPending] = useState<Worker[] | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -35,6 +50,9 @@ export default function AdminPage() {
   const [error, setError] = useState("");
   const [migrationDone, setMigrationDone] = useState(false);
   const [migrating, setMigrating] = useState(false);
+  const [emailConfigured, setEmailConfigured] = useState<boolean | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailResult, setEmailResult] = useState("");
 
   const load = useCallback(async () => {
     const [workers, allJobs, payments] = await Promise.all([listPendingWorkers(), listAllJobs(), listPendingTopUpRequests()]);
@@ -64,11 +82,50 @@ export default function AdminPage() {
       const target = window.location.hash.slice(1);
       if (target === "payments") setSection("payments");
       if (target === "oversight") setSection("oversight");
+      if (target === "alerts") setSection("alerts");
     };
     syncSection();
     window.addEventListener("hashchange", syncSection);
     return () => window.removeEventListener("hashchange", syncSection);
   }, []);
+
+  useEffect(() => {
+    if (section !== "alerts" || role !== "admin") return;
+    checkEmailDiagnostics().then((result) => setEmailConfigured(result.configured === true))
+      .catch(() => setEmailResult("Could not check the email relay. Refresh and try again."));
+  }, [section, role]);
+
+  async function testEmail() {
+    setEmailBusy(true);
+    setEmailResult("");
+    try {
+      const result = await checkEmailDiagnostics(true);
+      setEmailConfigured(result.configured === true);
+      setEmailResult(result.emailSent
+        ? `Test email accepted for ${result.recipient}. Check its Inbox and Spam folders.`
+        : emailFailureMessage(result.reason));
+    } catch (err) {
+      setEmailResult(err instanceof Error ? err.message : "Could not send the test email.");
+    } finally {
+      setEmailBusy(false);
+    }
+  }
+
+  async function retryEmail(job: Job) {
+    setBusyId(job.id);
+    setEmailResult("");
+    try {
+      const result = await retryWorkerRequestEmail(job.id);
+      setEmailResult(result.emailSent
+        ? `Email alert accepted for ${job.workerName} about “${job.title}”.`
+        : emailFailureMessage(result.reason));
+      await refresh();
+    } catch (err) {
+      setEmailResult(err instanceof Error ? err.message : "Could not retry the email alert.");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   if (authLoading) return null;
 
@@ -165,12 +222,25 @@ export default function AdminPage() {
             { id: "workers", label: "Worker applications", count: pending?.length ?? 0 },
             { id: "payments", label: "Payment setup & top-ups", count: topUps.length },
             { id: "oversight", label: "Disputes & pricing", count: openDisputes.length },
+            { id: "alerts", label: "Email alerts", count: jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).length },
           ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
             className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-ink-black bg-white font-semibold text-ink-black" : "border-stone-200 text-stone-700"}`}>
             {item.label}<CountBadge count={item.count} />
           </button>)}
         </div>
         <p className="text-xs text-stone-500" role="status">{pending === null ? "Loading review queues…" : "Queue counts update automatically as requests arrive or are reviewed."}</p>
+
+        {section === "alerts" ? <Card className="p-5">
+          <h2 className="text-[16px] font-medium">Worker email alerts</h2>
+          <p className="mt-1 text-sm text-stone-600">Check the email relay, send a test to your admin sign-up email, then retry requests whose alerts were not sent.</p>
+          <p className="mt-3 text-sm" role="status">{emailConfigured === null ? "Checking email settings…" : emailConfigured ? "Email relay variables are present in this deployment." : "Email relay variables are missing. Add GOOGLE_APPS_SCRIPT_URL and GOOGLE_APPS_SCRIPT_SECRET to Vercel Production, then redeploy."}</p>
+          <div className="mt-3"><ActionButton variant="neutral" busy={emailBusy} onClick={testEmail}>Send test email to me</ActionButton></div>
+          {emailResult ? <p className="mt-3 rounded-lg border border-stone-200 p-3 text-sm" role="status">{emailResult}</p> : null}
+          <h3 className="mt-6 text-sm font-semibold">Requested jobs without a sent email alert</h3>
+          {jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).length === 0
+            ? <p className="mt-2 text-sm text-stone-500">No unsent alerts for current requests.</p>
+            : <ul className="mt-2 divide-y divide-stone-200">{jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).slice(0, 10).map((job) => <li key={job.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><span className="text-sm">{job.title} · {job.workerName}</span><ActionButton variant="neutral" busy={busyId === job.id} onClick={() => retryEmail(job)}>Retry email</ActionButton></li>)}</ul>}
+        </Card> : null}
 
         {section === "payments" ? <>
         <PaymentSettingsCard />
