@@ -117,7 +117,7 @@ export default function AdminPage() {
     try {
       const result = await retryWorkerRequestEmail(job.id);
       setEmailResult(result.emailSent
-        ? `Email alert accepted for ${job.workerName} about “${job.title}”.`
+        ? `Email alert accepted for ${job.workerName} at ${result.recipient ?? "their sign-up email"} about “${job.title}”.`
         : emailFailureMessage(result.reason));
       await refresh();
     } catch (err) {

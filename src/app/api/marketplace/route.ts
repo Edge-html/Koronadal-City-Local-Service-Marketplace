@@ -248,12 +248,12 @@ export async function POST(request: NextRequest) {
 
     if (operation === "notifyWorkerNewRequest") {
       if (!input.jobId) return fail("Missing job.");
+      const callerIsAdmin = (await db.collection("users").doc(user.uid).get()).data()?.role === "admin";
       const jobRef = db.collection("jobs").doc(input.jobId);
       const shouldSend = await db.runTransaction(async (tx) => {
         const snap = await tx.get(jobRef);
         const job = snap.data();
-        const admin = job?.consumerId === user.uid ? false : (await tx.get(db.collection("users").doc(user.uid))).data()?.role === "admin";
-        if (!job || (!admin && job.consumerId !== user.uid) || job.status !== "requested") {
+        if (!job || (!callerIsAdmin && job.consumerId !== user.uid) || job.status !== "requested") {
           throw new MarketplaceError("This request is no longer available to notify.");
         }
         if (job.workerRequestEmailSentAt) return false;
@@ -287,7 +287,7 @@ export async function POST(request: NextRequest) {
               workerRequestEmailSentAt: new Date().toISOString(),
               workerRequestEmailClaimedAt: FieldValue.delete(),
             });
-            return NextResponse.json({ ok: true, emailSent: true });
+            return NextResponse.json({ ok: true, emailSent: true, recipient: callerIsAdmin ? to : undefined });
           }
           reason = delivery.reason;
         } else {
