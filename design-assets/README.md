@@ -1,3 +1,3 @@
 # Design assets
 
-Place future design reference images and approved design files in this folder. These files stay outside the public website assets until you decide how they should be used.
+Keep original design references and approved source photos here. Optimized WebP copies used by the website live in `public/images`; preserve the originals here so crops, placement, and compression can be revised later.

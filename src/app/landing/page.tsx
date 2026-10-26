@@ -50,7 +50,18 @@ function PlatformTeaser() {
           </p>
         </div>
 
-        <div className="flex flex-col gap-2">
+        <div className="relative isolate flex flex-col gap-2 overflow-hidden rounded-xl px-4 py-5 sm:px-5">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 -z-10"
+            style={{
+              backgroundImage:
+                "linear-gradient(120deg, rgba(21,94,239,.04), rgba(255,255,255,.84)), url('/images/teamwork.webp')",
+              backgroundRepeat: "no-repeat",
+              backgroundSize: "100% 100%, cover",
+              backgroundPosition: "center, center",
+            }}
+          />
           {[
             ["Agreement", "Both sides confirm in job chat"],
             ["Payment", "Direct to the worker, method agreed together"],
