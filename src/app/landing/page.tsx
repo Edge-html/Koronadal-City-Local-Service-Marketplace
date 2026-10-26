@@ -14,8 +14,8 @@ import { ClosingCta } from "@/components/sections/ClosingCta";
  * provider. Mixing a marketing hero into that would put a scroll of
  * persuasion between someone and the thing they came for.
  *
- * Scoped to the pitch: what this is, the trades on offer, and the two ways in.
- * Operational detail — the six-stage lifecycle, the commission model, worker
+ * Scoped to the pitch: what this is, the services on offer, and the two ways in.
+ * Operational detail — the six-stage lifecycle, worker
  * onboarding, referrals, and the legal framework — lives on /platform, so this
  * page stays scannable instead of becoming a single endless scroll.
  */
@@ -41,20 +41,20 @@ function PlatformTeaser() {
             How it works
           </p>
           <h2 className="mt-2 max-w-[20ch] text-[28px] leading-[1.2] font-medium tracking-[-0.02em] text-ink-black">
-            Six stages, one transparent price.
+            Six stages, one shared plan.
           </h2>
           <p className="mt-3 max-w-[60ch] text-[16px] leading-[1.4] text-stone-600">
-            A deliberately short path from first look to final review. Contact
-            details stay masked until a request is formally accepted, and the
-            price is fixed before any work begins.
+            A deliberately short path from first look to final review. Agree on
+            the work, rate, schedule, and payment in the private job chat before
+            work begins.
           </p>
         </div>
 
         <div className="flex flex-col gap-2">
           {[
-            ["Commission", "10% on labor only, materials exempt"],
-            ["Payment", "Direct to the worker, cash or GCash"],
-            ["Referrals", "Single tier, credited after a first job"],
+            ["Agreement", "Both sides confirm in job chat"],
+            ["Payment", "Direct to the worker, method agreed together"],
+            ["Pro profile", "Optional, free during the pilot"],
           ].map(([label, value]) => (
             <div
               key={label}

@@ -11,14 +11,14 @@ import { ClosingCta } from "@/components/sections/ClosingCta";
 export const metadata: Metadata = {
   title: "How it works",
   description:
-    "The six-stage transaction lifecycle, the non-custodial 10% commission model, worker onboarding, the referral program, and the Philippine regulatory framework.",
+    "How households and service providers request work, agree in chat, complete jobs, and review the experience.",
 };
 
 /**
  * Platform detail page.
  *
- * Everything operational, split out of the landing page: the lifecycle, the
- * money model, how workers get onboarded, how referrals pay out, and the legal
+ * Everything operational, split out of the landing page: the lifecycle, how
+ * workers get onboarded, how referrals work, and the legal
  * posture. The landing page keeps the pitch; this page carries the specifics.
  */
 export default function PlatformPage() {
@@ -47,7 +47,7 @@ function PlatformHeader() {
           How the marketplace actually runs.
         </h1>
         <p className="mt-4 max-w-[64ch] text-[17px] leading-[1.45] text-stone-600">
-          The transaction lifecycle, the money model, how service professionals
+          The job lifecycle, how service professionals
           are verified, and the framework the platform operates inside. The
           details behind the promise on the{" "}
           <Link href="/" className="text-ink-black underline underline-offset-2">
@@ -62,7 +62,7 @@ function PlatformHeader() {
         >
           {[
             ["#workflow", "Workflow"],
-            ["#commission", "Commission"],
+            ["#commission", "Agree & pay"],
             ["#onboarding", "Onboarding"],
             ["#referrals", "Referrals"],
             ["#compliance", "Compliance"],

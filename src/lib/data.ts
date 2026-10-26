@@ -2,9 +2,8 @@
  * Firestore data access.
  *
  * The spec keeps this platform deliberately narrow: a household posts a job,
- * a worker quotes, money moves directly between the two parties, and the
- * platform books a 10% labor commission against the worker's prepaid wallet.
- * Every write below encodes one step of that lifecycle.
+ * workers and households coordinate service scope and pricing in chat. The
+ * platform records agreement and job progress but does not hold job payments.
  *
  * Query note: every read here uses at most one equality filter and sorts in
  * memory. Firestore demands a composite index for a `where` + `orderBy` pair
@@ -33,6 +32,7 @@ import {
   type Unsubscribe,
 } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
+import { CATEGORIES } from "@/lib/constants";
 
 /** Resolved per call so an unconfigured environment fails at use, not import. */
 const db = getFirebaseDb;
@@ -111,6 +111,9 @@ function toWorker(id: string, data: DocumentData): Worker {
     email: data.email ?? "",
     photoUrl: data.photoUrl ?? "",
     categoryId: data.categoryId ?? "",
+    serviceIds: Array.isArray(data.serviceIds) && data.serviceIds.length
+      ? data.serviceIds
+      : (data.categoryId ? [data.categoryId] : []),
     barangay: data.barangay ?? "",
     serviceAreas: Array.isArray(data.serviceAreas) ? data.serviceAreas : [],
     bio: data.bio ?? "",
@@ -126,8 +129,12 @@ function toWorker(id: string, data: DocumentData): Worker {
     referralCredits: data.referralCredits ?? 0,
     walletBalance: data.walletBalance ?? 0,
     walletLocked: data.walletLocked ?? 0,
-    status: data.status ?? "pending_verification",
-    hourlyRate: data.hourlyRate ?? 0,
+    isPro: data.isPro === true,
+    // Wallet gating has been retired. Legacy paused-wallet records rejoin the
+    // marketplace without changing their credential-review state.
+    status: data.status === "paused_wallet" ? "active" : (data.status ?? "pending_verification"),
+    serviceRate: data.serviceRate ?? data.hourlyRate ?? 0,
+    hourlyRate: data.hourlyRate,
     referredBy: data.referredBy,
     resume: data.resume ?? null,
     skills: Array.isArray(data.skills) ? data.skills : [],
@@ -154,8 +161,8 @@ export async function listDirectoryWorkers() {
   const disabled = await getDisabledServiceIds();
   return snap.docs
     .map((d) => toWorker(d.id, d.data()))
-    .filter((w) => w.status === "active" && !disabled.includes(w.categoryId))
-    .sort((a, b) => b.rating - a.rating || b.jobsCompleted - a.jobsCompleted);
+    .filter((w) => w.status === "active" && (w.serviceIds ?? [w.categoryId]).some((id) => !disabled.includes(id)))
+    .sort((a, b) => Number(b.isPro) - Number(a.isPro) || b.rating - a.rating || b.jobsCompleted - a.jobsCompleted);
 }
 
 export async function getWorker(id: string): Promise<Worker | null> {
@@ -163,7 +170,7 @@ export async function getWorker(id: string): Promise<Worker | null> {
   if (!snap.exists()) return null;
   const worker = toWorker(id, snap.data());
   const disabled = await getDisabledServiceIds();
-  return disabled.includes(worker.categoryId) ? null : worker;
+  return (worker.serviceIds ?? [worker.categoryId]).some((id) => !disabled.includes(id)) ? worker : null;
 }
 
 export async function getWorkerByUid(uid: string): Promise<Worker | null> {
@@ -190,12 +197,13 @@ export interface WorkerDraft {
   phone: string;
   email: string;
   categoryId: string;
+  serviceIds?: string[];
   barangay: string;
   serviceAreas: string[];
   bio: string;
   specialtyDescription: string;
   yearsExperience: number;
-  hourlyRate: number;
+  serviceRate: number;
   verificationDocs: VerificationDoc[];
   tesdaCertified: boolean;
   referredBy?: string;
@@ -223,8 +231,6 @@ export async function createWorkerProfile(draft: WorkerDraft) {
     verified: false,
     referralCode: makeReferralCode(),
     referralCredits: 0,
-    walletBalance: 0,
-    walletLocked: 0,
     status: "pending_verification",
     portfolio: [],
     createdAt: new Date().toISOString(),
@@ -270,8 +276,30 @@ export async function getDisabledServiceIds(): Promise<string[]> {
   return Array.isArray(value.disabledIds) ? value.disabledIds.filter((id): id is string => typeof id === "string") : [];
 }
 
+export async function getServiceCatalog(includeDisabled = false) {
+  const response = await fetch("/api/services", { cache: "no-store" });
+  if (!response.ok) return CATEGORIES;
+  const value = await response.json() as { categories?: unknown; disabledIds?: unknown };
+  if (!Array.isArray(value.categories)) return CATEGORIES;
+  const categories = value.categories as typeof CATEGORIES;
+  const disabledIds = Array.isArray(value.disabledIds) ? value.disabledIds : [];
+  return includeDisabled ? categories : categories.filter((item) => !disabledIds.includes(item.id));
+}
+
 export async function setServiceEnabled(categoryId: string, enabled: boolean) {
   await marketplaceAction({ operation: "setServiceEnabled", categoryId, enabled });
+}
+
+export async function addService(input: { name: string; scope: string }) {
+  await marketplaceAction({ operation: "addService", name: input.name, scope: input.scope });
+}
+
+export async function setWorkerServices(workerId: string, serviceIds: string[]) {
+  await marketplaceAction({ operation: "setWorkerServices", workerId, serviceIds });
+}
+
+export async function setWorkerPro(workerId: string, enabled: boolean) {
+  await marketplaceAction({ operation: "setWorkerPro", workerId, isPro: enabled });
 }
 
 /**
@@ -436,9 +464,10 @@ export async function listInquiriesForWorker(workerUid: string) {
 export async function getOrCreateConversation(
   worker: Worker,
   consumer: { id: string; name: string },
+  jobId?: string,
 ) {
   if (!consumer.id || consumer.id === worker.uid) throw new Error("You cannot message your own account.");
-  const id = `${consumer.id.length}_${consumer.id}${worker.uid.length}_${worker.uid}`;
+  const id = jobId ? `job_${jobId}` : `${consumer.id.length}_${consumer.id}${worker.uid.length}_${worker.uid}`;
   const ref = doc(conversationsCol(), id);
   const existing = await getDoc(ref);
   if (!existing.exists()) {
@@ -448,6 +477,7 @@ export async function getOrCreateConversation(
       workerId: worker.id,
       workerUid: worker.uid,
       workerName: worker.fullName,
+      ...(jobId ? { jobId } : {}),
       participants: [consumer.id, worker.uid],
       lastMessage: "",
       updatedAt: new Date().toISOString(),
@@ -511,6 +541,10 @@ export function toJob(id: string, data: DocumentData): Job {
     consumerPhone: data.consumerPhone ?? "",
     reviewEmailOptIn: data.reviewEmailOptIn === true,
     workerRequestEmailSentAt: data.workerRequestEmailSentAt,
+    conversationId: data.conversationId,
+    workerAgreedAt: data.workerAgreedAt,
+    consumerAgreedAt: data.consumerAgreedAt,
+    agreementApprovedAt: data.agreementApprovedAt,
     categoryId: data.categoryId ?? "",
     title: data.title ?? "",
     description: data.description ?? "",
@@ -578,7 +612,12 @@ export interface NewJob {
 
 /** Stage 1 -> 2. Creates the request and reports whether the worker email was sent. */
 export async function createJobRequest(input: NewJob) {
-  const ref = await addDoc(jobsCol(), {
+  const ref = doc(jobsCol());
+  const conversationId = await getOrCreateConversation(input.worker, {
+    id: input.consumerId,
+    name: input.consumerName,
+  }, ref.id);
+  await setDoc(ref, {
     consumerId: input.consumerId,
     consumerName: input.consumerName,
     consumerPhotoUrl: input.consumerPhotoUrl ?? "",
@@ -594,6 +633,7 @@ export async function createJobRequest(input: NewJob) {
     photoPath: input.photoPath ?? "",
     barangay: input.barangay,
     status: "requested",
+    conversationId,
     requestedAt: new Date().toISOString(),
     createdAt: serverTimestamp(),
   });
@@ -621,6 +661,10 @@ export async function acceptJob(jobId: string) {
   await marketplaceAction({ operation: "acceptJob", jobId });
 }
 
+export async function confirmJobAgreement(jobId: string) {
+  await marketplaceAction({ operation: "confirmJobAgreement", jobId });
+}
+
 export async function declineJob(jobId: string, reason: string) {
   await updateDoc(doc(db(), "jobs", jobId), {
     status: "cancelled",
@@ -634,35 +678,9 @@ export async function declineJob(jobId: string, reason: string) {
   }
 }
 
-/** Stage 4. Worker submits the mandatory two-part quote. */
-export async function submitQuote(jobId: string, quote: NonNullable<Job["quote"]>) {
-  await updateDoc(doc(db(), "jobs", jobId), {
-    quote,
-    status: "quoted",
-    quotedAt: new Date().toISOString(),
-  });
-  try {
-    await marketplaceAction({ operation: "notifyJobStage", jobId, emailStage: "quote_sent" });
-  } catch (error) {
-    console.warn("[email] finder quote alert could not be sent:", error);
-  }
-}
-
-/**
- * Stage 4, consumer side. Approval locks 10% of the labor fee against the
- * worker's prepaid balance and moves the job into execution.
- */
-export async function approveQuote(job: Job) {
-  await marketplaceAction({ operation: "approveQuote", jobId: job.id });
-}
-
-/** Stage 5. Worker marks the job complete and records how the finder can pay directly. */
-export async function completeJob(jobId: string, payment: {
-  method: NonNullable<Job["paymentMethod"]>;
-  instructions: string;
-  qrPath?: string;
-}) {
-  await marketplaceAction({ operation: "completeJob", jobId, payment });
+/** Worker marks the agreed work complete. Payment stays between the parties. */
+export async function completeJob(jobId: string) {
+  await marketplaceAction({ operation: "completeJob", jobId });
 }
 
 /**

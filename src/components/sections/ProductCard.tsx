@@ -1,5 +1,4 @@
 import { Badge, Card, SectionHeader, StatCard } from "@/components/ui";
-import { formatPeso } from "@/lib/commission";
 import { JOB_STATUS_META } from "@/lib/constants";
 
 /**
@@ -23,8 +22,8 @@ export function LiveProductCard() {
     <section className="section container-page ">
       <SectionHeader
         eyebrow="Marketplace operations"
-        title="Every request, tracked to settlement"
-        description="The worker console keeps the full pipeline in one view: who asked, what was quoted, what has cleared, and what the wallet still owes."
+        title="Every request, tracked to completion"
+        description="The worker console shows requests, agreement confirmations, active jobs, and completed work in one place."
       />
 
       {/* Product UI card: stat cards left, data table right. */}
@@ -50,13 +49,9 @@ export function LiveProductCard() {
         <div className="grid gap-6 p-6 lg:grid-cols-[260px_1fr]">
           <div className="flex flex-col gap-3">
             <StatCard label="Open requests" value="18" sublabel="Awaiting acceptance" />
-            <StatCard label="Quotes awaiting approval" value="7" sublabel="10% labor commission locked" />
-            <StatCard label="Jobs settled this week" value="31" sublabel="100% paid direct to worker" />
-            <StatCard
-              label="Commission collected"
-              value={formatPeso(28450)}
-              sublabel="Materials exempt from commission"
-            />
+            <StatCard label="Accepted clients" value="7" sublabel="Agreed to work together" />
+            <StatCard label="Jobs in progress" value="3" sublabel="Confirmed in chat" />
+            <StatCard label="Completed jobs" value="31" sublabel="Kept in worker history" />
           </div>
 
           <div className="overflow-hidden rounded-xl border border-stone-200">

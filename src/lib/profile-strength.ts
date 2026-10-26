@@ -19,7 +19,7 @@ export function getProfileStrength(worker: Worker): ProfileStrengthItem[] {
     { key: "resume", label: "Upload a resume", weight: 15, complete: Boolean(worker.resume?.fileName || worker.resume?.fileUrl), href: "/dashboard/worker/profile#resume-skills", action: "Upload resume" },
     { key: "portfolio", label: "Add a completed job to your portfolio", weight: 10, complete: hasPortfolio, href: "/dashboard/worker/profile#portfolio", action: "Add work sample" },
     { key: "portfolio-photo", label: "Include a before or after photo", weight: 10, complete: hasPortfolioPhoto, href: "/dashboard/worker/profile#portfolio", action: "Add photos" },
-    { key: "work-details", label: "Set your service rate, expertise and work area", weight: 10, complete: Boolean(worker.hourlyRate > 0 && worker.barangay.trim() && (worker.specialtyDescription?.trim().length ?? 0) >= 2), href: "/dashboard/worker/profile", action: "Review details" },
+    { key: "work-details", label: "Set your service rate, expertise and work area", weight: 10, complete: Boolean(worker.serviceRate > 0 && worker.barangay.trim() && (worker.specialtyDescription?.trim().length ?? 0) >= 2), href: "/dashboard/worker/profile", action: "Review details" },
     { key: "verification", label: "Get your credentials approved", weight: 10, complete: worker.verified, href: "/dashboard/worker/credentials", action: "View verification" },
   ];
 }

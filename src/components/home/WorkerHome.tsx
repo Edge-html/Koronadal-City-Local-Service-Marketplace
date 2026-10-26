@@ -26,7 +26,7 @@ import type { Worker } from "@/lib/types";
  * The worker home is the incoming job request queue.
  *
  * Only the two actions that matter on arrival — accept and decline — are here.
- * Quoting, completing, settlement and wallet stay in the jobs dashboard
+ * Agreement, completion and work tracking stay in the jobs dashboard
  * at /dashboard/worker, which this links to. A worker should be able to clear
  * an incoming request from the home page without the home page growing a
  * second copy of the whole six-stage lifecycle.
@@ -125,7 +125,7 @@ export function WorkerHome() {
         <SectionHeader
           eyebrow="My jobs"
           title="Requests waiting on you"
-          description="Check new requests here. After accepting, open My jobs to send your quote and track the work."
+          description="Check new requests here. After accepting, open My jobs to agree on the work in chat and track progress."
           action={
             <Link href="/dashboard/worker" className="btn-neutral no-underline">
               Go to My jobs
@@ -141,8 +141,8 @@ export function WorkerHome() {
 
         <div className="mt-6 flex flex-col gap-3">
           {workerError ? <Notice tone="alert">{workerError}</Notice> : null}
-          {message ? <Notice>{message} <Link href="/dashboard/worker" className="font-medium underline">Open My jobs to write your quote.</Link></Notice> : null}
-          <AttentionNotice count={workerCount} href="/dashboard/worker">{workerCount ? `${workerCount} ${workerCount === 1 ? "job needs" : "jobs need"} a response, a quote, or settlement. New requests are below; all next steps are in My jobs.` : "New requests will appear here automatically. Track accepted jobs from My jobs."}</AttentionNotice>
+          {message ? <Notice>{message} <Link href="/dashboard/worker" className="font-medium underline">Open My jobs to continue in chat.</Link></Notice> : null}
+          <AttentionNotice count={workerCount} href="/dashboard/worker">{workerCount ? `${workerCount} ${workerCount === 1 ? "job needs" : "jobs need"} your response or agreement confirmation. New requests are below; all next steps are in My jobs.` : "New requests will appear here automatically. Track accepted jobs from My jobs."}</AttentionNotice>
           <FlowGuide steps={WORKER_STEPS} />
         </div>
         <div className="mt-6 grid gap-3 sm:grid-cols-3">
@@ -178,7 +178,6 @@ export function WorkerHome() {
                     view="worker"
                     counterpartLabel="Household"
                     counterpartName={job.consumerName}
-                    showQuote={false}
                     actions={
                       <>
                         <ActionButton
@@ -229,7 +228,7 @@ export function WorkerHome() {
                   </p>
                   <p className="mt-1 text-[13px] leading-[1.5] text-stone-600">
                     {active.length
-                      ? `${active.length} ${active.length === 1 ? "job is" : "jobs are"} accepted and under way. Open My jobs to send quotes and track the next step.`
+                      ? `${active.length} ${active.length === 1 ? "job is" : "jobs are"} accepted or underway. Open My jobs to continue the chat agreement and track the next step.`
                       : `${closed.length} ${closed.length === 1 ? "job" : "jobs"} closed out. New requests will appear here the moment they arrive.`}
                   </p>
                 </Card>
@@ -278,9 +277,9 @@ export function WorkerHome() {
 
 const STATUS_LABEL: Record<string, string> = {
   requested: "New",
-  accepted: "Needs a quote",
-  quoted: "Awaiting approval",
+  accepted: "Agree in chat",
+  quoted: "Agreement needed",
   in_progress: "In progress",
-  completed: "To settle",
+  completed: "Completed",
   reviewed: "Closed",
 };

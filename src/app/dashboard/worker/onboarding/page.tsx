@@ -8,7 +8,6 @@ import {
   Badge,
   Card,
   Notice,
-  StatCard,
 } from "@/components/ui";
 import { BARANGAYS, SERVICE_POINTS } from "@/lib/constants";
 import { DOC_TYPES, type DocType } from "@/lib/types";
@@ -38,7 +37,7 @@ export default function WorkerOnboardingPage() {
   const [categoryId, setCategoryId] = useState("");
   const [barangay, setBarangay] = useState("");
   const [years, setYears] = useState("");
-  const [hourly, setHourly] = useState("");
+  const [serviceRate, setServiceRate] = useState("");
   const [bio, setBio] = useState("");
   const [phone, setPhone] = useState("");
   const [referral, setReferral] = useState("");
@@ -69,7 +68,7 @@ export default function WorkerOnboardingPage() {
   }, [profile]);
 
   const step1Valid =
-    categoryId !== "" && barangay !== "" && years !== "" && Number(years) >= 0 && Number(hourly) > 0 && /^(09\d{9}|\+639\d{9})$/.test(phone.trim().replace(/[\s-]/g, "")) && bio.trim().length >= 20 && specialtyDescription.trim().length >= 2;
+    categoryId !== "" && barangay !== "" && years !== "" && Number(years) >= 0 && Number(serviceRate) > 0 && /^(09\d{9}|\+639\d{9})$/.test(phone.trim().replace(/[\s-]/g, "")) && bio.trim().length >= 20 && specialtyDescription.trim().length >= 2;
 
   const mandatoryDocs: DocType[] = [
     "government_id",
@@ -109,12 +108,13 @@ export default function WorkerOnboardingPage() {
         phone: phone.trim().replace(/[\s-]/g, ""),
         email: user!.email || "",
         categoryId,
+        serviceIds: [categoryId],
         barangay,
         serviceAreas: [...new Set([barangay, ...serviceAreas])],
         bio: bio.trim(),
         specialtyDescription: specialtyDescription.trim(),
         yearsExperience: Number(years) || 0,
-        hourlyRate: Number(hourly) || 0,
+        serviceRate: Number(serviceRate) || 0,
         tesdaCertified: Boolean(docs.tesda_certificate?.length),
         referredBy: referral.trim().toUpperCase(),
         verificationDocs: uploadedDocs,
@@ -253,7 +253,7 @@ export default function WorkerOnboardingPage() {
 
                 <div>
                   <label className="label" htmlFor="ob-rate">
-                    Service rate (PHP) <span className="text-rose-700">*</span>
+                    Starting service rate (PHP) <span className="text-rose-700">*</span>
                   </label>
                   <input
                     id="ob-rate"
@@ -262,10 +262,11 @@ export default function WorkerOnboardingPage() {
                     required
                     className="field"
                     inputMode="decimal"
-                    value={hourly}
-                    onChange={(e) => setHourly(e.target.value)}
+                    value={serviceRate}
+                    onChange={(e) => setServiceRate(e.target.value)}
                     placeholder="450"
                   />
+                  <p className="caption mt-1">This is a starting service rate, not an hourly wage. Agree final pricing in chat.</p>
                 </div>
               </div>
 
@@ -325,7 +326,7 @@ export default function WorkerOnboardingPage() {
                 <div className="grid max-h-48 gap-2 overflow-auto rounded-md border border-stone-200 p-3 sm:grid-cols-2">
                   {BARANGAYS.filter((item) => item !== barangay).map((item) => (
                     <label key={item} className="flex items-center gap-2 text-sm text-stone-700">
-                      <input type="checkbox" checked={serviceAreas.includes(item)} onChange={() => setServiceAreas((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} className="accent-emerald-700" />
+                      <input type="checkbox" checked={serviceAreas.includes(item)} onChange={() => setServiceAreas((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} className="accent-blue-700" />
                       {item}
                     </label>
                   ))}
@@ -345,7 +346,7 @@ export default function WorkerOnboardingPage() {
                   maxLength={6}
                 />
                 <p className="caption mt-1">
-                  Credits post only after your first job is completed and settled.
+                  The referring worker earns a referral credit after your first completed job.
                 </p>
               </div>
 
@@ -474,14 +475,8 @@ export default function WorkerOnboardingPage() {
                   ["Service", categories.find((c) => c.id === categoryId)?.name ?? "—"],
                   ["Barangay", barangay],
                   ["Experience", `${years || 0} years`],
-                  ["Service rate", `${formatPeso(Number(hourly) || 0)}`],
+                  ["Starting service rate", `${formatPeso(Number(serviceRate) || 0)}`],
                   ["Mobile", phone || "—"],
-                  [
-                    "Service floor",
-                    formatPeso(
-                      categories.find((c) => c.id === categoryId)?.floor ?? 0,
-                    ),
-                  ],
                 ].map(([label, value]) => (
                   <div key={label}>
                     <dt className="caption">{label}</dt>
@@ -565,8 +560,8 @@ export default function WorkerOnboardingPage() {
           <Card className="flex flex-col gap-3 p-5">
             <p className="caption">Prefer in-person registration?</p>
             <p className="text-[13px] leading-[1.45] text-stone-600">
-              Visit a walk-in service point and staff will scan documents, create
-              your profile, and configure your wallet.
+              Visit a walk-in service point and staff can help scan documents
+              and set up your worker profile.
             </p>
             <ul className="flex flex-col gap-2 border-t border-stone-200 pt-3">
               {SERVICE_POINTS.map((point) => (
@@ -578,11 +573,6 @@ export default function WorkerOnboardingPage() {
             </ul>
           </Card>
 
-          <StatCard
-            label="Platform commission"
-            value="10%"
-            sublabel="Labor fee only, materials exempt"
-          />
         </div>
       </div>
     </DashboardShell>

@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { EmptyState, SectionHeader, Skeleton } from "@/components/ui";
 import { WorkerCard } from "@/components/WorkerCard";
-import { CATEGORY_MAP } from "@/lib/constants";
 import { listDirectoryWorkers } from "@/lib/data";
 import { normalize } from "@/lib/utils";
 import type { Worker } from "@/lib/types";
@@ -57,12 +56,12 @@ export function FindWorkerSection({ limit = 6 }: { limit?: number }) {
     const q = normalize(query);
     return workers
       .filter((worker) => {
-        if (category && worker.categoryId !== category) return false;
+        if (category && !(worker.serviceIds ?? [worker.categoryId]).includes(category)) return false;
         if (!q) return true;
         return normalize(
           [
             worker.fullName,
-            CATEGORY_MAP[worker.categoryId]?.name ?? "",
+            ...(worker.serviceIds ?? [worker.categoryId]).map((id) => categories.find((item) => item.id === id)?.name ?? id),
             worker.barangay,
             ...(worker.serviceAreas ?? []),
             worker.bio,
@@ -73,7 +72,7 @@ export function FindWorkerSection({ limit = 6 }: { limit?: number }) {
       // Verified first: the directory's whole claim is that these people have
       // been checked, so an unverified entry should not outrank a checked one.
       .sort((a, b) => Number(b.verified) - Number(a.verified));
-  }, [workers, query, category]);
+  }, [workers, query, category, categories]);
 
   const shown = filtered.slice(0, limit);
   const remaining = filtered.length - shown.length;

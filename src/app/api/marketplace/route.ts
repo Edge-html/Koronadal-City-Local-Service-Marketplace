@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { adminServices } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { emailRelayConfigured, emailRelayMissingVariables, escapeEmailHtml, sendTransactionalEmail, sendTransactionalEmailDetailed } from "@/lib/server-email";
-import { SKILLS_BY_CATEGORY } from "@/lib/constants";
+import { CATEGORIES, SKILLS_BY_CATEGORY } from "@/lib/constants";
 
 export const runtime = "nodejs";
 
-type JobEmailStage = "request_accepted" | "request_declined" | "quote_sent" | "quote_approved" | "work_completed" | "payment_proof_submitted" | "payment_confirmed" | "review_received";
-type Operation = "emailDiagnostics" | "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings" | "setServiceEnabled";
+type JobEmailStage = "request_accepted" | "request_declined" | "quote_sent" | "quote_approved" | "agreement_confirmed" | "agreement_confirmed_customer" | "work_completed" | "payment_proof_submitted" | "payment_confirmed" | "review_received";
+type Operation = "emailDiagnostics" | "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "setWorkerServices" | "setWorkerPro" | "addService" | "acceptJob" | "confirmJobAgreement" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings" | "setServiceEnabled";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -43,15 +43,15 @@ async function getSignupEmail(
  */
 class MarketplaceError extends Error {}
 
-/** Email the consumer their review link after the payment is confirmed. */
+/** Email the consumer their review link after the job is completed. */
 async function sendReviewLinkEmail(to: string, jobId: string, origin: string) {
   const reviewUrl = new URL(`/dashboard/customer?review=${encodeURIComponent(jobId)}`, origin).toString();
   const safeUrl = escapeEmailHtml(reviewUrl);
   return sendTransactionalEmail({
     to,
     subject: "How did your KoroHanap service go?",
-    text: `Your payment is confirmed. Please rate your worker and leave a review: ${reviewUrl}`,
-    html: `<p>Your payment is confirmed. Please take a moment to rate your worker and share a review.</p><p><a href="${safeUrl}">Leave a review</a></p><p>Thank you for using KoroHanap.</p>`,
+    text: `Your job is complete. Please rate your worker and leave a review: ${reviewUrl}`,
+    html: `<p>Your job is complete. Please take a moment to rate your worker and share a review.</p><p><a href="${safeUrl}">Leave a review</a></p><p>Thank you for using KoroHanap.</p>`,
   });
 }
 
@@ -69,9 +69,11 @@ const JOB_EMAIL_COPY: Record<JobEmailStage, { recipient: "consumer" | "worker"; 
   request_declined: { recipient: "consumer", subject: (title) => `Update on your service request: ${title}`, heading: "The worker can’t take this request", detail: "This request was declined. Sign in to KoroHanap to review its status and choose another worker if you wish.", path: "/dashboard/customer" },
   quote_sent: { recipient: "consumer", subject: (title) => `A quote is ready: ${title}`, heading: "Your worker sent a quote", detail: "Review the labor fee, materials, and notes in your request. If you agree, approve the quote in KoroHanap to begin the job.", path: "/dashboard/customer" },
   quote_approved: { recipient: "worker", subject: (title) => `The customer approved your quote: ${title}`, heading: "Your quote was approved", detail: "The customer approved the quote. You can coordinate and begin the agreed work.", path: "/dashboard/worker" },
-  work_completed: { recipient: "consumer", subject: (title) => `Work marked complete: ${title}`, heading: "The worker marked the job complete", detail: "Check the job details and pay the worker using the agreed method. If you pay digitally, submit the payment proof in KoroHanap.", path: "/dashboard/customer" },
+  agreement_confirmed: { recipient: "worker", subject: (title) => `You both agreed to proceed: ${title}`, heading: "The job agreement is confirmed", detail: "Both you and the household confirmed the plan in chat. You can now begin the agreed work.", path: "/dashboard/worker" },
+  agreement_confirmed_customer: { recipient: "consumer", subject: (title) => `You both agreed to proceed: ${title}`, heading: "The job agreement is confirmed", detail: "Both you and the worker confirmed the plan in chat. The worker can now begin the agreed work.", path: "/dashboard/customer" },
+  work_completed: { recipient: "consumer", subject: (title) => `Work marked complete: ${title}`, heading: "The worker marked the job complete", detail: "The worker marked the job complete. Review the chat agreement, settle payment directly with the worker, and leave a review.", path: "/dashboard/customer" },
   payment_proof_submitted: { recipient: "worker", subject: (title) => `Payment proof submitted: ${title}`, heading: "The customer submitted payment proof", detail: "Review the payment in your job dashboard. Confirm it only after you have verified that you received the payment.", path: "/dashboard/worker" },
-  payment_confirmed: { recipient: "consumer", subject: (title) => `Payment confirmed: ${title}`, heading: "Your payment was confirmed", detail: "The worker confirmed payment and the platform commission was settled. You can now leave a rating and review.", path: "/dashboard/customer" },
+  payment_confirmed: { recipient: "consumer", subject: (title) => `Payment confirmed: ${title}`, heading: "Your payment was confirmed", detail: "The worker confirmed that payment arrived. You can now leave a rating and review.", path: "/dashboard/customer" },
   review_received: { recipient: "worker", subject: (title) => `A customer reviewed your work: ${title}`, heading: "You received a customer review", detail: "The customer has submitted a rating and review for this job. Sign in to view your updated profile rating.", path: "/dashboard/worker" },
 };
 
@@ -178,6 +180,7 @@ export async function POST(request: NextRequest) {
       jobId?: string;
       emailStage?: JobEmailStage;
       workerId?: string;
+      serviceIds?: string[];
       skills?: string[];
       requestId?: string;
       reviewNote?: string;
@@ -191,9 +194,19 @@ export async function POST(request: NextRequest) {
       sendTest?: boolean;
       categoryId?: string;
       enabled?: boolean;
+      name?: string;
+      scope?: string;
+      isPro?: boolean;
     };
     const operation = input.operation;
     if (!operation) return fail("Missing operation.");
+
+    // Legacy quotation approvals, platform wallet and payment-proof endpoints
+    // are intentionally closed. Scope and price are agreed in the private
+    // job chat; KoroHanap does not charge or hold job payments.
+    if (["approveQuote", "submitJobPayment", "approveJobPayment", "settleJob", "approveTopUp", "rejectTopUp", "savePaymentSettings"].includes(operation)) {
+      return fail("Wallet, top-ups, and quote approval have been retired. Agree on the job in chat.", 410);
+    }
 
     if (operation === "emailDiagnostics") {
       const account = (await db.collection("users").doc(user.uid).get()).data();
@@ -239,6 +252,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (operation === "addService") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "admin") return fail("Administrators only.", 403);
+      const name = String(input.name ?? "").trim();
+      const scope = String(input.scope ?? "").trim();
+      if (name.length < 3 || name.length > 60) return fail("Service name must be 3 to 60 characters.");
+      if (scope.length > 180) return fail("Service description must be 180 characters or fewer.");
+      const id = name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60);
+      if (id.length < 2 || CATEGORIES.some((category) => category.id === id)) return fail("That service name already exists or cannot be used.");
+      const ref = db.collection("serviceControls").doc(id);
+      if ((await ref.get()).exists) return fail("A service with that name already exists.");
+      await ref.set({ custom: true, name, scope, enabled: true, createdAt: new Date().toISOString(), createdBy: user.uid });
+      return NextResponse.json({ ok: true, categoryId: id });
+    }
+
+    if (operation === "setWorkerServices") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "worker") return fail("Only worker accounts can manage their offered services.", 403);
+      if (!input.workerId || !Array.isArray(input.serviceIds) || input.serviceIds.length < 1 || input.serviceIds.length > 20
+        || input.serviceIds.some((id) => typeof id !== "string" || !/^[a-z0-9-]{2,60}$/.test(id))) {
+        return fail("Select at least one valid service.");
+      }
+      const serviceIds = [...new Set(input.serviceIds)];
+      const controls = await db.collection("serviceControls").get();
+      const customIds = controls.docs.filter((item) => item.data().custom === true).map((item) => item.id);
+      const knownIds = new Set([...CATEGORIES.map((category) => category.id), ...customIds]);
+      if (serviceIds.some((id) => !knownIds.has(id))) return fail("One of your selected services is no longer available.");
+      if (serviceIds.some((id) => controls.docs.find((item) => item.id === id)?.data().enabled === false)) return fail("Remove disabled services from your profile, or choose another service.");
+      const workerRef = db.collection("workers").doc(input.workerId);
+      const worker = (await workerRef.get()).data();
+      if (!worker || worker.uid !== user.uid) return fail("This worker profile does not belong to you.", 403);
+      await workerRef.update({ serviceIds, categoryId: serviceIds[0], updatedAt: new Date().toISOString() });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "setWorkerPro") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "worker") return fail("Only workers can update their account plan.", 403);
+      if (!input.workerId || typeof input.isPro !== "boolean") return fail("Choose a valid account plan.");
+      const workerRef = db.collection("workers").doc(input.workerId);
+      const worker = (await workerRef.get()).data();
+      if (!worker || worker.uid !== user.uid) return fail("This worker profile does not belong to you.", 403);
+      await workerRef.update({ isPro: input.isPro, updatedAt: new Date().toISOString() });
+      return NextResponse.json({ ok: true });
+    }
+
     if (operation === "updateWorkerSkills") {
       if (!input.workerId || !Array.isArray(input.skills) || input.skills.length > 20
         || input.skills.some((skill) => typeof skill !== "string")) {
@@ -250,7 +309,8 @@ export async function POST(request: NextRequest) {
       const workerSnap = await workerRef.get();
       const worker = workerSnap.data();
       if (!worker || worker.uid !== user.uid) return fail("This worker profile does not belong to you.", 403);
-      const allowedSkills = SKILLS_BY_CATEGORY[String(worker.categoryId)] ?? [];
+      const offered = Array.isArray(worker.serviceIds) && worker.serviceIds.length ? worker.serviceIds : [String(worker.categoryId)];
+      const allowedSkills = [...new Set(offered.flatMap((id: string) => SKILLS_BY_CATEGORY[id] ?? []))];
       const skills = [...new Set(input.skills.map((skill) => skill.trim()).filter(Boolean))];
       if (skills.some((skill) => !allowedSkills.includes(skill))) return fail("Choose skills from your listed trade.");
       await workerRef.update({ skills, updatedAt: new Date().toISOString() });
@@ -349,7 +409,7 @@ export async function POST(request: NextRequest) {
           tx.get(db.collection("users").doc(job.consumerId)),
         ]);
         const worker = workerSnap.data();
-        if (!worker || worker.uid !== user.uid || !worker.verified || worker.status !== "active") {
+        if (!worker || worker.uid !== user.uid || !worker.verified || !["active", "paused_wallet"].includes(String(worker.status))) {
           throw new Error("Only an active, verified worker can accept.");
         }
         tx.update(jobRef, {
@@ -358,9 +418,41 @@ export async function POST(request: NextRequest) {
           workerPhone: workerUserSnap.data()?.phone ?? "",
           consumerPhone: customerUserSnap.data()?.phone ?? "",
         });
+        if (worker.status === "paused_wallet") tx.update(workerRef, { status: "active" });
       });
       await sendJobStageEmail(db, auth, input.jobId, "request_accepted", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "confirmJobAgreement") {
+      if (!input.jobId) return fail("Missing job.");
+      const jobRef = db.collection("jobs").doc(input.jobId);
+      const agreement = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(jobRef);
+        const job = snap.data();
+        if (!job || ![job.workerUid, job.consumerId].includes(user.uid) || !["accepted", "quoted"].includes(String(job.status))) {
+          throw new MarketplaceError("This job is not waiting for an agreement confirmation.");
+        }
+        const isWorker = job.workerUid === user.uid;
+        const field = isWorker ? "workerAgreedAt" : "consumerAgreedAt";
+        if (job[field]) return { started: Boolean(job.agreementApprovedAt) };
+        const now = new Date().toISOString();
+        const otherConfirmed = isWorker ? Boolean(job.consumerAgreedAt) : Boolean(job.workerAgreedAt);
+        const patch: Record<string, unknown> = { [field]: now };
+        if (otherConfirmed) {
+          patch.status = "in_progress";
+          patch.agreementApprovedAt = now;
+        }
+        tx.update(jobRef, patch);
+        return { started: otherConfirmed };
+      });
+      if (agreement.started) {
+        await Promise.all([
+          sendJobStageEmail(db, auth, input.jobId, "agreement_confirmed", request.nextUrl.origin),
+          sendJobStageEmail(db, auth, input.jobId, "agreement_confirmed_customer", request.nextUrl.origin),
+        ]);
+      }
+      return NextResponse.json({ ok: true, started: agreement.started });
     }
 
     if (operation === "approveQuote") {
@@ -375,45 +467,13 @@ export async function POST(request: NextRequest) {
         const workerRef = db.collection("workers").doc(job.workerId);
         const workerSnap = await tx.get(workerRef);
         const worker = workerSnap.data();
-        if (!worker || !worker.verified || worker.status !== "active" || worker.uid !== job.workerUid) {
+        if (!worker || !worker.verified || !["active", "paused_wallet"].includes(String(worker.status)) || worker.uid !== job.workerUid) {
           throw new Error("This worker is not active.");
-        }
-        const commission = money(Number(job.quote.laborFee) * 0.1);
-        if (!Number.isFinite(commission) || commission < 0) throw new Error("Invalid quote.");
-        const balance = Number(worker.walletBalance ?? 0);
-        const locked = Number(worker.walletLocked ?? 0);
-        if (money(balance - locked) < commission) {
-          // A household cannot resolve this and should not be told about
-          // somebody else's wallet. They get a stable, actionable message; the
-          // diagnostic stays in the server log where an operator can act on it.
-          //
-          // The quote form refuses to send an un-coverable quote in the first
-          // place, so reaching this means the worker's balance moved between
-          // quoting and approval -- two quotes competing for the same funds.
-          console.warn(
-            `[approveQuote] worker ${job.workerUid} is ${money(commission - (balance - locked))} short ` +
-            `on a ${money(commission)} commission (job ${input.jobId})`,
-          );
-          throw new MarketplaceError(
-            "This worker needs to top up their platform balance before you can approve. " +
-            "Message them to sort it out, or approve later once they have.",
-          );
         }
         tx.update(jobRef, {
           status: "in_progress",
           quoteApprovedAt: new Date().toISOString(),
-          commissionAmount: commission,
-        });
-        tx.update(workerRef, { walletLocked: money(locked + commission) });
-        tx.create(db.collection("ledger").doc(), {
-          workerId: job.workerId,
-          workerUid: job.workerUid,
-          jobId: input.jobId,
-          kind: "commission_lock",
-          amount: commission,
-          balanceAfter: balance,
-          note: "Commission reserved for " + job.title,
-          createdAt: new Date().toISOString(),
+          agreementApprovedAt: new Date().toISOString(),
         });
       });
       await sendJobStageEmail(db, auth, input.jobId, "quote_approved", request.nextUrl.origin);
@@ -422,26 +482,29 @@ export async function POST(request: NextRequest) {
 
     if (operation === "completeJob") {
       if (!input.jobId) return fail("Missing job.");
-      const method = input.payment?.method;
-      const instructions = input.payment?.instructions?.trim() ?? "";
-      const qrPath = input.payment?.qrPath?.trim() ?? "";
-      if (!["cash", "gcash", "qr", "bank_transfer", "other"].includes(method ?? "")) return fail("Choose how the finder should pay you.");
-      if (instructions.length > 500) return fail("Payment instructions must be 500 characters or fewer.");
-      if (method !== "cash" && instructions.length < 3) return fail("Add the account details or payment instructions the finder needs.");
-      if (method === "qr" && !new RegExp(`^worker-payment-qr/${user.uid}/[A-Za-z0-9-]+$`).test(qrPath)) return fail("Upload your payment QR code.");
-      if (method !== "qr" && qrPath) return fail("Unexpected QR image.");
       const jobRef = db.collection("jobs").doc(input.jobId);
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(jobRef);
         const job = snap.data();
         if (!job || job.workerUid !== user.uid || job.status !== "in_progress") throw new Error("This job cannot be marked complete.");
+        const workerRef = db.collection("workers").doc(job.workerId);
+        const workerSnap = await tx.get(workerRef);
+        const worker = workerSnap.data();
+        if (!worker || worker.uid !== user.uid) throw new Error("Worker profile not found.");
+        const isFirstJob = Number(worker.jobsCompleted ?? 0) === 0;
+        const referrerQuery = isFirstJob && worker.referredBy
+          ? await tx.get(db.collection("workers").where("referralCode", "==", worker.referredBy).limit(1))
+          : null;
+        const referrerDoc = referrerQuery?.docs[0];
+        const referrer = referrerDoc?.data();
         tx.update(jobRef, {
           status: "completed",
           completedAt: new Date().toISOString(),
-          paymentMethod: method,
-          paymentInstructions: method === "cash" ? "Pay the worker in cash and ask for a receipt." : instructions,
-          paymentQrPath: qrPath,
         });
+        tx.update(workerRef, { jobsCompleted: Number(worker.jobsCompleted ?? 0) + 1 });
+        if (referrerDoc && referrer && referrerDoc.id !== job.workerId) {
+          tx.update(referrerDoc.ref, { referralCredits: Number(referrer.referralCredits ?? 0) + 1 });
+        }
       });
       await sendJobStageEmail(db, auth, input.jobId, "work_completed", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
@@ -595,8 +658,8 @@ export async function POST(request: NextRequest) {
       await db.runTransaction(async (tx) => {
         const jobSnap = await tx.get(jobRef);
         const job = jobSnap.data();
-        if (!job || job.consumerId !== user.uid || job.status !== "completed" || !job.settledAt) {
-          throw new Error("Only the customer can review a settled job.");
+        if (!job || job.consumerId !== user.uid || job.status !== "completed" || (!job.settledAt && !job.agreementApprovedAt)) {
+          throw new Error("Only the customer can review a completed job.");
         }
         const existing = await tx.get(reviewRef);
         if (existing.exists) throw new Error("This job has already been reviewed.");

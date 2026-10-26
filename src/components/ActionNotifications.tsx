@@ -15,13 +15,12 @@ export function ActionNotifications({
   role: Role;
   customerJobs: Job[] | null;
   workerJobs: Job[] | null;
-  admin: { workers: number; topUps: number; disputes: number };
+  admin: { workers: number; disputes: number };
 }) {
   const [open, setOpen] = useState(false);
   const actions = role === "admin"
     ? [
         { label: "Worker applications", count: admin.workers, href: "/admin", detail: "Review submitted worker documents." },
-        { label: "Wallet top-ups", count: admin.topUps, href: "/admin#payments", detail: "Check receipts before crediting balances." },
         { label: "Disputes", count: admin.disputes, href: "/admin#oversight", detail: "Review open job disputes." },
       ].filter((item) => item.count > 0)
     : [
@@ -39,7 +38,7 @@ export function ActionNotifications({
         })),
       ].slice(0, 8);
   const count = role === "admin"
-    ? admin.workers + admin.topUps + admin.disputes
+    ? admin.workers + admin.disputes
     : actions.reduce((total, item) => total + item.count, 0);
 
   return <div className="relative">

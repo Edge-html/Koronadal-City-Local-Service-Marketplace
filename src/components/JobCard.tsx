@@ -3,18 +3,17 @@
 import { Check, Loader2, MessageCircle, Phone, X } from "lucide-react";
 import { Avatar, Badge, Card } from "@/components/ui";
 import { CATEGORY_MAP, JOB_STATUS_META } from "@/lib/constants";
-import { computeTotals, formatPeso } from "@/lib/commission";
-import { formatDate, timeAgo } from "@/lib/utils";
+import { timeAgo } from "@/lib/utils";
 import type { Tone } from "@/components/ui";
 import { needsAction, nextStep, type JobView } from "@/lib/job-flow";
 import type { Job, JobStatus } from "@/lib/types";
 import { RequestPhoto } from "@/components/RequestPhoto";
+import { useServiceCategories } from "@/hooks/useServiceCategories";
 
 /** Shared pipeline timeline. The active stage is the first unfinished step. */
 const STAGES: JobStatus[] = [
   "requested",
   "accepted",
-  "quoted",
   "in_progress",
   "completed",
   "reviewed",
@@ -23,7 +22,7 @@ const STAGES: JobStatus[] = [
 export function JobTimeline({ status }: { status: JobStatus }) {
   if (status === "cancelled" || status === "disputed") return null;
 
-  const index = STAGES.indexOf(status);
+  const index = STAGES.indexOf(status === "quoted" ? "accepted" : status);
   return (
     <ol className="flex flex-wrap items-center gap-1.5" aria-label="Job progress">
       {STAGES.map((stage, i) => {
@@ -60,67 +59,10 @@ export function JobTimeline({ status }: { status: JobStatus }) {
 const STAGE_LABELS: Record<string, string> = {
   requested: "Requested",
   accepted: "Accepted",
-  quoted: "Quoted",
   in_progress: "In progress",
   completed: "Completed",
   reviewed: "Reviewed",
 };
-
-/** Two-part quotation, shown identically to both parties before approval. */
-export function QuoteBreakdown({ job }: { job: Job }) {
-  if (!job.quote) return null;
-
-  const t = computeTotals(job.quote.laborFee, job.quote.materialsCost);
-
-  return (
-    <div className="rounded-md border border-stone-200 bg-bone">
-      <div className="flex items-center justify-between gap-2 border-b border-stone-200 px-4 py-2.5">
-        <p className="font-[family-name:var(--font-system-ui)] text-[10px] uppercase tracking-[-0.3px] text-stone-500">
-          Official quote &middot; {job.quote.validDays}-day validity
-        </p>
-        {job.quoteApprovedAt ? (
-          <Badge tone="neutral">Approved {formatDate(job.quoteApprovedAt)}</Badge>
-        ) : (
-          <Badge tone="action">Awaiting approval</Badge>
-        )}
-      </div>
-
-      <dl className="grid sm:grid-cols-3">
-        {[
-          { label: "Labor fee", value: t.laborFee, note: "Cost of the work" },
-          {
-            label: "Materials",
-            value: t.materialsCost,
-            note: "Supplies and parts",
-          },
-          { label: "Total payable", value: t.total, note: "Paid to worker" },
-        ].map((row, i) => (
-          <div
-            key={row.label}
-            className={
-              i > 0
-                ? "border-t border-stone-200 px-4 py-3 sm:border-t-0 sm:border-l"
-                : "px-4 py-3"
-            }
-          >
-            <dt className="caption">{row.label}</dt>
-            <dd className="mt-1 text-[18px] leading-[1.2] font-medium tracking-[-0.36px] text-ink-black tabular-nums">
-              {formatPeso(row.value)}
-            </dd>
-            <dd className="caption mt-0.5">{row.note}</dd>
-          </div>
-        ))}
-      </dl>
-
-      <p className="border-t border-stone-200 px-4 py-2 text-xs leading-relaxed text-stone-500">The worker’s {formatPeso(t.commission)} platform commission is included in the labor fee. It is not added to the customer’s total.</p>
-      {job.quote.notes ? (
-        <p className="border-t border-stone-200 px-4 py-3 text-[13px] leading-[1.45] text-stone-600">
-          {job.quote.notes}
-        </p>
-      ) : null}
-    </div>
-  );
-}
 
 export function StatusBadge({ status }: { status: JobStatus }) {
   const meta = JOB_STATUS_META[status] ?? {
@@ -194,7 +136,6 @@ export function JobCard({
   counterpartName,
   counterpartPhone,
   actions,
-  showQuote = true,
   view,
   children,
 }: {
@@ -203,11 +144,11 @@ export function JobCard({
   counterpartName: string;
   counterpartPhone?: string;
   actions?: React.ReactNode;
-  showQuote?: boolean;
   view?: JobView;
   children?: React.ReactNode;
 }) {
-  const trade = CATEGORY_MAP[job.categoryId];
+  const categories = useServiceCategories();
+  const trade = categories.find((category) => category.id === job.categoryId) ?? CATEGORY_MAP[job.categoryId];
   const guidance = view ? nextStep(job, view) : null;
   const unlocked = !["requested", "cancelled", "disputed"].includes(job.status);
 
@@ -251,8 +192,6 @@ export function JobCard({
         </div>
       ) : null}
       <details><summary className="cursor-pointer text-xs text-stone-500">View job progress</summary><div className="mt-3"><JobTimeline status={job.status} /></div></details>
-
-      {showQuote && job.quote ? <QuoteBreakdown job={job} /> : null}
 
       {counterpartPhone ? (
         <ContactReveal

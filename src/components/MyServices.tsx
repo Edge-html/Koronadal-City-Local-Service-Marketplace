@@ -102,11 +102,11 @@ export function MyServices({ worker }: { worker: Worker }) {
     .slice(0, 3);
 
   return (
-    <section id="my-services" className="container-page scroll-mt-20 pb-20 pt-8">
+    <section id="my-services" className="scroll-mt-20">
       <SectionHeader
         eyebrow="My services"
         title="Work you have on offer"
-        description="Post what you take on and the price you start from. Households browse these directly and contact you — you do not wait to be assigned."
+      description="Create service offer posts for the work you take on. Open offers appear on your public profile, where households can find and contact you."
         action={
           <ActionButton
             variant={composing ? "neutral" : "primary"}
@@ -119,7 +119,7 @@ export function MyServices({ worker }: { worker: Worker }) {
               )
             }
           >
-            {composing ? "Close the form" : "Post an offer"}
+            {composing ? "Close the form" : "Post a service offer"}
           </ActionButton>
         }
       />
@@ -197,8 +197,8 @@ export function MyServices({ worker }: { worker: Worker }) {
           // blue element on the page.
           <EmptyState
             icon={<Megaphone size={22} strokeWidth={1.25} />}
-            title="No offers posted"
-            description="Post the services you provide, describe the work you take on, and set a starting price so households browsing your trade can find you."
+            title="No service offers yet"
+            description="Post a service you provide, describe the work, and set a starting rate so households can find it on your public profile."
           />
         ) : (
           <>
@@ -361,7 +361,7 @@ function OfferForm({
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState(worker.categoryId);
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState(String(worker.hourlyRate || ""));
+  const [price, setPrice] = useState(String(worker.serviceRate || ""));
   const [barangay, setBarangay] = useState(worker.barangay || BARANGAYS[0]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -394,8 +394,8 @@ function OfferForm({
   return (
     <Card className="flex flex-col gap-4 p-5">
       <div>
-        <h3 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
-          Post an offer
+      <h3 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
+          Post a service offer
         </h3>
         <p className="caption mt-0.5">
           Visible to every signed-in household browsing that trade. Set a
@@ -438,7 +438,7 @@ function OfferForm({
         </div>
         <div>
           <label className="label" htmlFor="of-price">
-            Starting price (PHP) <span className="text-rose-700">*</span>
+            Starting service rate (PHP) <span className="text-rose-700">*</span>
           </label>
           <input
             id="of-price"

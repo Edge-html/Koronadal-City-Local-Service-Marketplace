@@ -7,8 +7,8 @@ export function Referrals() {
         <div>
           <SectionHeader
             eyebrow="Worker referral program"
-            title="Single-tier, job-verified, never MLM"
-            description="Organic acquisition of vetted tradespeople runs on one mechanic: every registered worker holds a unique 6-character code, and credits only clear once the invited worker finishes a first paid job."
+            title="Single-tier referrals, tied to completed work"
+            description="Workers can share a unique code. A referral credit is added after the invited worker completes their first job."
           />
           <ul className="mt-6 flex flex-col gap-4">
             {[
@@ -22,7 +22,7 @@ export function Referrals() {
               },
               {
                 title: "Qualification rule",
-                body: "Credits are automatically disbursed immediately upon the invited worker successfully completing their first job, verified through consumer payment and job status closeout.",
+                body: "A credit is added after the invited worker's first completed job. No wallet top-up or payment proof is required.",
               },
             ].map((item) => (
               <li key={item.title} className="flex gap-3">
@@ -51,7 +51,7 @@ export function Referrals() {
           </p>
           <p className="mt-4 text-[13px] leading-[1.45] text-stone-600">
             Share this code with a fellow service professional. When their first job
-            is completed and settled, credits post automatically.
+            is completed, one referral credit posts automatically.
           </p>
 
           <div className="mt-5 grid grid-cols-2 gap-3">

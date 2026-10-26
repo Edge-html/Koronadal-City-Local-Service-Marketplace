@@ -8,7 +8,7 @@ const COLUMNS = [
       { href: "/browse", label: "Browse workers" },
       { href: "/#categories", label: "Service categories" },
       { href: "/platform#workflow", label: "How it works" },
-      { href: "/platform#commission", label: "Pricing & commission" },
+      { href: "/platform#commission", label: "Service agreements" },
     ],
   },
   {

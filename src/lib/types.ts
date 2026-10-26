@@ -68,6 +68,8 @@ export interface Worker {
   email: string;
   photoUrl?: string;
   categoryId: string;
+  /** Additional service categories the worker is qualified and available for. */
+  serviceIds?: string[];
   barangay: string;
   /** Optional additional barangays the worker is willing to travel to. */
   serviceAreas?: string[];
@@ -93,12 +95,16 @@ export interface Worker {
   tesdaCertified: boolean;
   referralCode: string;
   referralCredits: number;
-  /** Prepaid platform balance that funds the 10% labor commission. */
+  /** Legacy wallet fields are read only for old records; new jobs never use them. */
   walletBalance: number;
-  /** Commission locked when a quote is approved, released on completion. */
   walletLocked: number;
+  /** Optional Pro listing placement, enabled by the worker. */
+  isPro?: boolean;
   status: WorkerStatus;
-  hourlyRate: number;
+  /** Starting rate for a service, not an hourly wage. */
+  serviceRate: number;
+  /** Legacy field retained for old Firestore records. */
+  hourlyRate?: number;
   /** Code of the worker who referred this one, if any. */
   referredBy?: string;
   resume?: Resume | null;
@@ -213,6 +219,8 @@ export interface Conversation {
   workerId: string;
   workerUid: string;
   workerName: string;
+  /** Present for a conversation created from a specific job request. */
+  jobId?: string;
   participants: string[];
   lastMessage: string;
   updatedAt: string;
@@ -239,6 +247,10 @@ export interface Job {
   consumerPhone?: string;
   reviewEmailOptIn?: boolean;
   workerRequestEmailSentAt?: string;
+  conversationId?: string;
+  workerAgreedAt?: string;
+  consumerAgreedAt?: string;
+  agreementApprovedAt?: string;
   categoryId: string;
   title: string;
   description: string;

@@ -42,7 +42,7 @@ export function ProfileStrength({ worker }: { worker: Worker }) {
           <div key={item.key} className="flex items-center justify-between gap-3 rounded-md bg-stone-50 px-3 py-2">
             <span className="flex min-w-0 items-center gap-2 text-[12px] leading-[1.4] text-stone-700">
               {item.complete
-                ? <Check size={14} className="shrink-0 text-emerald-700" aria-label="Complete" />
+                ? <Check size={14} className="shrink-0 text-blue-700" aria-label="Complete" />
                 : <Circle size={14} className="shrink-0 text-stone-400" aria-label="Incomplete" />}
               <span className={item.complete ? "line-through decoration-stone-300" : ""}>{item.label}</span>
             </span>

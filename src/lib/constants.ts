@@ -11,6 +11,8 @@ export interface Category {
   useCases: string;
   /** Typical price band in PHP, used as a floor reference for anti-exploitation. */
   floor: number;
+  /** Admin-controlled availability in the service picker. */
+  enabled?: boolean;
 }
 
 export const CATEGORIES: Category[] = [
@@ -252,23 +254,23 @@ export const WORKFLOW_STAGES = [
   {
     step: 3,
     key: "accepted",
-    name: "Acceptance & Contact Unlocked",
+    name: "Worker Accepts",
     detail:
-      "Once the worker accepts, the platform unlocks direct contact channels: phone and Facebook Messenger.",
+      "Once the worker accepts, a private job conversation is available to both sides.",
   },
   {
     step: 4,
     key: "quoted",
-    name: "Quote Approved",
+    name: "Agree in Chat",
     detail:
-      "The worker assesses the job scope on-site and inputs the official quote broken into Labor Fee and Material Cost. The quote appears in the consumer's dashboard for approval.",
+      "The household and worker discuss the exact scope, service rate, schedule, materials, and payment method in their private chat. Each confirms the plan before work starts.",
   },
   {
     step: 5,
     key: "completed",
-    name: "Completion & Direct Cash/GCash",
+    name: "Complete the Work",
     detail:
-      "The worker marks the job complete. The consumer pays 100% of the total quote directly to the worker using physical Cash or a direct GCash mobile transfer.",
+      "The worker marks the agreed work complete. The household pays the worker directly using the method both sides chose.",
   },
   {
     step: 6,
@@ -285,12 +287,11 @@ export const WORKFLOW_STAGES = [
  * The tones are ordered by how loudly they should read, and the order was set
  * by what each stage asks of the user rather than by an arbitrary sequence:
  *
- *   quoted       the household is the only party who can unblock this, so it
- *                gets the hatched badge — the loudest thing in the system
+ *   quoted       a legacy request that still needs agreement confirmation
  *   requested    a worker must accept or decline
  *   disputed     something is wrong and someone has to look at it
  *   in_progress  work is happening; no decision needed
- *   completed    waiting on settlement
+ *   completed    work finished
  *   reviewed     done
  *   cancelled    closed without work happening
  */
@@ -300,7 +301,7 @@ export const JOB_STATUS_META: Record<
 > = {
   requested: { label: "Requested", tone: "new" },
   accepted: { label: "Accepted", tone: "active" },
-  quoted: { label: "Quote Sent", tone: "action" },
+  quoted: { label: "Agreement Needed", tone: "action" },
   in_progress: { label: "In Progress", tone: "active" },
   completed: { label: "Completed", tone: "neutral" },
   reviewed: { label: "Reviewed", tone: "neutral" },
@@ -316,9 +317,9 @@ export const COMPLIANCE_FRAMEWORK = [
     body: "The platform operates as an independent technology intermediary connecting service contractors with clients. It does not establish an employer-employee relationship, ensuring workers retain complete autonomy over their working schedules, accepted jobs, and operating methods.",
   },
   {
-    title: "DOLE Guidelines on Service Fees",
-    subtitle: "Fair commission standards",
-    body: "In alignment with Department of Labor and Employment standards, commission structures remain transparent, fair, and non-exploitative, leaving workers with full earnings autonomy over their labor value.",
+    title: "Clear service agreements",
+    subtitle: "Scope, rate, schedule, and payment",
+    body: "Households and workers discuss the job details in private chat and both confirm before work starts. The final service rate and payment method are agreed directly between them.",
   },
   {
     title: "Data Privacy Act of 2012",
@@ -328,21 +329,21 @@ export const COMPLIANCE_FRAMEWORK = [
   {
     title: "Consumer Protection Act",
     subtitle: "Republic Act No. 7394",
-    body: "Ensures clear pricing transparency prior to service commitment. The mandatory two-part quotation (Labor vs. Materials) protects consumers from unexpected service upcharges and ensures clear recourse through built-in dispute logging.",
+    body: "Job details and the agreed rate can be reviewed in the conversation before work starts. Users can report a problem through the platform.",
   },
 ];
 
 export const FAIR_COMPETITION_PRINCIPLES = [
   {
-    title: "Price floors are monitored",
-    body: "Price floors are monitored to prevent predatory pricing or illegal labor undercutting.",
+    title: "Workers set service rates",
+    body: "Workers show a starting service rate. The worker and household agree on the final scope and price in chat.",
   },
   {
     title: "Single-tier referrals only",
     body: "Transparent referral systems prevent MLM-style structures, limiting rewards strictly to single-tier, job-verified invites.",
   },
   {
-    title: "Algorithmic review audits",
-    body: "Rating and review systems are algorithmically audited to prevent malicious feedback or unfair worker blacklisting.",
+    title: "Reviews follow completed jobs",
+    body: "Households can leave a rating and written review after the worker marks an agreed job complete.",
   },
 ];

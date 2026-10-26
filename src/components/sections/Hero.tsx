@@ -20,9 +20,9 @@ export function Hero() {
       </h1>
 
       <p className="mt-8 max-w-[58ch] text-[16px] leading-[1.45] text-stone-600 sm:text-[17px]">
-        KoroHanap connects Koronadal City households with
-        background-checked professionals across ten essential trades. Pay cash
-        or GCash directly to the worker. Nothing is held in escrow.
+        KoroHanap connects Koronadal City households with verified local
+        service providers. Agree on the work and service rate in chat, then pay
+        the worker directly using the method you choose together.
       </p>
 
       <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
@@ -37,9 +37,9 @@ export function Hero() {
 
       <dl className="mt-10 flex flex-wrap items-center justify-center gap-x-8 gap-y-3">
         {[
-          ["10", "essential trades"],
+          ["Local", "home services"],
           [String(BARANGAYS.length), "barangays served"],
-          ["10%", "labor commission"],
+          ["Direct", "worker payment"],
         ].map(([value, label]) => (
           <div key={label} className="flex items-baseline gap-2">
             <dt className="sr-only">{label}</dt>
@@ -64,7 +64,7 @@ function LaunchPill({ mounted }: { mounted: boolean }) {
         <CirclePlay size={11} strokeWidth={1.5} className="text-stone-700" />
       </span>
       <span className={mounted ? "animate-in" : undefined}>
-        Live in Koronadal City &middot; 10 essential trades
+        Local providers &middot; Koronadal City
       </span>
     </Link>
   );

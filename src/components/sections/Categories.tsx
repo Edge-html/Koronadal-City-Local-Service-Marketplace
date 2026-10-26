@@ -2,15 +2,14 @@ import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 import { SectionHeader } from "@/components/ui";
 import { CATEGORIES } from "@/lib/constants";
-import { formatPeso } from "@/lib/commission";
 
 export function Categories() {
   return (
     <section id="categories" className="section container-page ">
       <SectionHeader
         eyebrow="Scope of work"
-        title="Ten essential household service categories"
-        description="Each service carries its own scope of work, typical use cases, and a monitored price floor that keeps quoting fair on both sides of the transaction."
+        title="Household services from local providers"
+        description="Browse the common service groups. Workers can list their specific skills and service rates on their profiles."
       />
 
       <div className="mt-10 grid gap-px overflow-hidden rounded-xl border border-stone-200 bg-stone-200 sm:grid-cols-2">
@@ -23,7 +22,7 @@ export function Categories() {
               <span className="caption tabular-nums">
                 {String(index + 1).padStart(2, "0")}
               </span>
-              <span className="caption">Floor {formatPeso(category.floor)}</span>
+              <span className="caption">Koronadal City</span>
             </div>
 
             <h3 className="text-[18px] leading-[1.3] font-medium tracking-[-0.36px] text-ink-black">

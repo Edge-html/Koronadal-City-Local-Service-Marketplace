@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { Avatar, Badge, StarRating } from "@/components/ui";
-import { CATEGORY_MAP } from "@/lib/constants";
 import { formatPeso } from "@/lib/commission";
 import type { Worker } from "@/lib/types";
+import { useServiceCategories } from "@/hooks/useServiceCategories";
 
 /**
  * Directory entry for one worker.
@@ -13,7 +13,10 @@ import type { Worker } from "@/lib/types";
  * page would read as two products.
  */
 export function WorkerCard({ worker }: { worker: Worker }) {
-  const trade = CATEGORY_MAP[worker.categoryId];
+  const categories = useServiceCategories();
+  const serviceNames = (worker.serviceIds ?? [worker.categoryId])
+    .map((id) => categories.find((category) => category.id === id)?.name)
+    .filter((name): name is string => Boolean(name));
 
   return (
     <li>
@@ -33,9 +36,10 @@ export function WorkerCard({ worker }: { worker: Worker }) {
                   Verified
                 </Badge>
               ) : null}
+              {worker.isPro ? <Badge tone="verified" className="shrink-0">PRO</Badge> : null}
             </div>
-            <p className="mt-0.5 truncate text-[13px] text-stone-600">
-              {trade?.name ?? "General"}
+            <p className="mt-0.5 line-clamp-2 text-[13px] text-stone-600">
+              {serviceNames.join(" · ") || "General services"}
             </p>
           </div>
         </div>
@@ -56,7 +60,7 @@ export function WorkerCard({ worker }: { worker: Worker }) {
           {worker.profileVisibility?.rate !== false ? <div>
             <dt className="caption">Service rate</dt>
             <dd className="text-[13px] text-stone-700 tabular-nums">
-              {formatPeso(worker.hourlyRate)}
+              {formatPeso(worker.serviceRate)}
             </dd>
           </div> : null}
           {worker.profileVisibility?.experience !== false ? <div>
@@ -71,9 +75,7 @@ export function WorkerCard({ worker }: { worker: Worker }) {
           {worker.tesdaCertified ? (
             <Badge tone="neutral">TESDA Certified</Badge>
           ) : null}
-          {worker.walletBalance < 0 ? (
-            <Badge tone="muted">Wallet paused</Badge>
-          ) : null}
+          {worker.isPro ? <span className="text-xs font-medium text-blue-800">Featured Pro profile</span> : null}
         </div>
       </Link>
     </li>

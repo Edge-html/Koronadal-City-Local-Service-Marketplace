@@ -14,13 +14,13 @@ type Activity = {
   customerError: string;
   workerError: string;
   adminError: string;
-  admin: { workers: number; topUps: number; disputes: number };
+  admin: { workers: number; disputes: number };
   adminDisputes: Job[];
   adminRevision: number;
 };
 const empty: Activity = {
   customerJobs: null, workerJobs: null, customerError: "", workerError: "", adminError: "",
-  admin: { workers: 0, topUps: 0, disputes: 0 }, adminDisputes: [], adminRevision: 0,
+  admin: { workers: 0, disputes: 0 }, adminDisputes: [], adminRevision: 0,
 };
 const ActivityContext = createContext<Activity>(empty);
 
@@ -54,7 +54,6 @@ function ActivitySession({ children, uid, role }: { children: ReactNode; uid?: s
     if (role === "admin") {
       const queues = [
         ["workers", "pending_verification", "workers"],
-        ["topupRequests", "pending", "topUps"],
         ["jobs", "disputed", "disputes"],
       ] as const;
       queues.forEach(([name, status, key]) => {

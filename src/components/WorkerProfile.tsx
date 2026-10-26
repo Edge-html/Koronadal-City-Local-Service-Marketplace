@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BadgeCheck,
@@ -35,8 +35,10 @@ import { formatPeso } from "@/lib/commission";
 import { timeAgo } from "@/lib/utils";
 import { uploadRequestPhoto } from "@/lib/request-files";
 import type { Review, Worker } from "@/lib/types";
+import { useServiceCategories } from "@/hooks/useServiceCategories";
 
 export function WorkerProfile({ id }: { id: string }) {
+  const categories = useServiceCategories();
   const [worker, setWorker] = useState<Worker | null | "missing">(null);
   const [reviews, setReviews] = useState<Review[]>([]);
 
@@ -74,7 +76,10 @@ export function WorkerProfile({ id }: { id: string }) {
     );
   }
 
-  const trade = CATEGORY_MAP[worker.categoryId];
+  const trade = categories.find((category) => category.id === worker.categoryId) ?? CATEGORY_MAP[worker.categoryId];
+  const offeredServices = (worker.serviceIds ?? [worker.categoryId])
+    .map((serviceId) => categories.find((category) => category.id === serviceId)?.name ?? CATEGORY_MAP[serviceId]?.name)
+    .filter((name): name is string => Boolean(name));
 
   return (
     <section className="container-page py-10">
@@ -115,10 +120,11 @@ export function WorkerProfile({ id }: { id: string }) {
                       TESDA Certified
                     </Badge>
                   ) : null}
+                  {worker.isPro ? <Badge tone="verified">PRO · Featured</Badge> : null}
                 </div>
 
                 <p className="mt-1.5 text-[15px] text-stone-600">
-                  {trade?.name ?? "General services"}{worker.specialtyDescription && worker.profileVisibility?.specialty !== false ? ` · ${worker.specialtyDescription}` : ""}
+                  {offeredServices.join(" · ") || trade?.name || "General services"}{worker.specialtyDescription && worker.profileVisibility?.specialty !== false ? ` · ${worker.specialtyDescription}` : ""}
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
@@ -146,11 +152,11 @@ export function WorkerProfile({ id }: { id: string }) {
 
             <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-stone-200 pt-5 sm:grid-cols-4">
               {[
-                ["Service rate", `${formatPeso(worker.hourlyRate)}`],
+                ["Starting service rate", `${formatPeso(worker.serviceRate)}`],
                 ["Jobs completed", String(worker.jobsCompleted)],
                 ["Reviews", String(worker.reviewCount)],
-                ["Service floor", trade ? formatPeso(trade.floor) : "—"],
-              ].filter(([label]) => label !== "Service rate" || worker.profileVisibility?.rate !== false)
+                ["Account", worker.isPro ? "Pro · Featured" : "Standard"],
+              ].filter(([label]) => label !== "Starting service rate" || worker.profileVisibility?.rate !== false)
                 .filter(([label]) => label !== "Jobs completed" || worker.profileVisibility?.experience !== false)
                 .map(([label, value]) => (
                 <div key={label}>
@@ -161,7 +167,7 @@ export function WorkerProfile({ id }: { id: string }) {
                 </div>
               ))}
             </dl>
-            <p className="caption mt-4 border-t border-stone-100 pt-3">Some worker details are public as shown here. Email and phone stay private until the worker accepts a request.</p>
+            <p className="caption mt-4 border-t border-stone-100 pt-3">The worker’s name, photo, services, rate, and selected profile details are public. Email and phone stay private until the worker accepts a request.</p>
           </Card>
 
           {worker.profileVisibility?.resume !== false ? <ResumeSummary worker={worker} /> : null}
@@ -323,8 +329,10 @@ function describeRequestFailure(error: unknown): string {
 function RequestPanel({ worker }: { worker: Worker }) {
   const { user, profile, loading } = useAuth();
   const router = useRouter();
+  const categories = useServiceCategories();
 
   const [title, setTitle] = useState("");
+  const [selectedServiceId, setSelectedServiceId] = useState(worker.categoryId);
   const [description, setDescription] = useState("");
   const [barangay, setBarangay] = useState(worker.barangay);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -332,6 +340,15 @@ function RequestPanel({ worker }: { worker: Worker }) {
   const [reviewEmailOptIn, setReviewEmailOptIn] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const offeredServices = useMemo(() => (worker.serviceIds ?? [worker.categoryId])
+    .map((serviceId) => categories.find((category) => category.id === serviceId))
+    .filter((category): category is NonNullable<typeof category> => Boolean(category)), [categories, worker.categoryId, worker.serviceIds]);
+
+  useEffect(() => {
+    if (!offeredServices.some((service) => service.id === selectedServiceId) && offeredServices[0]) {
+      setSelectedServiceId(offeredServices[0].id);
+    }
+  }, [offeredServices, selectedServiceId]);
 
   const submit = useCallback(async () => {
     setError("");
@@ -344,7 +361,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
         consumerPhotoUrl: typeof profile?.photoUrl === "string" ? profile.photoUrl : "",
         reviewEmailOptIn,
         worker,
-        categoryId: worker.categoryId,
+        categoryId: selectedServiceId,
         title: title.trim(),
         description: description.trim(),
         photoPath,
@@ -361,7 +378,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     } finally {
       setBusy(false);
     }
-  }, [user, profile, worker, title, description, photoFile, barangay, reviewEmailOptIn, router]);
+  }, [user, profile, worker, title, description, photoFile, barangay, reviewEmailOptIn, selectedServiceId, router]);
 
   if (loading) {
     return (
@@ -400,13 +417,19 @@ function RequestPanel({ worker }: { worker: Worker }) {
           Send a job request
         </h2>
         <p className="mt-1.5 text-[13px] leading-[1.45] text-stone-600">
-          The worker receives an email and in-app notification.
+          Agree the job scope, price, and payment directly in the job chat before work begins.
         </p>
       </div>
 
       {error ? <Notice tone="alert">{error}</Notice> : null}
 
       <div className="flex flex-col gap-3">
+        <div>
+          <label className="label" htmlFor="req-service">Service needed <span className="text-rose-700">*</span></label>
+          <select id="req-service" className="field" value={selectedServiceId} onChange={(event) => setSelectedServiceId(event.target.value)}>
+            {offeredServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+          </select>
+        </div>
         <div>
           <label className="label" htmlFor="req-title">
             What needs doing <span className="text-rose-700">*</span>
@@ -494,7 +517,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
         </div>
         <label className="flex items-start gap-2 text-[12px] leading-[1.45] text-stone-600">
           <input type="checkbox" checked={reviewEmailOptIn} onChange={(event) => setReviewEmailOptIn(event.target.checked)} className="mt-0.5 accent-black" />
-          <span>Email me a link to review this worker after payment is confirmed.</span>
+          <span>Email me a link to review this worker after the job is marked complete.</span>
         </label>
       </div>
 
@@ -525,7 +548,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
             strokeWidth={1.5}
             className="mt-0.5 shrink-0 text-stone-400"
           />
-          The worker&apos;s contact number unlocks after they accept your request.
+          The worker&apos;s contact number unlocks after they accept your request. You can also coordinate here in KoroHanap.
         </p>
         <p className="flex items-start gap-2 text-[12px] leading-[1.45] text-stone-600">
           <ShieldCheck
@@ -533,8 +556,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
             strokeWidth={1.5}
             className="mt-0.5 shrink-0 text-stone-400"
           />
-          You approve a two-part quote (labor and materials) before any work
-          begins. Payment goes directly to the worker.
+          Both you and the worker confirm the chat agreement before work starts. Pay the worker directly using the method you agree on.
         </p>
       </div>
     </Card>

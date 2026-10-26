@@ -10,17 +10,14 @@ import {
   EmptyState,
   Notice,
 } from "@/components/ui";
-import { CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
 import { DOC_TYPES, type Job, type Worker } from "@/lib/types";
-import { checkEmailDiagnostics, decideTopUp, decideVerification, getDisabledServiceIds, listAllJobs, listPendingTopUpRequests, listPendingWorkers, migrateLegacyWorkers, retryWorkerRequestEmail, setServiceEnabled, type TopUpRequest } from "@/lib/data";
-import { computeTotals, formatPeso } from "@/lib/commission";
+import type { Category } from "@/lib/constants";
+import { addService, checkEmailDiagnostics, decideVerification, getDisabledServiceIds, getServiceCatalog, listAllJobs, listPendingWorkers, migrateLegacyWorkers, retryWorkerRequestEmail, setServiceEnabled } from "@/lib/data";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useActivity } from "@/context/ActivityContext";
 import { CountBadge, FlowGuide } from "@/components/FlowGuide";
 import { openCredential } from "@/lib/credentials";
-import { PaymentSettingsCard } from "@/components/PaymentSettings";
-import { openPaymentImage } from "@/lib/payment-files";
 
 function emailFailureMessage(reason?: string | null) {
   switch (reason) {
@@ -40,13 +37,16 @@ function emailFailureMessage(reason?: string | null) {
 export default function AdminPage() {
   const { role, loading: authLoading } = useAuth();
   const { adminRevision, adminError, adminDisputes } = useActivity();
-  const [section, setSection] = useState<"workers" | "payments" | "oversight" | "alerts" | "services">("workers");
+  const [section, setSection] = useState<"workers" | "oversight" | "alerts" | "services">("workers");
   const [disabledServices, setDisabledServices] = useState<string[]>([]);
   const [serviceBusy, setServiceBusy] = useState<string | null>(null);
+  const [services, setServices] = useState<Category[]>([]);
+  const [serviceName, setServiceName] = useState("");
+  const [serviceScope, setServiceScope] = useState("");
+  const [addingService, setAddingService] = useState(false);
 
   const [pending, setPending] = useState<Worker[] | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [topUps, setTopUps] = useState<TopUpRequest[]>([]);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -58,12 +58,12 @@ export default function AdminPage() {
   const [emailResult, setEmailResult] = useState("");
 
   const load = useCallback(async () => {
-    const [workers, allJobs, payments] = await Promise.all([listPendingWorkers(), listAllJobs(), listPendingTopUpRequests()]);
-    return { workers, allJobs, payments };
+    const [workers, allJobs] = await Promise.all([listPendingWorkers(), listAllJobs()]);
+    return { workers, allJobs };
   }, []);
   const refresh = async () => {
     const data = await load();
-    setPending(data.workers); setJobs(data.allJobs); setTopUps(data.payments);
+    setPending(data.workers); setJobs(data.allJobs);
   };
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export default function AdminPage() {
     }
     let cancelled = false;
     load().then((data) => {
-      if (!cancelled) { setPending(data.workers); setJobs(data.allJobs); setTopUps(data.payments); }
+      if (!cancelled) { setPending(data.workers); setJobs(data.allJobs); }
     }).catch(() => { if (!cancelled) setError("Could not load the review queue. Refresh to retry."); });
     return () => { cancelled = true; };
   }, [authLoading, role, adminRevision, load]);
@@ -83,7 +83,6 @@ export default function AdminPage() {
   useEffect(() => {
     const syncSection = () => {
       const target = window.location.hash.slice(1);
-      if (target === "payments") setSection("payments");
       if (target === "oversight") setSection("oversight");
       if (target === "alerts") setSection("alerts");
       if (target === "services") setSection("services");
@@ -94,8 +93,19 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
-    if (role === "admin") getDisabledServiceIds().then(setDisabledServices).catch(() => undefined);
+    if (role === "admin") Promise.all([getDisabledServiceIds(), getServiceCatalog(true)]).then(([disabled, catalog]) => { setDisabledServices(disabled); setServices(catalog); }).catch(() => undefined);
   }, [role]);
+
+  async function createService(event: React.FormEvent) {
+    event.preventDefault();
+    setAddingService(true); setError("");
+    try {
+      await addService({ name: serviceName.trim(), scope: serviceScope.trim() });
+      setServiceName(""); setServiceScope("");
+      setServices(await getServiceCatalog(true));
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not add this service."); }
+    finally { setAddingService(false); }
+  }
 
   async function toggleService(categoryId: string) {
     const wasDisabled = disabledServices.includes(categoryId);
@@ -172,12 +182,6 @@ export default function AdminPage() {
   }
 
   const openDisputes = adminDisputes;
-  const underFloor = jobs.filter((j) => {
-    const trade = CATEGORY_MAP[j.categoryId];
-    if (!j.quote || !trade) return false;
-    return j.quote.laborFee > 0 && j.quote.laborFee < trade.floor;
-  });
-
   async function decide(worker: Worker, approve: boolean) {
     setBusyId(worker.id);
     setError("");
@@ -190,25 +194,6 @@ export default function AdminPage() {
       await refresh();
     } catch {
       setError("Could not record that decision. Please retry.");
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function decidePayment(request: TopUpRequest, approve: boolean) {
-    if (approve && !window.confirm("Confirm you independently verified this payment before crediting the wallet.")) return;
-    const reviewNote = approve ? "" : window.prompt("Why are you rejecting this top-up? The worker will see this reason.")?.trim() ?? "";
-    if (!approve && reviewNote.length < 5) {
-      if (reviewNote) setError("Please enter a rejection reason of at least 5 characters.");
-      return;
-    }
-    setBusyId(request.id);
-    setError("");
-    try {
-      await decideTopUp(request.id, approve, reviewNote);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not process this top-up.");
     } finally {
       setBusyId(null);
     }
@@ -233,23 +218,22 @@ export default function AdminPage() {
     <DashboardShell
       eyebrow="Administration"
       title="Admin workspace"
-      subtitle="Review worker applications, configure worker payments, and handle top-ups and disputes."
+      subtitle="Review worker applications, manage the service catalog, and handle marketplace reports."
     >
       <div className="flex flex-col gap-4">
         {error || adminError ? <Notice tone="alert">{error || adminError}</Notice> : null}
         {migrationDone ? <Notice>Legacy worker contact and document fields were moved to private records.</Notice> : null}
         <FlowGuide steps={[
-          { title: "Choose a queue", detail: "Use the counts below to find worker applications, payments, or disputes that need attention." },
-          { title: "Check the evidence", detail: "Open worker documents or verify the payment with the provider before making a decision." },
-          { title: "Record the decision", detail: "Approve or reject the application or payment. Add review notes when checking credentials." },
+          { title: "Choose a queue", detail: "Review worker applications, service options, reports, or email alerts." },
+          { title: "Check the details", detail: "Open worker documents or review the job history before making a decision." },
+          { title: "Record the decision", detail: "Approve or reject worker applications, or update the service catalog." },
         ]} />
         <div id="admin-sections" className="flex flex-wrap gap-2 scroll-mt-24" aria-label="Review sections">
           {([
             { id: "workers", label: "Worker applications", count: pending?.length ?? 0 },
-            { id: "payments", label: "Payment setup & top-ups", count: topUps.length },
-            { id: "oversight", label: "Disputes & pricing", count: openDisputes.length },
+            { id: "oversight", label: "Reports", count: openDisputes.length },
             { id: "alerts", label: "Email alerts", count: jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).length },
-            { id: "services", label: "Home services", count: CATEGORIES.length - disabledServices.length },
+            { id: "services", label: "Home services", count: services.filter((item) => !disabledServices.includes(item.id)).length },
           ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
             className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-ink-black bg-white font-semibold text-ink-black" : "border-stone-200 text-stone-700"}`}>
             {item.label}<CountBadge count={item.count} />
@@ -271,51 +255,24 @@ export default function AdminPage() {
 
         {section === "services" ? <Card className="p-5">
           <h2 className="text-[16px] font-medium">Service catalog</h2>
-          <p className="mt-1 text-sm text-stone-600">Enable services workers can select and households can filter. Related home services are grouped into broader categories.</p>
+          <p className="mt-1 text-sm text-stone-600">Add and enable services workers can select on their profiles and households can use to find them.</p>
+          <form onSubmit={createService} className="mt-4 grid gap-3 rounded-xl border border-stone-200 bg-stone-50 p-4 sm:grid-cols-[1fr_2fr_auto] sm:items-end">
+            <div><label className="label" htmlFor="new-service-name">Service name</label><input id="new-service-name" className="field" value={serviceName} onChange={(event) => setServiceName(event.target.value)} maxLength={60} required placeholder="e.g. Manicure and pedicure" /></div>
+            <div><label className="label" htmlFor="new-service-scope">Description (optional)</label><input id="new-service-scope" className="field" value={serviceScope} onChange={(event) => setServiceScope(event.target.value)} maxLength={180} placeholder="What this service includes" /></div>
+            <button type="submit" disabled={addingService || serviceName.trim().length < 3} className="btn-primary">{addingService ? "Adding…" : "Add service"}</button>
+          </form>
           <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-            {CATEGORIES.map((category) => {
+            {services.map((category) => {
               const enabled = !disabledServices.includes(category.id);
               return <li key={category.id} className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 p-3">
                 <div><p className="text-sm font-medium">{category.name}</p><p className="caption">{category.scope}</p></div>
-                <button type="button" role="switch" aria-checked={enabled} disabled={serviceBusy === category.id} onClick={() => toggleService(category.id)} className={`min-w-20 rounded-md px-3 py-2 text-xs font-medium ${enabled ? "bg-emerald-100 text-emerald-900" : "bg-stone-100 text-stone-600"}`}>
+                <button type="button" role="switch" aria-checked={enabled} disabled={serviceBusy === category.id} onClick={() => toggleService(category.id)} className={`min-w-20 rounded-md px-3 py-2 text-xs font-medium ${enabled ? "bg-blue-100 text-blue-900" : "bg-stone-100 text-stone-600"}`}>
                   {serviceBusy === category.id ? "Saving…" : enabled ? "Enabled" : "Disabled"}
                 </button>
               </li>;
             })}
           </ul>
         </Card> : null}
-
-        {section === "payments" ? <>
-        <PaymentSettingsCard />
-        <Card className="overflow-hidden p-0">
-          <div className="border-b border-stone-200 px-5 py-4">
-            <h2 className="text-[16px] font-medium text-ink-black">Top-up verification</h2>
-            <p className="caption mt-1">1. Check the amount and reference. 2. Verify receipt with the payment provider. 3. Select Payment verified or Reject.</p>
-          </div>
-          {topUps.length === 0 ? (
-            <p className="px-5 py-8 text-[14px] text-stone-500">No top-ups awaiting verification.</p>
-          ) : (
-            <ul className="divide-y divide-stone-200">
-              {topUps.map((request) => (
-                <li key={request.id} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                  <div>
-                    <p className="text-[14px] font-medium">{formatPeso(request.amount)} via {request.method.toUpperCase()}</p>
-                    <p className="caption mt-1">Reference: {request.reference} · Worker: {request.workerUid} · {formatDate(request.createdAt)}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {request.receiptPath ? <ActionButton variant="neutral" busy={false}
-                      onClick={() => openPaymentImage(request.receiptPath).catch((err) => setError(err instanceof Error ? err.message : "Could not open receipt."))}>View receipt</ActionButton>
-                      : <span className="self-center text-xs text-stone-500">Receipt missing — reject and ask the worker to resubmit</span>}
-                    <ActionButton variant="neutral" busy={busyId === request.id}
-                      onClick={() => decidePayment(request, false)}>Reject</ActionButton>
-                    <ActionButton busy={busyId === request.id} disabled={!request.receiptPath}
-                      onClick={() => decidePayment(request, true)}>Payment verified</ActionButton>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card></> : null}
 
         {/* Verification queue */}
         {section === "workers" ? <Card className="overflow-hidden p-0">
@@ -337,7 +294,7 @@ export default function AdminPage() {
           ) : (
             <ul className="divide-y divide-stone-200">
               {pending.map((worker) => {
-                const trade = CATEGORY_MAP[worker.categoryId];
+                const trade = services.find((item) => item.id === worker.categoryId);
                 const hasTesda = worker.verificationDocs.some(
                   (d) => d.type === "tesda_certificate",
                 );
@@ -483,53 +440,8 @@ export default function AdminPage() {
                       {job.consumerName} ↔ {job.workerName} &middot;{" "}
                       {job.barangay}
                     </p>
-                    {job.quote ? (
-                      <p className="mt-1 text-[12px] text-stone-500 tabular-nums">
-                        Labor {formatPeso(job.quote.laborFee)} &middot; Materials{" "}
-                        {formatPeso(job.quote.materialsCost)}
-                      </p>
-                    ) : null}
                   </li>
                 ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card className="overflow-hidden p-0">
-            <div className="border-b border-stone-200 px-5 py-4">
-              <h2 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
-                Quotes below price floor
-              </h2>
-              <p className="caption mt-0.5">
-                Monitored to prevent predatory pricing or illegal undercutting
-              </p>
-            </div>
-            {underFloor.length === 0 ? (
-              <p className="px-5 py-8 text-[14px] text-stone-500">
-                No quotes below monitored floors.
-              </p>
-            ) : (
-              <ul className="divide-y divide-stone-200">
-                {underFloor.map((job) => {
-                  const trade = CATEGORY_MAP[job.categoryId];
-                  const t = job.quote
-                    ? computeTotals(job.quote.laborFee, job.quote.materialsCost)
-                    : null;
-                  return (
-                    <li key={job.id} className="px-5 py-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="text-[14px] font-medium tracking-[-0.02em] text-ink-black">
-                          {job.title}
-                        </p>
-                        <Badge tone="muted">{trade?.name}</Badge>
-                      </div>
-                      <p className="mt-1 text-[12px] text-stone-600 tabular-nums">
-                        Labor {formatPeso(t?.laborFee ?? 0)} against a floor of{" "}
-                        {formatPeso(trade?.floor ?? 0)}
-                      </p>
-                    </li>
-                  );
-                })}
               </ul>
             )}
           </Card>

@@ -23,7 +23,7 @@ export function SiteNav() {
   const links = role === "admin"
     ? [{ href: "/admin", label: "Review queue", count: adminCount }, { href: "/browse", label: "Worker directory", count: 0 }]
     : role === "worker"
-      ? [{ href: "/", label: "Home", count: 0 }, { href: "/dashboard/worker", label: "My jobs", count: workerCount }, { href: "/dashboard/messages", label: "Messages", count: 0 }, { href: "/dashboard/wallet", label: "Wallet", count: 0 }]
+      ? [{ href: "/", label: "Home", count: 0 }, { href: "/dashboard/worker", label: "My jobs", count: workerCount }, { href: "/dashboard/worker#my-services", label: "My service offers", count: 0 }, { href: "/dashboard/messages", label: "Messages", count: 0 }]
       : role === "customer"
         ? [{ href: "/", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/messages", label: "Messages", count: 0 }]
         : [{ href: "/landing", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/platform", label: "How it works", count: 0 }];

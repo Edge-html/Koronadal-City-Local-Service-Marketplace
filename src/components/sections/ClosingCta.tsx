@@ -10,9 +10,9 @@ export function ClosingCta() {
           Find a verified pro, or get verified yourself.
         </h2>
         <p className="max-w-[56ch] text-[16px] leading-[1.4] text-stone-600">
-          Households post a request and approve a fixed two-part quote before
-          anything starts. Workers clear a background check and keep every peso
-          but the 10% labor commission.
+          Households request a service and agree on the work directly with a
+          verified provider in chat. Both sides confirm before work begins, and
+          payment goes directly to the worker.
         </p>
 
         <div className="flex flex-col items-center gap-3 sm:flex-row">

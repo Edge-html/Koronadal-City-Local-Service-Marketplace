@@ -188,7 +188,7 @@ function SignUpForm() {
       description={
         role === "worker"
           ? "Three steps, then a background check. Verification clears within 24 to 48 hours."
-          : "Post a job request, approve a quote, and pay the worker directly."
+          : "Request a service, agree on the details in chat, and pay the worker directly."
       }
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>

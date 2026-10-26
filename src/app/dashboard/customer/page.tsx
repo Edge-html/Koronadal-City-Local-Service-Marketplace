@@ -1,332 +1,93 @@
 "use client";
 
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
-import { Star, Wallet } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { MessageSquare, Star } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton, JobCard } from "@/components/JobCard";
-import {
-  Card,
-  EmptyState,
-  Notice,
-  StatCard,
-} from "@/components/ui";
-import {
-  approveQuote,
-  logDispute,
-  submitReview,
-} from "@/lib/data";
-import { computeTotals, formatPeso } from "@/lib/commission";
+import { Card, EmptyState, Notice, StatCard } from "@/components/ui";
+import { getOrCreateConversation, getWorker, submitReview } from "@/lib/data";
 import { useAuth } from "@/context/AuthContext";
 import { useActivity } from "@/context/ActivityContext";
 import { AttentionNotice, FlowGuide, JobFilters, CUSTOMER_STEPS } from "@/components/FlowGuide";
 import { visibleJobs, type JobFilter } from "@/lib/job-flow";
 import type { Job } from "@/lib/types";
-import { uploadPaymentImage } from "@/lib/payment-files";
-import { PaymentQrImage } from "@/components/PaymentSettings";
-import { submitJobPayment } from "@/lib/data";
 
 export default function CustomerDashboardPage() {
-  return (
-    <Suspense fallback={null}>
-      <CustomerDashboard />
-    </Suspense>
-  );
+  return <Suspense fallback={null}><CustomerDashboard /></Suspense>;
 }
 
 function CustomerDashboard() {
   const { role, user } = useAuth();
+  const router = useRouter();
   const params = useSearchParams();
-
   const { customerJobs: jobs, customerError, customerCount } = useActivity();
   const [filter, setFilter] = useState<JobFilter>("all");
   const [reviewing, setReviewing] = useState<string | null>(null);
-  const [disputing, setDisputing] = useState<string | null>(null);
-
+  const [openingChat, setOpeningChat] = useState<string | null>(null);
+  const [error, setError] = useState("");
   const sent = params.get("sent") === "1";
   const requestEmail = params.get("email");
   const reviewLinkJobId = params.get("review");
 
   useEffect(() => {
     if (!reviewLinkJobId || !user || !jobs) return;
-    const target = jobs.find((job) => job.id === reviewLinkJobId
-      && job.consumerId === user.uid
-      && job.status === "completed"
-      && !!job.settledAt);
+    const target = jobs.find((job) => job.id === reviewLinkJobId && job.consumerId === user.uid
+      && job.status === "completed" && Boolean(job.agreementApprovedAt || job.settledAt));
     if (target) setReviewing(target.id);
   }, [jobs, reviewLinkJobId, user]);
 
   const stats = useMemo(() => {
     if (!jobs) return null;
     return {
-      awaitingQuote: jobs.filter((j) => j.status === "quoted"),
-      inFlight: jobs.filter((j) =>
-        ["requested", "accepted", "quoted", "in_progress"].includes(j.status),
-      ).length,
-      settled: jobs.filter((j) => Boolean(j.settledAt) || j.status === "reviewed")
-        .length,
-      committed: jobs
-        .filter((j) => ["completed", "reviewed"].includes(j.status))
-        .reduce((sum, job) => {
-          const t = job.quote
-            ? computeTotals(job.quote.laborFee, job.quote.materialsCost)
-            : null;
-          return sum + (t?.total ?? 0);
-        }, 0),
+      open: jobs.filter((job) => ["requested", "accepted", "quoted", "in_progress"].includes(job.status)).length,
+      awaitingAgreement: jobs.filter((job) => ["accepted", "quoted"].includes(job.status) && !job.consumerAgreedAt).length,
+      finished: jobs.filter((job) => ["completed", "reviewed"].includes(job.status)).length,
     };
   }, [jobs]);
 
-  if (stats === null) {
-    return (
-      <DashboardShell
-        eyebrow={role === "worker" ? "Hiring a worker · Customer view" : "Customer dashboard"}
-        title="My requests"
-        subtitle="Track your requests and review quotes here."
-      >
-        {customerError ? <Notice tone="alert">{customerError}</Notice> : <p className="mb-4 text-sm text-stone-500">Loading your requests…</p>}
-
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard label="Open requests" value="—" />
-          <StatCard label="Awaiting approval" value="—" />
-          <StatCard label="Finished jobs" value="—" />
-          <StatCard label="Completed job value" value="—" />
-        </div>
-      </DashboardShell>
-    );
+  async function openChat(job: Job) {
+    if (!user) return;
+    setOpeningChat(job.id); setError("");
+    try {
+      const worker = await getWorker(job.workerId);
+      if (!worker) throw new Error("This worker profile is unavailable.");
+      const conversationId = job.conversationId ?? await getOrCreateConversation(worker, { id: job.consumerId, name: job.consumerName }, job.id);
+      router.push(`/dashboard/messages?conversation=${encodeURIComponent(conversationId)}`);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not open this job chat."); }
+    finally { setOpeningChat(null); }
   }
 
-  return (
-    <DashboardShell
-      eyebrow={role === "worker" ? "Hiring a worker · Customer view" : "Customer dashboard"}
-      title="My requests"
-      subtitle="Quotes that need your approval appear first. Each request explains what happens next."
-    >
-      <div className="flex flex-col gap-4">
-        {sent ? (
-          requestEmail === "sent" ? (
-            <Notice>
-              Request sent and an email alert was accepted for delivery to the worker’s sign-up email. It now appears in the worker’s jobs. If the worker cannot find the email, ask them to check Spam and Promotions.
-            </Notice>
-          ) : (
-            <Notice tone="alert">
-              Your request was saved and appears in the worker’s jobs, but the email alert could not be sent. Check the Google Apps Script relay URL and secret in Vercel, then redeploy. The worker can still respond in KoroHanap.
-            </Notice>
-          )
-        ) : null}
-        {customerError ? <Notice tone="alert">{customerError}</Notice> : null}
-        <AttentionNotice count={customerCount}>{customerCount ? "Review the quotes and completed jobs below. Use the Needs your action filter to focus on your next steps." : "Your worker's updates will appear here automatically. Find another worker whenever you need a new service."}</AttentionNotice>
-        <FlowGuide steps={CUSTOMER_STEPS} />
+  if (stats === null) return <DashboardShell eyebrow="Customer dashboard" title="My requests" subtitle="Track requests, agree on details in chat, and review completed work.">
+    {customerError ? <Notice tone="alert">{customerError}</Notice> : <p className="mb-4 text-sm text-stone-500">Loading your requests…</p>}
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3"><StatCard label="Current requests" value="—" /><StatCard label="Need your agreement" value="—" /><StatCard label="Finished jobs" value="—" /></div>
+  </DashboardShell>;
 
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <StatCard
-            label="Open requests"
-            value={stats.inFlight}
-            sublabel="Requested or underway"
-          />
-          <StatCard
-            label="Awaiting approval"
-            value={stats.awaitingQuote.length}
-            sublabel="Quotes ready to review"
-          />
-          <StatCard
-            label="Finished jobs"
-            value={stats.settled}
-            sublabel="Paid direct to worker"
-          />
-          <StatCard
-            label="Completed job value"
-            value={formatPeso(stats.committed)}
-            sublabel="Labor plus materials"
-          />
-        </div>
-
-        <JobFilters jobs={jobs ?? []} view="customer" value={filter} onChange={setFilter} />
-        {jobs && jobs.length > 0 && visibleJobs(jobs, "customer", filter).length === 0 ? <p className="rounded-lg bg-white p-6 text-sm text-stone-600">No requests in this section. Choose another filter to see your requests.</p> : null}
-        {jobs && jobs.length === 0 ? (
-          <EmptyState
-            title="No requests yet"
-            description="Browse the directory, pick a verified worker, and describe what needs doing. Their acceptance appears in your requests."
-            action={{ label: "Browse workers", href: "/browse" }}
-          />
-        ) : (
-          <div className="flex flex-col gap-3">
-            {visibleJobs(jobs ?? [], "customer", filter).map((job) => (
-              <JobCard
-                key={job.id}
-                job={job}
-                counterpartLabel="Assigned worker"
-                counterpartName={job.workerName}
-                counterpartPhone={job.workerPhone}
-                view="customer"
-                actions={
-                  <>
-                    {job.status === "quoted" ? (
-                      <>
-                        <ApproveButton job={job} />
-                        <Link
-                          href={`/worker/${job.workerId}`}
-                          className="btn-neutral btn-sm no-underline"
-                        >
-                          View profile
-                        </Link>
-                        <button
-                          type="button"
-                          className="btn-neutral btn-sm"
-                          onClick={() =>
-                            setDisputing(disputing === job.id ? null : job.id)
-                          }
-                        >
-                          Report a problem
-                        </button>
-                      </>
-                    ) : null}
-
-                    {job.status === "completed" && job.settledAt ? (
-                      <ActionButton
-                        variant="neutral"
-                        onClick={() =>
-                          setReviewing(reviewing === job.id ? null : job.id)
-                        }
-                        icon={<Star size={13} strokeWidth={1.5} />}
-                      >
-                        Leave a review
-                      </ActionButton>
-                    ) : null}
-
-                    {job.status === "completed" && !job.settledAt ? (
-                      <span className="caption">{job.paymentMethod ? job.paymentSubmittedAt ? "Your payment proof is with the worker for confirmation." : "Pay the worker directly and submit proof below." : "Awaiting commission settlement before review."}</span>
-                    ) : null}
-
-                    {job.status === "disputed" ? (
-                      <span className="caption">
-                        Logged with the platform. Admin will follow up.
-                      </span>
-                    ) : null}
-                  </>
-                }
-              >
-                {job.status === "completed" && !job.settledAt && job.paymentMethod ? <FinderPaymentPanel job={job} onDone={() => Promise.resolve()} /> : null}
-                {(reviewing === job.id || reviewLinkJobId === job.id) && job.status === "completed" && job.settledAt ? <ReviewForm key={`review-${job.id}`} job={job} onDone={async () => setReviewing(null)} /> : null}
-                {disputing === job.id && job.status === "quoted" ? <DisputeForm key={`dispute-${job.id}`} job={job} onDone={async () => setDisputing(null)} /> : null}
-              </JobCard>
-            ))}
-          </div>
-        )}
-
-        <Card className="flex items-start gap-3 p-5">
-          <Wallet
-            size={15}
-            strokeWidth={1.5}
-            className="mt-0.5 shrink-0 text-stone-400"
-          />
-          <p className="text-[13px] leading-[1.5] text-stone-600">
-            Pay cash or GCash directly to your worker after the work is done.
-            Check the full quote above before approving. The platform commission
-            comes from the worker’s labor fee; it is not an extra charge on top of your total.
-          </p>
-        </Card>
+  return <DashboardShell eyebrow={role === "worker" ? "Hiring a worker · Customer view" : "Customer dashboard"} title="My requests" subtitle="Discuss the work and price in chat. Both sides confirm the agreement before work starts.">
+    <div className="flex flex-col gap-4">
+      {sent ? requestEmail === "sent" ? <Notice>Request sent. An email alert was accepted for delivery to the worker’s sign-up email.</Notice> : <Notice tone="alert">Your request was saved and appears in the worker’s jobs, but its email alert could not be sent. The worker can still respond in KoroHanap.</Notice> : null}
+      {customerError || error ? <Notice tone="alert">{customerError || error}</Notice> : null}
+      <AttentionNotice count={customerCount}>{customerCount ? "Review your requests and confirm any agreed details in chat." : "Worker updates will appear here. Browse the directory whenever you need another service."}</AttentionNotice>
+      <FlowGuide steps={CUSTOMER_STEPS} />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <StatCard label="Current requests" value={stats.open} sublabel="Requested or underway" />
+        <StatCard label="Need your agreement" value={stats.awaitingAgreement} sublabel="Confirm in the job chat" />
+        <StatCard label="Finished jobs" value={stats.finished} sublabel="Completed work" />
       </div>
-    </DashboardShell>
-  );
-}
-
-function FinderPaymentPanel({ job, onDone }: { job: Job; onDone: () => Promise<void> }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [reference, setReference] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const label = ({ cash: "Cash", gcash: "GCash", qr: "QR code", bank_transfer: "Bank transfer", other: "Other" } as const)[job.paymentMethod!];
-  async function submit() {
-    if (!file) return;
-    setBusy(true); setError("");
-    try {
-      const path = await uploadPaymentImage(file, "job-payment", job.id);
-      await submitJobPayment(job.id, path, reference.trim());
-      await onDone();
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not submit payment proof."); }
-    finally { setBusy(false); }
-  }
-  return <Card className="flex flex-col gap-3 border-ink-black p-4">
-    <div><h3 className="text-sm font-semibold">Pay the worker directly: {label}</h3>
-      <p className="caption mt-1">Send {job.quote ? formatPeso(computeTotals(job.quote.laborFee, job.quote.materialsCost).total) : "the quoted total"} to the worker using the details below. The platform does not collect this payment.</p></div>
-    {job.paymentInstructions ? <p className="whitespace-pre-wrap rounded-md bg-bone p-3 text-sm">{job.paymentInstructions}</p> : null}
-    {job.paymentMethod === "qr" && job.paymentQrPath ? <PaymentQrImage path={job.paymentQrPath} jobId={job.id} alt="Worker payment QR code" /> : null}
-    {job.paymentSubmittedAt ? <Notice>Proof sent. The worker will check it and confirm once they have received the payment.</Notice> : <>
-      <label className="label" htmlFor={`proof-${job.id}`}>Upload payment proof (receipt screenshot/photo)</label>
-      <input id={`proof-${job.id}`} className="field" type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-      {job.paymentMethod === "cash" ? <p className="caption">For cash, upload a photo of the receipt or a signed acknowledgement from the worker.</p> : null}
-      <label className="label" htmlFor={`reference-${job.id}`}>Payment reference (optional)</label>
-      <input id={`reference-${job.id}`} className="field" value={reference} maxLength={120} onChange={(e) => setReference(e.target.value)} placeholder="Transaction or receipt number" />
-      {error ? <Notice tone="alert">{error}</Notice> : null}
-      <ActionButton busy={busy} disabled={!file} onClick={submit}>Send proof to worker</ActionButton>
-    </>}
-  </Card>;
-}
-
-/**
- * Approval locks the commission, so it needs the worker's live wallet balance
- * rather than anything cached in list state — a stale balance could otherwise
- * lock the wrong amount.
- */
-function ApproveButton({
-  job,
-}: {
-  job: Job;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const total = job.quote
-    ? computeTotals(job.quote.laborFee, job.quote.materialsCost).total
-    : 0;
-
-  const run = useCallback(async () => {
-    setBusy(true);
-    setError("");
-    try {
-      await approveQuote(job);
-    } catch (err) {
-      console.error("[approve-quote] failed:", err);
-      setError(translateApprovalFailure(err));
-    } finally {
-      setBusy(false);
-    }
-  }, [job]);
-
-  return (
-    <span className="flex flex-col gap-1">
-      <ActionButton onClick={run} busy={busy}>
-        Approve {formatPeso(total)}
-      </ActionButton>
-      {error ? <span className="caption attention">{error}</span> : null}
-    </span>
-  );
-}
-
-/**
- * Turn an approval failure into something a household can act on.
- *
- * The server's raw message names the worker's prepaid commission balance. That
- * is an accurate description of the platform's internals and useless to the
- * person reading it: the household does not hold the worker's wallet, cannot
- * top it up, and has no way to resolve it. What they can do is contact the
- * worker, wait, or choose someone else — so say that, and keep the internal
- * wording out of a screen a customer will read.
- */
-function translateApprovalFailure(err: unknown): string {
-  const message = err instanceof Error ? err.message : "";
-
-  if (/prepaid commission balance/i.test(message)) {
-    return "This worker needs to top up their platform balance before you can approve. Message them to sort it out, or approve later once they have.";
-  }
-  if (/no longer available|not active|Worker profile not found/i.test(message)) {
-    return "This quote can no longer be approved. The worker may have revised or withdrawn it.";
-  }
-  if (/permission|MISSING_PERMISSION|insufficient/i.test(message)) {
-    return "Could not approve. This usually means the Firestore rules are out of date — publish firestore.rules from the repository, then reload.";
-  }
-  return message || "Could not approve the quote. Please try again.";
+      <JobFilters jobs={jobs ?? []} view="customer" value={filter} onChange={setFilter} />
+      {jobs && jobs.length > 0 && visibleJobs(jobs, "customer", filter).length === 0 ? <p className="rounded-lg bg-white p-6 text-sm text-stone-600">No requests in this section. Choose another filter.</p> : null}
+      {jobs && jobs.length === 0 ? <EmptyState title="No requests yet" description="Browse the directory, choose a verified worker, and describe what you need." action={{ label: "Browse workers", href: "/browse" }} /> : <div className="flex flex-col gap-3">
+        {visibleJobs(jobs ?? [], "customer", filter).map((job) => <JobCard key={job.id} job={job} counterpartLabel="Assigned worker" counterpartName={job.workerName} counterpartPhone={job.workerPhone} view="customer" actions={<>
+          {(["accepted", "quoted", "in_progress"] as const).includes(job.status as "accepted" | "quoted" | "in_progress") ? <ActionButton busy={openingChat === job.id} onClick={() => void openChat(job)} icon={<MessageSquare size={14} />}>{job.consumerAgreedAt && job.status !== "in_progress" ? "Open chat · waiting for worker" : job.status === "in_progress" ? "Open job chat" : "Discuss and confirm in chat"}</ActionButton> : null}
+          {job.status === "completed" && !job.rating ? <ActionButton variant="neutral" onClick={() => setReviewing(reviewing === job.id ? null : job.id)} icon={<Star size={13} />}>Leave a review</ActionButton> : null}
+          {job.status === "reviewed" || job.rating ? <span className="caption">Reviewed · {job.rating}/5</span> : null}
+        </>}>
+          {reviewing === job.id && job.status === "completed" && (job.agreementApprovedAt || job.settledAt) ? <ReviewForm key={`review-${job.id}`} job={job} onDone={async () => setReviewing(null)} /> : null}
+        </JobCard>)}
+      </div>}
+      <Card className="p-5"><p className="text-[13px] leading-[1.5] text-stone-600">KoroHanap does not collect payment for the work. Agree on the scope, service rate, schedule, and payment method directly in your private job chat.</p></Card>
+    </div>
+  </DashboardShell>;
 }
 
 function ReviewForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) {
@@ -334,131 +95,16 @@ function ReviewForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) 
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-
   async function run() {
-    setBusy(true);
-    setError("");
-    try {
-      await submitReview(job, rating, text.trim());
-      await onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not save the review.");
-    } finally {
-      setBusy(false);
-    }
+    setBusy(true); setError("");
+    try { await submitReview(job, rating, text.trim()); await onDone(); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not save the review."); }
+    finally { setBusy(false); }
   }
-
-  return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div>
-        <h3 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
-          Rate {job.workerName}
-        </h3>
-        <p className="caption mt-0.5">
-          Describe your experience with the completed work.
-        </p>
-      </div>
-
-      <fieldset>
-        <legend className="label">Rating</legend>
-        <div className="flex gap-1">
-          {[1, 2, 3, 4, 5].map((value) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setRating(value)}
-              aria-pressed={rating === value}
-              aria-label={`${value} star${value > 1 ? "s" : ""}`}
-              className="rounded-md p-1"
-            >
-              <Star
-                size={20}
-                strokeWidth={1.5}
-                className={
-                  value <= rating
-                    ? "fill-ink-black text-ink-black"
-                    : "fill-transparent text-stone-200"
-                }
-              />
-            </button>
-          ))}
-        </div>
-      </fieldset>
-
-      <div>
-        <label className="label" htmlFor="review-text">
-          Review
-        </label>
-        <textarea
-          id="review-text"
-          className="field min-h-[88px] resize-y"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="How was the work? Were materials as quoted?"
-        />
-      </div>
-
-      {error ? <Notice tone="alert">{error}</Notice> : null}
-
-      <ActionButton onClick={run} busy={busy} disabled={text.trim().length < 5}>
-        Submit review
-      </ActionButton>
-    </Card>
-  );
-}
-
-function DisputeForm({ job, onDone }: { job: Job; onDone: () => Promise<void> }) {
-  const [reason, setReason] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  async function run() {
-    setBusy(true);
-    setError("");
-    try {
-      await logDispute(job, reason.trim(), "consumer");
-      await onDone();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not submit your report.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Card className="flex flex-col gap-4 p-5">
-      <div>
-        <h3 className="text-[16px] leading-[1.3] font-medium tracking-[-0.32px] text-ink-black">
-          Dispute this quote
-        </h3>
-        <p className="caption mt-0.5">
-          Disputes are logged with the platform and routed to an administrator
-          under RA 7394.
-        </p>
-      </div>
-
-      <div>
-        <label className="label" htmlFor="dispute-reason">
-          What went wrong
-        </label>
-        <textarea
-          id="dispute-reason"
-          className="field min-h-[80px] resize-y"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          placeholder="Describe the discrepancy between the quote and the work."
-        />
-      </div>
-
-      {error ? <Notice tone="alert">{error}</Notice> : null}
-      <ActionButton
-        onClick={run}
-        busy={busy}
-        disabled={reason.trim().length < 10}
-        variant="neutral"
-      >
-        Submit dispute
-      </ActionButton>
-    </Card>
-  );
+  return <Card className="flex flex-col gap-4 p-5">
+    <div><h3 className="text-base font-medium">Rate {job.workerName}</h3><p className="caption mt-0.5">Describe your experience with the completed work.</p></div>
+    <fieldset><legend className="label">Rating</legend><div className="flex gap-1">{[1, 2, 3, 4, 5].map((value) => <button key={value} type="button" onClick={() => setRating(value)} aria-pressed={rating === value} aria-label={`${value} stars`} className="rounded-md p-1"><Star size={20} className={value <= rating ? "fill-ink-black text-ink-black" : "text-stone-300"} /></button>)}</div></fieldset>
+    <div><label className="label" htmlFor={`review-${job.id}`}>Review</label><textarea id={`review-${job.id}`} className="field min-h-[88px] resize-y" value={text} onChange={(event) => setText(event.target.value)} placeholder="How was the service and communication?" /></div>
+    {error ? <Notice tone="alert">{error}</Notice> : null}<ActionButton onClick={run} busy={busy} disabled={text.trim().length < 5}>Submit review</ActionButton>
+  </Card>;
 }

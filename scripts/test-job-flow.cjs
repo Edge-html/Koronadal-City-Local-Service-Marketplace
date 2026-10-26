@@ -10,36 +10,34 @@ new Function("exports", "module", compiled)(flow.exports, flow);
 const { needsAction, jobGroup, visibleJobs, nextStep } = flow.exports;
 const job = (status, extra = {}) => ({ id: status, status, requestedAt: "2026-10-16", ...extra });
 
-test("customer quote notifications clear on approval; reviews open only after settlement", () => {
-  for (const status of ["requested", "accepted", "in_progress", "cancelled", "disputed", "reviewed"]) {
-    assert.equal(needsAction(job(status), "customer"), false, status);
+test("both sides are asked to confirm the chat agreement before work starts", () => {
+  for (const status of ["accepted", "quoted"]) {
+    assert.equal(needsAction(job(status), "worker"), true);
+    assert.equal(needsAction(job(status), "customer"), true);
+    assert.equal(needsAction(job(status, { workerAgreedAt: "now" }), "worker"), false);
+    assert.equal(needsAction(job(status, { consumerAgreedAt: "now" }), "customer"), false);
   }
-  assert.equal(needsAction(job("quoted"), "customer"), true);
-  assert.equal(needsAction(job("completed"), "customer"), false);
-  assert.equal(needsAction(job("completed", { settledAt: "2026-10-16" }), "customer"), true);
+  assert.equal(needsAction(job("requested"), "worker"), true);
+  assert.equal(needsAction(job("in_progress"), "worker"), false);
 });
-test("worker actions follow acceptance, quoting and settlement without counting settled jobs", () => {
-  for (const status of ["requested", "accepted", "completed"]) assert.equal(needsAction(job(status), "worker"), true);
-  for (const status of ["quoted", "in_progress", "cancelled", "disputed", "reviewed"]) assert.equal(needsAction(job(status), "worker"), false);
-  assert.equal(needsAction(job("completed", { settledAt: "2026-10-16" }), "worker"), false);
+
+test("worker completed jobs go to history without a wallet settlement", () => {
+  assert.equal(jobGroup(job("completed"), "worker"), "history");
+  assert.equal(visibleJobs([job("completed")], "worker", "all").length, 0);
+  assert.equal(visibleJobs([job("completed")], "worker", "history").length, 1);
+  assert.equal(needsAction(job("completed"), "worker"), false);
 });
-test("filters keep waiting jobs, disputes, active work and history distinct", () => {
-  assert.equal(jobGroup(job("accepted"), "customer"), "waiting");
-  assert.equal(jobGroup(job("quoted"), "worker"), "waiting");
-  assert.equal(jobGroup(job("in_progress"), "worker"), "active");
-  assert.equal(jobGroup(job("disputed"), "customer"), "waiting");
-  assert.equal(jobGroup(job("completed", { settledAt: "2026-10-16" }), "worker"), "history");
-  assert.equal(jobGroup(job("reviewed"), "customer"), "history");
+
+test("worker stats and guides use agreement and completion steps", () => {
+  assert.match(nextStep(job("accepted"), "worker").title, /Agree in chat/);
+  assert.match(nextStep(job("accepted"), "customer").title, /Agree in chat/);
+  assert.match(nextStep(job("in_progress"), "worker").detail, /confirmed the plan in chat/i);
+  assert.match(nextStep(job("completed"), "worker").title, /All done/);
 });
+
 test("actionable requests sort first without mutating the live snapshot", () => {
-  const rows = [job("requested", { requestedAt: "2026-10-16" }), job("quoted", { requestedAt: "2026-10-14" }), job("reviewed")];
-  assert.deepEqual(visibleJobs(rows, "customer", "all").map((j) => j.id), ["quoted", "requested", "reviewed"]);
+  const rows = [job("requested", { requestedAt: "2026-10-16" }), job("accepted", { requestedAt: "2026-10-14" }), job("reviewed")];
+  assert.deepEqual(visibleJobs(rows, "worker", "all").map((row) => row.id), ["requested", "accepted"]);
   assert.equal(rows[0].id, "requested");
-  assert.deepEqual(visibleJobs(rows, "customer", "action").map((j) => j.id), ["quoted"]);
-});
-test("guidance changes with role and settlement, so completed does not mean settled", () => {
-  assert.match(nextStep(job("accepted"), "worker").title, /Send your quote/);
-  assert.match(nextStep(job("accepted"), "customer").title, /Waiting/);
-  assert.match(nextStep(job("completed"), "worker").title, /Waiting for finder payment/);
-  assert.match(nextStep(job("completed", { settledAt: "2026-10-16" }), "customer").title, /Leave a review/);
+  assert.deepEqual(visibleJobs(rows, "worker", "action").map((row) => row.id), ["requested", "accepted"]);
 });
