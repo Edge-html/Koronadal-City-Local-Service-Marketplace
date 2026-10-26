@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
   sendPasswordResetEmail,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -48,6 +49,7 @@ interface AuthContextValue {
   becomeWorker: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  sendVerificationEmail: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
 
@@ -245,6 +247,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         role: nextRole,
         createdAt: new Date().toISOString(),
       });
+      try {
+        await sendEmailVerification(cred.user, {
+          url: `${window.location.origin}/login?verified=1`,
+          handleCodeInApp: false,
+        });
+      } catch (error) {
+        // The account exists; keep the user in the verification flow so they
+        // can request another link instead of treating registration as failed.
+        console.warn("[auth] verification email could not be sent:", error);
+      }
       return cred.user;
     },
     [],
@@ -287,6 +299,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await sendPasswordResetEmail(getFirebaseAuth(), email);
   }, []);
 
+  const sendVerificationEmail = useCallback(async () => {
+    const current = getFirebaseAuth().currentUser;
+    if (!current) throw new Error("Sign in to request an email verification link.");
+    await sendEmailVerification(current, {
+      url: `${window.location.origin}/login?verified=1`,
+      handleCodeInApp: false,
+    });
+  }, []);
+
   const refreshProfile = useCallback(async () => {
     if (user) attachProfile(user.uid);
   }, [user, attachProfile]);
@@ -304,6 +325,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       becomeWorker,
       logout,
       resetPassword,
+      sendVerificationEmail,
       refreshProfile,
     }),
     [
@@ -318,6 +340,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       becomeWorker,
       logout,
       resetPassword,
+      sendVerificationEmail,
       refreshProfile,
     ],
   );

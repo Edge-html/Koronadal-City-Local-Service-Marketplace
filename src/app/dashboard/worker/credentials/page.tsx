@@ -11,13 +11,13 @@ import { resubmitCredentials } from "@/lib/data";
 import { DOC_TYPES, type DocType } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
 
-const REQUIRED: DocType[] = ["government_id", "barangay_clearance", "recommendation_letter"];
+const REQUIRED: DocType[] = ["government_id", "barangay_clearance"];
 const TYPES: DocType[] = [...REQUIRED, "tesda_certificate"];
 
 export default function CredentialsPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const [files, setFiles] = useState<Partial<Record<DocType, File>>>({});
+  const [files, setFiles] = useState<Partial<Record<DocType, File[]>>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -26,13 +26,13 @@ export default function CredentialsPage() {
     setBusy(true);
     setError("");
     try {
-      const credentials = await Promise.all(TYPES.filter((type) => files[type]).map(async (type) => ({
+      const credentials = await Promise.all(TYPES.flatMap((type) => (files[type] ?? []).map(async (file) => ({
         type,
-        fileName: files[type]!.name,
-        fileUrl: await uploadCredential(files[type]!),
+        fileName: file.name,
+        fileUrl: await uploadCredential(file),
         uploadedAt: new Date().toISOString(),
         reviewState: "pending" as const,
-      })));
+      }))));
       await resubmitCredentials(credentials);
       router.push("/dashboard/worker");
     } catch (err) {
@@ -50,18 +50,20 @@ export default function CredentialsPage() {
         <Card className="space-y-4 p-5">
           <p className="text-[13px] leading-[1.5] text-stone-600">
             Older uploads saved as temporary browser links cannot be opened after that session.
-            Upload all three required files again. Each file must be a PDF or image under 4 MB.
+            Upload your two required documents again. A recommendation letter is optional, and you may add up to eight TESDA certificates. Each file must be a PDF or image under 4 MB.
           </p>
           {TYPES.map((type) => (
             <div key={type}>
               <label className="label" htmlFor={type}>
                 {DOC_TYPES[type].label} {DOC_TYPES[type].requirement === "mandatory" ? "(required)" : "(optional)"}
               </label>
-              <input id={type} type="file" accept="image/jpeg,image/png,image/webp,application/pdf"
+              <input id={type} type="file" multiple={type === "tesda_certificate"} accept="image/jpeg,image/png,image/webp,application/pdf"
                 className="field" onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  setFiles((current) => ({ ...current, [type]: file }));
+                  const chosen = Array.from(event.target.files ?? []);
+                  setFiles((current) => ({ ...current, [type]: type === "tesda_certificate" ? [...(current[type] ?? []), ...chosen].slice(0, 8) : chosen.slice(0, 1) }));
+                  event.currentTarget.value = "";
                 }} />
+              {(files[type] ?? []).map((file, index) => <p key={`${file.name}-${index}`} className="caption mt-1">{file.name}</p>)}
             </div>
           ))}
           <div className="flex flex-wrap items-center gap-3">

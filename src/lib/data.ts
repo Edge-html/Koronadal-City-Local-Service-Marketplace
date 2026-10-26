@@ -20,6 +20,8 @@ import {
   getDoc,
   getDocs,
   limit,
+  onSnapshot,
+  orderBy,
   query,
   serverTimestamp,
   setDoc,
@@ -28,6 +30,7 @@ import {
   writeBatch,
   type DocumentData,
   type QueryConstraint,
+  type Unsubscribe,
 } from "firebase/firestore";
 import { getFirebaseAuth, getFirebaseDb } from "@/lib/firebase";
 
@@ -59,6 +62,8 @@ import { computeTotals, pesos } from "@/lib/commission";
 import { makeReferralCode } from "@/lib/utils";
 import type {
   Inquiry,
+  Conversation,
+  DirectMessage,
   Job,
   JobStatus,
   LedgerEntry,
@@ -74,6 +79,7 @@ const workersCol = () => collection(db(), "workers");
 const jobsCol = () => collection(db(), "jobs");
 const reviewsCol = () => collection(db(), "reviews");
 const ledgerCol = () => collection(db(), "ledger");
+const conversationsCol = () => collection(db(), "conversations");
 
 const byNewest = (a: string, b: string) =>
   new Date(b).getTime() - new Date(a).getTime();
@@ -106,7 +112,10 @@ function toWorker(id: string, data: DocumentData): Worker {
     photoUrl: data.photoUrl ?? "",
     categoryId: data.categoryId ?? "",
     barangay: data.barangay ?? "",
+    serviceAreas: Array.isArray(data.serviceAreas) ? data.serviceAreas : [],
     bio: data.bio ?? "",
+    specialtyDescription: data.specialtyDescription ?? "",
+    profileVisibility: data.profileVisibility ?? {},
     yearsExperience: data.yearsExperience ?? 0,
     rating: data.rating ?? 0,
     reviewCount: data.reviewCount ?? 0,
@@ -142,15 +151,19 @@ export async function listWorkers(constraints: QueryConstraint[] = []) {
  */
 export async function listDirectoryWorkers() {
   const snap = await getDocs(query(workersCol(), where("verified", "==", true)));
+  const disabled = await getDisabledServiceIds();
   return snap.docs
     .map((d) => toWorker(d.id, d.data()))
-    .filter((w) => w.status === "active")
+    .filter((w) => w.status === "active" && !disabled.includes(w.categoryId))
     .sort((a, b) => b.rating - a.rating || b.jobsCompleted - a.jobsCompleted);
 }
 
 export async function getWorker(id: string): Promise<Worker | null> {
   const snap = await getDoc(doc(db(), "workers", id));
-  return snap.exists() ? toWorker(id, snap.data()) : null;
+  if (!snap.exists()) return null;
+  const worker = toWorker(id, snap.data());
+  const disabled = await getDisabledServiceIds();
+  return disabled.includes(worker.categoryId) ? null : worker;
 }
 
 export async function getWorkerByUid(uid: string): Promise<Worker | null> {
@@ -178,7 +191,9 @@ export interface WorkerDraft {
   email: string;
   categoryId: string;
   barangay: string;
+  serviceAreas: string[];
   bio: string;
+  specialtyDescription: string;
   yearsExperience: number;
   hourlyRate: number;
   verificationDocs: VerificationDoc[];
@@ -246,6 +261,17 @@ export async function updateWorker(
 /** Save selected skills through the authenticated server so the write remains available when deployed Firestore rules lag behind. */
 export async function saveWorkerSkills(workerId: string, skills: string[]) {
   await marketplaceAction({ operation: "updateWorkerSkills", workerId, skills });
+}
+
+export async function getDisabledServiceIds(): Promise<string[]> {
+  const response = await fetch("/api/services", { cache: "no-store" });
+  if (!response.ok) return [];
+  const value = await response.json() as { disabledIds?: unknown };
+  return Array.isArray(value.disabledIds) ? value.disabledIds.filter((id): id is string => typeof id === "string") : [];
+}
+
+export async function setServiceEnabled(categoryId: string, enabled: boolean) {
+  await marketplaceAction({ operation: "setServiceEnabled", categoryId, enabled });
 }
 
 /**
@@ -405,6 +431,67 @@ export async function listInquiriesForWorker(workerUid: string) {
   return snap.docs
     .map((d) => ({ ...(d.data() as Inquiry), id: d.id }))
     .sort((a, b) => byNewest(a.createdAt, b.createdAt));
+}
+
+export async function getOrCreateConversation(
+  worker: Worker,
+  consumer: { id: string; name: string },
+) {
+  if (!consumer.id || consumer.id === worker.uid) throw new Error("You cannot message your own account.");
+  const id = `${consumer.id.length}_${consumer.id}${worker.uid.length}_${worker.uid}`;
+  const ref = doc(conversationsCol(), id);
+  const existing = await getDoc(ref);
+  if (!existing.exists()) {
+    await setDoc(ref, {
+      consumerId: consumer.id,
+      consumerName: consumer.name,
+      workerId: worker.id,
+      workerUid: worker.uid,
+      workerName: worker.fullName,
+      participants: [consumer.id, worker.uid],
+      lastMessage: "",
+      updatedAt: new Date().toISOString(),
+    });
+  }
+  return id;
+}
+
+export function subscribeToConversations(
+  uid: string,
+  onRows: (rows: Conversation[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  return onSnapshot(query(conversationsCol(), where("participants", "array-contains", uid)), (snap) => {
+    onRows(snap.docs.map((item) => ({ ...(item.data() as Omit<Conversation, "id">), id: item.id }))
+      .sort((a, b) => byNewest(a.updatedAt, b.updatedAt)));
+  }, (err) => onError?.(err));
+}
+
+export function subscribeToMessages(
+  conversationId: string,
+  onRows: (rows: DirectMessage[]) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const messages = collection(doc(conversationsCol(), conversationId), "messages");
+  return onSnapshot(query(messages, orderBy("createdAt", "asc")), (snap) => {
+    onRows(snap.docs.map((item) => ({ ...(item.data() as Omit<DirectMessage, "id">), id: item.id })));
+  }, (err) => onError?.(err));
+}
+
+export async function sendDirectMessage(
+  conversationId: string,
+  sender: { id: string; name: string },
+  body: string,
+) {
+  const text = body.trim();
+  if (!text || text.length > 2000) throw new Error("Messages must be between 1 and 2,000 characters.");
+  const thread = doc(conversationsCol(), conversationId);
+  const message = doc(collection(thread, "messages"));
+  const createdAt = new Date().toISOString();
+  const batch = writeBatch(db());
+  batch.set(message, { senderId: sender.id, senderName: sender.name, body: text, createdAt });
+  batch.update(thread, { lastMessage: text.slice(0, 240), updatedAt: createdAt });
+  await batch.commit();
 }
 /* ------------------------------------------------------------------ */
 /* Jobs — the six-stage lifecycle                                       */

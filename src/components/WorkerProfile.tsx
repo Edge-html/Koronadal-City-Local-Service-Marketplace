@@ -28,6 +28,7 @@ import {
 import { CATEGORY_MAP } from "@/lib/constants";
 import { ResumeSummary } from "@/components/ResumeSummary";
 import { WorkerOffers } from "@/components/WorkerOffers";
+import { MessageWorkerButton } from "@/components/MessageWorkerButton";
 import { useAuth } from "@/context/AuthContext";
 import { createJobRequest, getWorker, listReviews } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
@@ -117,27 +118,27 @@ export function WorkerProfile({ id }: { id: string }) {
                 </div>
 
                 <p className="mt-1.5 text-[15px] text-stone-600">
-                  {trade?.name ?? "General services"}
+                  {trade?.name ?? "General services"}{worker.specialtyDescription && worker.profileVisibility?.specialty !== false ? ` · ${worker.specialtyDescription}` : ""}
                 </p>
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2">
                   <StarRating value={worker.rating} count={worker.reviewCount} />
-                  <span className="inline-flex items-center gap-1.5 text-[13px] text-stone-600">
+                  {worker.profileVisibility?.serviceAreas !== false ? <span className="inline-flex items-center gap-1.5 text-[13px] text-stone-600">
                     <MapPin
                       size={13}
                       strokeWidth={1.5}
                       className="text-stone-400"
                     />
-                    {worker.barangay}
-                  </span>
-                  <span className="text-[13px] text-stone-600 tabular-nums">
+                    {[worker.barangay, ...(worker.serviceAreas ?? []).filter((area) => area !== worker.barangay)].join(", ")}
+                  </span> : null}
+                  {worker.profileVisibility?.experience !== false ? <span className="text-[13px] text-stone-600 tabular-nums">
                     {worker.yearsExperience} yrs experience
-                  </span>
+                  </span> : null}
                 </div>
               </div>
             </div>
 
-            {worker.bio ? (
+            {worker.bio && worker.profileVisibility?.bio !== false ? (
               <p className="mt-5 border-t border-stone-200 pt-5 text-[14px] leading-[1.55] text-stone-700">
                 {worker.bio}
               </p>
@@ -145,11 +146,13 @@ export function WorkerProfile({ id }: { id: string }) {
 
             <dl className="mt-5 grid grid-cols-2 gap-4 border-t border-stone-200 pt-5 sm:grid-cols-4">
               {[
-                ["Reference rate", `${formatPeso(worker.hourlyRate)}/hr`],
+                ["Service rate", `${formatPeso(worker.hourlyRate)}`],
                 ["Jobs completed", String(worker.jobsCompleted)],
                 ["Reviews", String(worker.reviewCount)],
                 ["Service floor", trade ? formatPeso(trade.floor) : "—"],
-              ].map(([label, value]) => (
+              ].filter(([label]) => label !== "Service rate" || worker.profileVisibility?.rate !== false)
+                .filter(([label]) => label !== "Jobs completed" || worker.profileVisibility?.experience !== false)
+                .map(([label, value]) => (
                 <div key={label}>
                   <dt className="caption">{label}</dt>
                   <dd className="mt-1 text-[18px] leading-[1.2] font-medium tracking-[-0.36px] text-ink-black tabular-nums">
@@ -158,11 +161,12 @@ export function WorkerProfile({ id }: { id: string }) {
                 </div>
               ))}
             </dl>
+            <p className="caption mt-4 border-t border-stone-100 pt-3">Some worker details are public as shown here. Email and phone stay private until the worker accepts a request.</p>
           </Card>
 
-          <ResumeSummary worker={worker} />
+          {worker.profileVisibility?.resume !== false ? <ResumeSummary worker={worker} /> : null}
 
-          {worker.skills?.length ? (
+          {worker.profileVisibility?.skills !== false && worker.skills?.length ? (
             <Card className="p-6">
               <h2 className="text-[18px] leading-[1.3] font-medium tracking-[-0.36px] text-ink-black">
                 Skills and services
@@ -176,10 +180,10 @@ export function WorkerProfile({ id }: { id: string }) {
             </Card>
           ) : null}
 
-          <WorkerOffers worker={worker} />
+          {worker.profileVisibility?.offers !== false ? <WorkerOffers worker={worker} /> : null}
 
           {/* Portfolio */}
-          <Card className="overflow-hidden p-0">
+          {worker.profileVisibility?.portfolio !== false ? <Card className="overflow-hidden p-0">
             <div className="border-b border-stone-200 px-6 py-4">
               <h2 className="text-[18px] leading-[1.3] font-medium tracking-[-0.36px] text-ink-black">
                 Before &amp; after portfolio
@@ -235,7 +239,7 @@ export function WorkerProfile({ id }: { id: string }) {
                 ))}
               </ul>
             )}
-          </Card>
+          </Card> : null}
 
           {/* Reviews */}
           <Card className="overflow-hidden p-0">
@@ -283,6 +287,7 @@ export function WorkerProfile({ id }: { id: string }) {
         </div>
 
         <div className="lg:sticky lg:top-20">
+          <div className="mb-3"><MessageWorkerButton worker={worker} /></div>
           <RequestPanel worker={worker} />
         </div>
       </div>
@@ -404,7 +409,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
       <div className="flex flex-col gap-3">
         <div>
           <label className="label" htmlFor="req-title">
-            What needs doing
+            What needs doing <span className="text-rose-700">*</span>
           </label>
           <input
             id="req-title"
@@ -413,12 +418,14 @@ function RequestPanel({ worker }: { worker: Worker }) {
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Leaking kitchen pipe"
             maxLength={90}
+            required
+            minLength={3}
           />
         </div>
 
         <div>
           <label className="label" htmlFor="req-desc">
-            Description
+            Description <span className="text-rose-700">*</span>
           </label>
           <textarea
             id="req-desc"
@@ -426,23 +433,28 @@ function RequestPanel({ worker }: { worker: Worker }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Describe the issue, where it is, and when you are available."
+            required
+            minLength={10}
+            maxLength={2000}
           />
           <p className="caption mt-1">
-            Minimum 10 characters. The worker assesses scope before quoting.
+            At least 10 characters. The worker assesses scope before quoting. ({description.length}/2,000)
           </p>
         </div>
 
         <div>
           <label className="label" htmlFor="req-place">
-            Service address barangay
+            Service address barangay <span className="text-rose-700">*</span>
           </label>
-          <input
+          <select
             id="req-place"
             className="field"
             value={barangay}
             onChange={(e) => setBarangay(e.target.value)}
-            placeholder="Baras"
-          />
+            required
+          >
+            {[...new Set([worker.barangay, ...(worker.serviceAreas ?? [])])].map((area) => <option key={area} value={area}>{area}</option>)}
+          </select>
         </div>
 
         <div>

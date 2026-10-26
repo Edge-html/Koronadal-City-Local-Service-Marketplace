@@ -4,12 +4,13 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal, X } from "lucide-react";
 import { Card, EmptyState, Skeleton } from "@/components/ui";
-import { BARANGAYS, CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
+import { BARANGAYS, CATEGORY_MAP } from "@/lib/constants";
 import { firebaseConfigured } from "@/lib/firebase";
 import { FirebaseSetupNotice } from "@/components/FirebaseSetupNotice";
 import { WorkerCard } from "@/components/WorkerCard";
 import { listDirectoryWorkers } from "@/lib/data";
 import { normalize } from "@/lib/utils";
+import { useServiceCategories } from "@/hooks/useServiceCategories";
 import type { Worker } from "@/lib/types";
 
 /**
@@ -46,6 +47,7 @@ function BrowseSkeleton() {
 }
 
 function BrowseInner() {
+  const categories = useServiceCategories();
   const params = useSearchParams();
   const categoryParam = params.get("category") ?? "";
 
@@ -99,7 +101,7 @@ function BrowseInner() {
 
     return workers.filter((worker) => {
       if (category && worker.categoryId !== category) return false;
-      if (barangay && worker.barangay !== barangay) return false;
+      if (barangay && worker.barangay !== barangay && !(worker.serviceAreas ?? []).includes(barangay)) return false;
       if (minRating && worker.rating < minRating) return false;
       if (verifiedOnly && !worker.verified) return false;
       if (tesdaOnly && !worker.tesdaCertified) return false;
@@ -112,7 +114,9 @@ function BrowseInner() {
           worker.fullName,
           CATEGORY_MAP[worker.categoryId]?.name ?? "",
           worker.barangay,
+          ...(worker.serviceAreas ?? []),
           worker.bio,
+          worker.specialtyDescription ?? "",
         ].join(" "),
       ).includes(q);
     });
@@ -206,8 +210,8 @@ function BrowseInner() {
               value={category}
               onChange={(e) => setCategory(e.target.value)}
             >
-              <option value="">All ten trades</option>
-              {CATEGORIES.map((c) => (
+              <option value="">All services</option>
+              {categories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>

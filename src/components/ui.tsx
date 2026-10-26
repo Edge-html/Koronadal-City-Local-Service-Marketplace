@@ -215,7 +215,7 @@ export function StarRating({
       </span>
       {showValue ? (
         <span className="font-[family-name:var(--font-system-ui)] text-[12px] tracking-[-0.36px] tabular-nums">
-          {value > 0 ? value.toFixed(1) : "â€”"}
+          {value > 0 ? value.toFixed(1) : "—"}
           {count !== undefined ? (
             <span className="text-stone-400"> ({count})</span>
           ) : null}
@@ -333,7 +333,7 @@ export function LoadingBlock({ label = "Loading" }: { label?: string }) {
     >
       <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-stone-200 border-t-ink-black" />
       <span className="font-[family-name:var(--font-system-ui)] text-[12px] tracking-[-0.36px]">
-        {label}â€¦
+        {label}…
       </span>
     </div>
   );

@@ -7,7 +7,7 @@ import { SKILLS_BY_CATEGORY } from "@/lib/constants";
 export const runtime = "nodejs";
 
 type JobEmailStage = "request_accepted" | "request_declined" | "quote_sent" | "quote_approved" | "work_completed" | "payment_proof_submitted" | "payment_confirmed" | "review_received";
-type Operation = "emailDiagnostics" | "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings";
+type Operation = "emailDiagnostics" | "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "acceptJob" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings" | "setServiceEnabled";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -189,6 +189,8 @@ export async function POST(request: NextRequest) {
       proofPath?: string;
       reference?: string;
       sendTest?: boolean;
+      categoryId?: string;
+      enabled?: boolean;
     };
     const operation = input.operation;
     if (!operation) return fail("Missing operation.");
@@ -225,6 +227,15 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date().toISOString(),
         updatedBy: user.uid,
       }, { merge: true });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "setServiceEnabled") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "admin") return fail("Administrators only.", 403);
+      const categoryId = String(input.categoryId ?? "");
+      if (!/^[a-z0-9-]{2,60}$/.test(categoryId) || typeof input.enabled !== "boolean") return fail("Choose a valid service and status.");
+      await db.collection("serviceControls").doc(categoryId).set({ enabled: input.enabled, updatedAt: new Date().toISOString(), updatedBy: user.uid }, { merge: true });
       return NextResponse.json({ ok: true });
     }
 
@@ -615,11 +626,11 @@ export async function POST(request: NextRequest) {
 
     if (operation === "resubmitCredentials") {
       const docs = input.credentials;
-      const required = ["government_id", "barangay_clearance", "recommendation_letter"];
+      const required = ["government_id", "barangay_clearance"];
       if (!Array.isArray(docs) || !required.every((type) => docs.some((item) => item.type === type))
         || docs.some((item) => !["government_id", "barangay_clearance", "recommendation_letter", "tesda_certificate"].includes(item.type)
           || !item.fileUrl.startsWith("credentials/" + user.uid + "/"))) {
-        return fail("Upload all three required documents.");
+        return fail("Upload your government ID and barangay or police clearance.");
       }
       const workers = await db.collection("workers").where("uid", "==", user.uid).limit(1).get();
       if (workers.empty) return fail("Worker profile not found.");
@@ -676,7 +687,7 @@ export async function POST(request: NextRequest) {
           delete publicResume.fileUrl;
         }
         const docs = current?.verificationDocs ?? worker.verificationDocs ?? [];
-        const needsFreshFiles = docs.length < 3 || docs.some((item: { fileUrl?: string }) =>
+        const needsFreshFiles = docs.length < 2 || docs.some((item: { fileUrl?: string }) =>
           !item.fileUrl?.startsWith("credentials/"));
         const batch = db.batch();
         batch.set(privateRef, {

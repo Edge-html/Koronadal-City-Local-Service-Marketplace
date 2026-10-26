@@ -27,6 +27,7 @@ function SignUpForm() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [justCreated, setJustCreated] = useState(false);
 
   // Someone who already has an account should upgrade it, not create a second
   // one. People start here to hire services and some later offer them.
@@ -34,26 +35,31 @@ function SignUpForm() {
 
   // Phone numbers are used for direct coordination after a request is accepted.
   const phoneValid = useMemo(
-    () => phone.trim() === "" || /^(09\d{9}|\+639\d{9})$/.test(phone.trim()),
+    () => /^(09\d{9}|\+639\d{9})$/.test(phone.trim().replace(/[\s-]/g, "")),
     [phone],
   );
 
   // Already a worker (or admin): there is nothing to register, send them on.
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading || !user || busy || justCreated) return;
     if (accountRole === "admin") router.replace("/admin");
     else if (accountRole === "worker")
       router.replace("/");
-  }, [authLoading, user, accountRole, router]);
+  }, [authLoading, user, accountRole, router, busy, justCreated]);
 
   async function onSubmit(event: React.FormEvent) {
     event.preventDefault();
+    if (!phoneValid) {
+      setError("Enter a valid Philippine mobile number to continue.");
+      return;
+    }
     setError("");
     setBusy(true);
     try {
-      await signUp(email, password, fullName, role, phone.trim());
+      await signUp(email, password, fullName, role, phone.trim().replace(/[\s-]/g, ""));
+      setJustCreated(true);
       // Workers land straight into the 3-step self-registration flow.
-      router.push(role === "worker" ? "/dashboard/worker/onboarding" : "/");
+      router.push(`/verify-email?next=${encodeURIComponent(role === "worker" ? "/dashboard/worker/onboarding" : "/")}`);
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
@@ -126,8 +132,8 @@ function SignUpForm() {
               Identity and contact details
             </li>
             <li className="text-[13px] leading-[1.45] text-stone-700">
-              Government photo ID, barangay or police clearance, and a letter
-              of recommendation
+              Government photo ID and barangay or police clearance; a letter
+              of recommendation is optional
             </li>
             <li className="text-[13px] leading-[1.45] text-stone-700">
               A background check clearing within 24 to 48 hours
@@ -170,6 +176,9 @@ function SignUpForm() {
   }
 
   /* ---- Signed out, or worker/admin: the normal form or a redirect ---- */
+  if (user && busy) {
+    return <AuthShell eyebrow="Setting up your account" title="One moment" description="Preparing your email verification link."><Card className="p-6"><p className="meta">Please wait…</p></Card></AuthShell>;
+  }
   if (user) return null;
 
   return (
@@ -216,7 +225,7 @@ function SignUpForm() {
 
         <div>
           <label className="label" htmlFor="fullName">
-            Full name
+            Full name <span className="text-rose-700">*</span>
           </label>
           <input
             id="fullName"
@@ -232,7 +241,7 @@ function SignUpForm() {
 
         <div>
           <label className="label" htmlFor="signup-email">
-            Email address
+            Email address <span className="text-rose-700">*</span>
           </label>
           <input
             id="signup-email"
@@ -248,7 +257,7 @@ function SignUpForm() {
 
         <div>
           <label className="label" htmlFor="phone">
-            Mobile number
+            Mobile number <span className="text-rose-700">*</span>
           </label>
           <input
             id="phone"
@@ -256,6 +265,7 @@ function SignUpForm() {
             inputMode="tel"
             autoComplete="tel"
             className="field"
+            required
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
             placeholder="0917 000 0000"
@@ -271,14 +281,14 @@ function SignUpForm() {
             }
           >
             {phoneValid
-              ? "Used to coordinate directly after a worker accepts. Format: 09XX XXX XXXX"
+              ? "Required to coordinate directly after a worker accepts. Format: 09XX XXX XXXX"
               : "Enter a valid Philippine mobile number."}
           </p>
         </div>
 
         <div>
           <label className="label" htmlFor="signup-password">
-            Password
+            Password <span className="text-rose-700">*</span>
           </label>
           <input
             id="signup-password"
@@ -293,7 +303,7 @@ function SignUpForm() {
           />
         </div>
 
-        <button type="submit" className="btn-primary mt-2 w-full" disabled={busy}>
+        <button type="submit" className="btn-primary mt-2 w-full" disabled={busy || !phoneValid}>
           {busy ? (
             <>
               <Loader2 size={14} strokeWidth={1.5} className="animate-spin" />

@@ -23,9 +23,9 @@ export function SiteNav() {
   const links = role === "admin"
     ? [{ href: "/admin", label: "Review queue", count: adminCount }, { href: "/browse", label: "Worker directory", count: 0 }]
     : role === "worker"
-      ? [{ href: "/", label: "Home", count: 0 }, { href: "/dashboard/worker", label: "My jobs", count: workerCount }, { href: "/dashboard/wallet", label: "Wallet", count: 0 }]
+      ? [{ href: "/", label: "Home", count: 0 }, { href: "/dashboard/worker", label: "My jobs", count: workerCount }, { href: "/dashboard/messages", label: "Messages", count: 0 }, { href: "/dashboard/wallet", label: "Wallet", count: 0 }]
       : role === "customer"
-        ? [{ href: "/", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/dashboard/customer", label: "My requests", count: customerCount }]
+        ? [{ href: "/", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/messages", label: "Messages", count: 0 }]
         : [{ href: "/landing", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/platform", label: "How it works", count: 0 }];
   const accountName = user?.displayName?.trim() || user?.email?.split("@")[0] || "Account";
   const accountLinks = role === "worker" ? [
@@ -33,8 +33,9 @@ export function SiteNav() {
     { href: "/dashboard/worker/credentials", label: "Verification documents", count: 0 },
     { href: "/browse", label: "Hire a worker", count: 0 },
     { href: "/dashboard/customer", label: "My requests as a customer", count: customerCount },
+    { href: "/dashboard/messages", label: "Messages", count: 0 },
   ] : role === "admin" ? [{ href: "/admin", label: "Review queue", count: adminCount }]
-    : [{ href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/customer/profile", label: "My profile", count: 0 }];
+    : [{ href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/customer/profile", label: "My profile", count: 0 }, { href: "/dashboard/messages", label: "Messages", count: 0 }];
 
   useEffect(() => { setOpen(false); setAccountOpen(false); }, [pathname]);
   useEffect(() => {

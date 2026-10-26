@@ -19,7 +19,7 @@ import {
   Skeleton,
   safeAsync,
 } from "@/components/ui";
-import { BARANGAYS, CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
+import { BARANGAYS, CATEGORY_MAP } from "@/lib/constants";
 import { formatPeso } from "@/lib/commission";
 import {
   createOffer,
@@ -29,6 +29,7 @@ import {
 } from "@/lib/data";
 import { formatDate } from "@/lib/utils";
 import type { Inquiry, ServiceOffer, Worker } from "@/lib/types";
+import { useServiceCategories } from "@/hooks/useServiceCategories";
 
 /**
  * "My Services" — the work a worker has put on offer.
@@ -356,6 +357,7 @@ function OfferForm({
   worker: Worker;
   onDone: () => Promise<void>;
 }) {
+  const categories = useServiceCategories();
   const [title, setTitle] = useState("");
   const [categoryId, setCategoryId] = useState(worker.categoryId);
   const [description, setDescription] = useState("");
@@ -407,7 +409,7 @@ function OfferForm({
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <label className="label" htmlFor="of-title">
-            What you offer
+            What you offer <span className="text-rose-700">*</span>
           </label>
           <input
             id="of-title"
@@ -419,7 +421,7 @@ function OfferForm({
         </div>
         <div>
           <label className="label" htmlFor="of-cat">
-            Trade
+            Trade <span className="text-rose-700">*</span>
           </label>
           <select
             id="of-cat"
@@ -427,7 +429,7 @@ function OfferForm({
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
           >
-            {CATEGORIES.map((c) => (
+            {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
               </option>
@@ -436,7 +438,7 @@ function OfferForm({
         </div>
         <div>
           <label className="label" htmlFor="of-price">
-            Starting price (PHP)
+            Starting price (PHP) <span className="text-rose-700">*</span>
           </label>
           <input
             id="of-price"

@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Search } from "lucide-react";
 import { EmptyState, SectionHeader, Skeleton } from "@/components/ui";
 import { WorkerCard } from "@/components/WorkerCard";
-import { CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
+import { CATEGORY_MAP } from "@/lib/constants";
 import { listDirectoryWorkers } from "@/lib/data";
 import { normalize } from "@/lib/utils";
 import type { Worker } from "@/lib/types";
+import { useServiceCategories } from "@/hooks/useServiceCategories";
 
 /**
  * "Find a worker" on the home page.
@@ -27,6 +28,7 @@ export function FindWorkerSection({ limit = 6 }: { limit?: number }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
   const [error, setError] = useState("");
+  const categories = useServiceCategories();
 
   useEffect(() => {
     let cancelled = false;
@@ -62,7 +64,9 @@ export function FindWorkerSection({ limit = 6 }: { limit?: number }) {
             worker.fullName,
             CATEGORY_MAP[worker.categoryId]?.name ?? "",
             worker.barangay,
+            ...(worker.serviceAreas ?? []),
             worker.bio,
+            worker.specialtyDescription ?? "",
           ].join(" "),
         ).includes(q);
       })
@@ -80,15 +84,6 @@ export function FindWorkerSection({ limit = 6 }: { limit?: number }) {
         eyebrow="Find a worker"
         title="Verified trades, ready to book"
         description="Every profile here has cleared a background check. Contact details stay masked until a request is formally accepted."
-        action={
-          // The one blue element on the home page. The directory cards below
-          // are the real way in, but this is the single action that carries
-          // forward, so it takes the accent.
-          <Link href="/browse" className="btn-primary no-underline">
-            <SlidersHorizontal size={13} strokeWidth={1.5} />
-            All filters
-          </Link>
-        }
       />
 
       {/* Search + trades */}
@@ -126,9 +121,9 @@ export function FindWorkerSection({ limit = 6 }: { limit?: number }) {
                 : "rounded-md border border-stone-200 bg-bone px-3 py-1.5 text-[12px] tracking-[-0.02em] text-stone-600 transition-colors hover:border-stone-400"
             }
           >
-            All ten trades
+            All services
           </button>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <button
               key={c.id}
               type="button"

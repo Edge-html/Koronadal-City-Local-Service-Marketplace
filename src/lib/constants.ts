@@ -1,8 +1,7 @@
 import type { Tone } from "@/components/ui";
 
 /**
- * The ten essential household service categories, plus the twenty-five
- * barangays of Koronadal City, verified against the official list.
+ * General household service categories and Koronadal City barangays.
  */
 
 export interface Category {
@@ -105,6 +104,41 @@ export const CATEGORIES: Category[] = [
       "Cutting overgrown mango trees near power lines, lot clearing, lawn turf trimming.",
     floor: 400,
   },
+  {
+    id: "home-cleaning",
+    name: "Home Cleaning & Laundry",
+    scope: "Home cleaning, laundry, ironing, and household upkeep.",
+    useCases: "Room cleaning, move-in cleaning, laundry, and ironing.",
+    floor: 300,
+  },
+  {
+    id: "beauty-care",
+    name: "Beauty & Personal Care",
+    scope: "At-home grooming and personal care services.",
+    useCases: "Hair rebonding, haircutting, manicure, and pedicure.",
+    floor: 250,
+  },
+  {
+    id: "tutoring",
+    name: "Tutoring & Lessons",
+    scope: "Academic tutoring and practical lessons for children and adults.",
+    useCases: "Reading support, math tutoring, and music lessons.",
+    floor: 300,
+  },
+  {
+    id: "computer-phone",
+    name: "Computer & Phone Help",
+    scope: "Basic device setup, troubleshooting, and repair services.",
+    useCases: "Computer setup, software troubleshooting, and phone repair.",
+    floor: 300,
+  },
+  {
+    id: "moving-errands",
+    name: "Moving & Household Help",
+    scope: "Household assistance, moving help, and local errands.",
+    useCases: "Furniture moving, packing help, and household errands.",
+    floor: 300,
+  },
 ];
 
 export const CATEGORY_MAP = Object.fromEntries(
@@ -123,6 +157,11 @@ export const SKILLS_BY_CATEGORY: Record<string, string[]> = {
   welding: ["Gate repair", "Metal fabrication", "Window grills", "Steel frame assembly", "Hinge repair", "Metal cutting", "Structural welding", "Custom metalwork"],
   mechanical: ["Motorcycle tune-up", "Oil change", "Brake repair", "Carburetor cleaning", "Generator repair", "Water pump repair", "Engine diagnostics", "Small engine maintenance"],
   groundskeeping: ["Lawn mowing", "Tree trimming", "Brush clearing", "Land clearing", "Garden cleanup", "Hedge trimming", "Debris removal", "Basic landscaping"],
+  "home-cleaning": ["Home cleaning", "Deep cleaning", "Laundry", "Ironing", "Move-in cleaning", "Kitchen cleaning"],
+  "beauty-care": ["Manicure", "Pedicure", "Hair rebonding", "Haircut", "Hair coloring", "Makeup"],
+  tutoring: ["Math tutoring", "Reading lessons", "English tutoring", "Science tutoring", "Music lessons", "Homework support"],
+  "computer-phone": ["Computer setup", "Device troubleshooting", "Phone repair", "Software installation", "Wi-Fi setup"],
+  "moving-errands": ["Packing", "Furniture moving", "Household help", "Local errands", "Assembly help"],
 };
 
 export const BARANGAYS = [

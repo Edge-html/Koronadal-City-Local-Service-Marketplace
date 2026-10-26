@@ -216,7 +216,7 @@ export function WorkerHome() {
                           }, "decline-home")}
                           icon={<X size={13} strokeWidth={1.5} />}
                         >
-                          Decline
+                          Deny request
                         </ActionButton>
                       </>
                     }

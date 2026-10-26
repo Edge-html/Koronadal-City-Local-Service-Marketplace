@@ -216,7 +216,7 @@ export default function WorkerDashboardPage() {
                             }
                           })}
                         >
-                          Decline
+                          Deny request
                         </ActionButton>
                       </>
                     ) : null}

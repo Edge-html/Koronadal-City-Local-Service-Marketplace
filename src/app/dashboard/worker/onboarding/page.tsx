@@ -10,13 +10,14 @@ import {
   Notice,
   StatCard,
 } from "@/components/ui";
-import { BARANGAYS, CATEGORIES, SERVICE_POINTS } from "@/lib/constants";
+import { BARANGAYS, SERVICE_POINTS } from "@/lib/constants";
 import { DOC_TYPES, type DocType } from "@/lib/types";
 import { createWorkerProfile, getWorkerByUid } from "@/lib/data";
 import { uploadCredential } from "@/lib/credentials";
 import { formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import { cx } from "@/lib/utils";
+import { useServiceCategories } from "@/hooks/useServiceCategories";
 
 const STEPS = [
   { n: 1, name: "Identity & contact" },
@@ -28,6 +29,7 @@ export default function WorkerOnboardingPage() {
   const { user, profile, role, becomeWorker, loading: authLoading } =
     useAuth();
   const router = useRouter();
+  const categories = useServiceCategories();
 
   const [step, setStep] = useState(1);
   const [existing, setExisting] = useState<boolean | null>(null);
@@ -42,7 +44,9 @@ export default function WorkerOnboardingPage() {
   const [referral, setReferral] = useState("");
 
   // [step 2]
-  const [docs, setDocs] = useState<Record<string, { fileName: string; file: File }>>({});
+  const [docs, setDocs] = useState<Record<string, { fileName: string; file: File }[]>>({});
+  const [serviceAreas, setServiceAreas] = useState<string[]>([]);
+  const [specialtyDescription, setSpecialtyDescription] = useState("");
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -65,14 +69,13 @@ export default function WorkerOnboardingPage() {
   }, [profile]);
 
   const step1Valid =
-    categoryId !== "" && barangay !== "" && years !== "" && hourly !== "" && bio.trim().length >= 20;
+    categoryId !== "" && barangay !== "" && years !== "" && Number(years) >= 0 && Number(hourly) > 0 && /^(09\d{9}|\+639\d{9})$/.test(phone.trim().replace(/[\s-]/g, "")) && bio.trim().length >= 20 && specialtyDescription.trim().length >= 2;
 
   const mandatoryDocs: DocType[] = [
     "government_id",
     "barangay_clearance",
-    "recommendation_letter",
   ];
-  const step2Valid = mandatoryDocs.every((type) => docs[type]?.file);
+  const step2Valid = mandatoryDocs.every((type) => docs[type]?.length);
 
   async function submit() {
     setBusy(true);
@@ -91,24 +94,28 @@ export default function WorkerOnboardingPage() {
         await becomeWorker();
       }
 
-      const uploadedDocs = await Promise.all(Object.entries(docs).map(async ([type, value]) => ({
-        type: type as DocType,
-        fileName: value.fileName,
-        fileUrl: await uploadCredential(value.file),
-        uploadedAt: new Date().toISOString(),
-        reviewState: "pending" as const,
-      })));
+      const uploadedDocs = await Promise.all(Object.entries(docs).flatMap(([type, files]) =>
+        files.map(async (value) => ({
+          type: type as DocType,
+          fileName: value.fileName,
+          fileUrl: await uploadCredential(value.file),
+          uploadedAt: new Date().toISOString(),
+          reviewState: "pending" as const,
+        })),
+      ));
       await createWorkerProfile({
         uid: user!.uid,
         fullName: user!.displayName || "",
-        phone: phone.trim(),
+        phone: phone.trim().replace(/[\s-]/g, ""),
         email: user!.email || "",
         categoryId,
         barangay,
+        serviceAreas: [...new Set([barangay, ...serviceAreas])],
         bio: bio.trim(),
+        specialtyDescription: specialtyDescription.trim(),
         yearsExperience: Number(years) || 0,
         hourlyRate: Number(hourly) || 0,
-        tesdaCertified: Boolean(docs.tesda_certificate),
+        tesdaCertified: Boolean(docs.tesda_certificate?.length),
         referredBy: referral.trim().toUpperCase(),
         verificationDocs: uploadedDocs,
       });
@@ -189,16 +196,17 @@ export default function WorkerOnboardingPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="label" htmlFor="ob-cat">
-                    Primary service
+                    Primary service <span className="text-rose-700">*</span>
                   </label>
                   <select
                     id="ob-cat"
+                    required
                     className="field"
                     value={categoryId}
                     onChange={(e) => setCategoryId(e.target.value)}
                   >
                     <option value="">Select a service</option>
-                    {CATEGORIES.map((c) => (
+                    {categories.map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.name}
                       </option>
@@ -208,10 +216,11 @@ export default function WorkerOnboardingPage() {
 
                 <div>
                   <label className="label" htmlFor="ob-brgy">
-                    Barangay
+                    Home barangay <span className="text-rose-700">*</span>
                   </label>
                   <select
                     id="ob-brgy"
+                    required
                     className="field"
                     value={barangay}
                     onChange={(e) => setBarangay(e.target.value)}
@@ -227,10 +236,13 @@ export default function WorkerOnboardingPage() {
 
                 <div>
                   <label className="label" htmlFor="ob-years">
-                    Years of experience
+                    Years of experience <span className="text-rose-700">*</span>
                   </label>
                   <input
                     id="ob-years"
+                    type="number"
+                    min={0}
+                    required
                     className="field"
                     inputMode="numeric"
                     value={years}
@@ -241,10 +253,13 @@ export default function WorkerOnboardingPage() {
 
                 <div>
                   <label className="label" htmlFor="ob-rate">
-                    Reference hourly rate (PHP)
+                    Service rate (PHP) <span className="text-rose-700">*</span>
                   </label>
                   <input
                     id="ob-rate"
+                    type="number"
+                    min={1}
+                    required
                     className="field"
                     inputMode="decimal"
                     value={hourly}
@@ -256,12 +271,14 @@ export default function WorkerOnboardingPage() {
 
               <div>
                 <label className="label" htmlFor="ob-phone">
-                  Mobile number for accepted-job contact
+                  Mobile number for accepted-job contact <span className="text-rose-700">*</span>
                 </label>
                 <input
                   id="ob-phone"
                   type="tel"
                   className="field"
+                  required
+                  pattern="(09[0-9]{9}|[+]639[0-9]{9})"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   placeholder="0917 000 0000"
@@ -270,20 +287,50 @@ export default function WorkerOnboardingPage() {
 
               <div>
                 <label className="label" htmlFor="ob-bio">
-                  About your work
+                  About your work <span className="text-rose-700">*</span>
                 </label>
                 <textarea
                   id="ob-bio"
+                  required
+                  minLength={20}
                   className="field min-h-[100px] resize-y"
                   value={bio}
                   onChange={(e) => setBio(e.target.value)}
                   placeholder="What you specialise in, the kinds of jobs you take, and anything a household should know."
                 />
                 <p className="caption mt-1">
-                  At least 20 characters. This is the first thing a household
-                  reads on your profile.
+                  At least 20 characters. This appears on your public profile if you choose to display it.
                 </p>
               </div>
+
+              <div>
+                <label className="label" htmlFor="ob-specialty">
+                  Your specific expertise <span className="text-rose-700">*</span>
+                </label>
+                <input
+                  id="ob-specialty"
+                  className="field"
+                  value={specialtyDescription}
+                  onChange={(e) => setSpecialtyDescription(e.target.value)}
+                  placeholder="e.g. Tile installer, cabinet maker, leak repair"
+                  maxLength={100}
+                  required
+                />
+                <p className="caption mt-1">Type the specific work you do within your main service.</p>
+              </div>
+
+              <fieldset>
+                <legend className="label">Barangays you can travel to</legend>
+                <p className="caption mb-2">Select every area you serve. Your home barangay is included automatically.</p>
+                <div className="grid max-h-48 gap-2 overflow-auto rounded-md border border-stone-200 p-3 sm:grid-cols-2">
+                  {BARANGAYS.filter((item) => item !== barangay).map((item) => (
+                    <label key={item} className="flex items-center gap-2 text-sm text-stone-700">
+                      <input type="checkbox" checked={serviceAreas.includes(item)} onChange={() => setServiceAreas((current) => current.includes(item) ? current.filter((value) => value !== item) : [...current, item])} className="accent-emerald-700" />
+                      {item}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
 
               <div>
                 <label className="label" htmlFor="ob-ref">
@@ -324,16 +371,17 @@ export default function WorkerOnboardingPage() {
                   Document upload
                 </h2>
                 <p className="mt-1.5 text-[13px] leading-[1.45] text-stone-600">
-                  Clear camera captures or PDF uploads. Three documents are
-                  mandatory; TESDA certification is optional but earns an
-                  official badge.
+                  A government ID and barangay or police clearance are
+                  required. A recommendation letter is optional. You may add
+                  more than one TESDA certificate.
                 </p>
               </div>
 
               <ul className="flex flex-col gap-3">
                 {(Object.keys(DOC_TYPES) as DocType[]).map((type) => {
                   const meta = DOC_TYPES[type];
-                  const uploaded = docs[type];
+                  const uploaded = docs[type] ?? [];
+                  const multiple = type === "tesda_certificate";
                   return (
                     <li
                       key={type}
@@ -351,17 +399,18 @@ export default function WorkerOnboardingPage() {
                         <p className="mt-1 text-[12px] leading-[1.45] text-stone-600">
                           {meta.purpose}
                         </p>
-                        {uploaded ? (
-                          <p className="mt-1.5 truncate text-[12px] text-ink-black">
-                            {uploaded.fileName}
+                        {uploaded.map((item, index) => (
+                          <p key={`${item.fileName}-${index}`} className="mt-1.5 flex items-center gap-2 truncate text-[12px] text-ink-black">
+                            <span className="truncate">{item.fileName}</span>
+                            <button type="button" className="btn-ghost px-1" aria-label={`Remove ${item.fileName}`} onClick={() => setDocs((prev) => ({ ...prev, [type]: (prev[type] ?? []).filter((_, i) => i !== index) }))}><Trash2 size={12} /></button>
                           </p>
-                        ) : null}
+                        ))}
                       </div>
 
                       <div className="flex shrink-0 items-center gap-2">
                         <label className="btn-neutral btn-sm cursor-pointer">
                           <FileUp size={13} strokeWidth={1.5} />
-                          {uploaded ? "Replace" : "Upload"}
+                          {multiple ? "Add certificate" : uploaded.length ? "Replace" : "Upload"}
                           <input
                             type="file"
                             accept="image/jpeg,image/png,image/webp,application/pdf"
@@ -371,27 +420,14 @@ export default function WorkerOnboardingPage() {
                               if (!file) return;
                               setDocs((prev) => ({
                                 ...prev,
-                                [type]: { fileName: file.name, file },
+                                [type]: multiple
+                                  ? [...(prev[type] ?? []), { fileName: file.name, file }].slice(0, 8)
+                                  : [{ fileName: file.name, file }],
                               }));
+                              e.currentTarget.value = "";
                             }}
                           />
                         </label>
-                        {uploaded ? (
-                          <button
-                            type="button"
-                            className="btn-ghost px-2"
-                            aria-label={`Remove ${meta.label}`}
-                            onClick={() =>
-                              setDocs((prev) => {
-                                const next = { ...prev };
-                                delete next[type];
-                                return next;
-                              })
-                            }
-                          >
-                            <Trash2 size={13} strokeWidth={1.5} />
-                          </button>
-                        ) : null}
                       </div>
                     </li>
                   );
@@ -399,8 +435,9 @@ export default function WorkerOnboardingPage() {
               </ul>
 
               <p className="caption">
-                Files are stored against your profile and reviewed by platform
-                administrators under the Data Privacy Act of 2012.
+                Required fields are marked with *. Your name, photo, service,
+                rate, work area and any details you choose to show will appear
+                on your public worker profile. Documents are only for review.
               </p>
 
               <div className="flex justify-between">
@@ -434,15 +471,15 @@ export default function WorkerOnboardingPage() {
 
               <dl className="grid gap-4 border-y border-stone-200 py-5 sm:grid-cols-3">
                 {[
-                  ["Service", CATEGORIES.find((c) => c.id === categoryId)?.name ?? "—"],
+                  ["Service", categories.find((c) => c.id === categoryId)?.name ?? "—"],
                   ["Barangay", barangay],
                   ["Experience", `${years || 0} years`],
-                  ["Reference rate", `${formatPeso(Number(hourly) || 0)}/hr`],
+                  ["Service rate", `${formatPeso(Number(hourly) || 0)}`],
                   ["Mobile", phone || "—"],
                   [
                     "Service floor",
                     formatPeso(
-                      CATEGORIES.find((c) => c.id === categoryId)?.floor ?? 0,
+                      categories.find((c) => c.id === categoryId)?.floor ?? 0,
                     ),
                   ],
                 ].map(([label, value]) => (
@@ -464,12 +501,13 @@ export default function WorkerOnboardingPage() {
                       {DOC_TYPES[type].label}
                     </li>
                   ))}
-                  {docs.tesda_certificate ? (
+                  {docs.tesda_certificate?.length ? (
                     <li className="flex items-center gap-2 text-[13px]">
                       <Check size={12} strokeWidth={2} className="text-ink-black" />
-                      {DOC_TYPES.tesda_certificate.label}
+                      {docs.tesda_certificate.length} {DOC_TYPES.tesda_certificate.label}{docs.tesda_certificate.length > 1 ? "s" : ""}
                     </li>
                   ) : null}
+                  {docs.recommendation_letter?.length ? <li className="flex items-center gap-2 text-[13px]"><Check size={12} strokeWidth={2} className="text-ink-black" />Optional recommendation letter</li> : null}
                 </ul>
               </div>
 

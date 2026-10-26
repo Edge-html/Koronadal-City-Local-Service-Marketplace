@@ -43,28 +43,28 @@ export function WorkerCard({ worker }: { worker: Worker }) {
         <StarRating value={worker.rating} count={worker.reviewCount} />
 
         <dl className="grid grid-cols-2 gap-2 border-t border-stone-200 pt-3">
-          <div>
+          {worker.profileVisibility?.serviceAreas !== false ? <div>
             <dt className="caption">Barangay</dt>
             <dd className="text-[13px] text-stone-700">{worker.barangay}</dd>
-          </div>
-          <div>
+          </div> : null}
+          {worker.profileVisibility?.experience !== false ? <div>
             <dt className="caption">Experience</dt>
             <dd className="text-[13px] text-stone-700 tabular-nums">
               {worker.yearsExperience} yrs
             </dd>
-          </div>
-          <div>
-            <dt className="caption">From</dt>
+          </div> : null}
+          {worker.profileVisibility?.rate !== false ? <div>
+            <dt className="caption">Service rate</dt>
             <dd className="text-[13px] text-stone-700 tabular-nums">
-              {formatPeso(worker.hourlyRate)}/hr
+              {formatPeso(worker.hourlyRate)}
             </dd>
-          </div>
-          <div>
+          </div> : null}
+          {worker.profileVisibility?.experience !== false ? <div>
             <dt className="caption">Jobs done</dt>
             <dd className="text-[13px] text-stone-700 tabular-nums">
               {worker.jobsCompleted}
             </dd>
-          </div>
+          </div> : null}
         </dl>
 
         <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-1">

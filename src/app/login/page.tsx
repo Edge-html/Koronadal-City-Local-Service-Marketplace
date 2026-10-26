@@ -9,7 +9,7 @@ import { AuthShell, friendlyAuthError } from "@/components/AuthShell";
 import { Notice } from "@/components/ui";
 
 function LoginForm() {
-  const { signIn } = useAuth();
+  const { signIn, resetPassword } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
 
@@ -17,6 +17,8 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetBusy, setResetBusy] = useState(false);
 
   const next = params.get("next") || "/dashboard";
 
@@ -74,6 +76,16 @@ function LoginForm() {
             placeholder="Minimum 6 characters"
           />
         </div>
+
+        <div className="-mt-2 flex justify-end">
+          <button type="button" className="text-xs text-stone-700 underline underline-offset-2" disabled={resetBusy || !email.trim()} onClick={async () => {
+            setResetBusy(true); setResetMessage(""); setError("");
+            try { await resetPassword(email.trim()); setResetMessage("If an account exists for this email, Firebase sent a password reset link. Check your inbox and Spam folder."); }
+            catch (err) { setError(err instanceof Error ? err.message : "Could not send a password reset link."); }
+            finally { setResetBusy(false); }
+          }}>{resetBusy ? "Sending reset link…" : "Forgot password?"}</button>
+        </div>
+        {resetMessage ? <Notice>{resetMessage}</Notice> : null}
 
         <button type="submit" className="btn-primary mt-2 w-full" disabled={busy}>
           {busy ? (

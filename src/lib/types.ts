@@ -69,7 +69,22 @@ export interface Worker {
   photoUrl?: string;
   categoryId: string;
   barangay: string;
+  /** Optional additional barangays the worker is willing to travel to. */
+  serviceAreas?: string[];
   bio: string;
+  /** Worker-written description of their specific expertise. */
+  specialtyDescription?: string;
+  profileVisibility?: {
+    bio?: boolean;
+    specialty?: boolean;
+    rate?: boolean;
+    serviceAreas?: boolean;
+    experience?: boolean;
+    skills?: boolean;
+    resume?: boolean;
+    portfolio?: boolean;
+    offers?: boolean;
+  };
   yearsExperience: number;
   rating: number;
   reviewCount: number;
@@ -131,9 +146,9 @@ export const DOC_TYPES: Record<
   },
   recommendation_letter: {
     label: "Letter of Recommendation",
-    requirement: "mandatory",
+    requirement: "optional",
     purpose:
-      "Written endorsement from a former employer, local community leader, or Barangay Official.",
+      "Optional letter from a former employer, Purok President, Barangay Official, or another community leader.",
   },
   tesda_certificate: {
     label: "TESDA National Certificate (NC II/III)",
@@ -188,6 +203,26 @@ export interface Inquiry {
   consumerId: string;
   consumerName: string;
   message: string;
+  createdAt: string;
+}
+
+export interface Conversation {
+  id: string;
+  consumerId: string;
+  consumerName: string;
+  workerId: string;
+  workerUid: string;
+  workerName: string;
+  participants: string[];
+  lastMessage: string;
+  updatedAt: string;
+}
+
+export interface DirectMessage {
+  id: string;
+  senderId: string;
+  senderName: string;
+  body: string;
   createdAt: string;
 }
 

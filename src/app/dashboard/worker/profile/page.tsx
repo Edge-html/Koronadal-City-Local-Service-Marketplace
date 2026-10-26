@@ -5,7 +5,7 @@ import { Copy, ExternalLink } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ActionButton } from "@/components/JobCard";
 import { Badge, Card, Notice, safeAsync, StarRating, StatCard } from "@/components/ui";
-import { CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
+import { BARANGAYS, CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
 import { PortfolioForm } from "@/components/PortfolioForm";
 import { ResumeEditor } from "@/components/ResumeEditor";
 import { getWorkerByUid, listReviews, updateWorker } from "@/lib/data";
@@ -22,6 +22,8 @@ export default function WorkerProfilePage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [bio, setBio] = useState("");
   const [hourly, setHourly] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [serviceAreas, setServiceAreas] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -34,6 +36,8 @@ export default function WorkerProfilePage() {
       if (w) {
         setBio(w.bio);
         setHourly(String(w.hourlyRate));
+        setSpecialty(w.specialtyDescription ?? "");
+        setServiceAreas(w.serviceAreas ?? []);
         setReviews(await listReviews(w.id));
       }
     });
@@ -64,9 +68,11 @@ export default function WorkerProfilePage() {
       await updateWorker(worker.id, {
         bio: bio.trim(),
         hourlyRate: Number(hourly) || 0,
+        specialtyDescription: specialty.trim(),
+        serviceAreas,
       });
       setSaved(true);
-      setWorker({ ...worker, bio: bio.trim(), hourlyRate: Number(hourly) || 0 });
+      setWorker({ ...worker, bio: bio.trim(), hourlyRate: Number(hourly) || 0, specialtyDescription: specialty.trim(), serviceAreas });
     } catch {
       setError("Could not save your profile. Please try again.");
     } finally {
@@ -87,6 +93,18 @@ export default function WorkerProfilePage() {
   }
 
   const trade = CATEGORY_MAP[worker.categoryId];
+  const visibilityFields: Array<[keyof NonNullable<Worker["profileVisibility"]>, string]> = [
+    ["bio", "About your work"], ["specialty", "Specific expertise"], ["rate", "Service rate"], ["serviceAreas", "Barangays you serve"],
+    ["experience", "Experience and completed-job count"], ["skills", "Skills"], ["resume", "Resume"], ["portfolio", "Portfolio"], ["offers", "Services on offer"],
+  ];
+
+  async function setVisibility(key: keyof NonNullable<Worker["profileVisibility"]>, visible: boolean) {
+    const currentWorker = worker;
+    if (!currentWorker) return;
+    const next = { ...(currentWorker.profileVisibility ?? {}), [key]: visible };
+    await updateWorker(currentWorker.id, { profileVisibility: next });
+    setWorker({ ...currentWorker, profileVisibility: next });
+  }
 
   return (
     <DashboardShell
@@ -100,7 +118,7 @@ export default function WorkerProfilePage() {
         <div className="grid gap-3 sm:grid-cols-4">
           <StatCard label="Rating" value={worker.rating.toFixed(1)} sublabel={`${worker.reviewCount} reviews`} />
           <StatCard label="Jobs completed" value={worker.jobsCompleted} />
-          <StatCard label="Reference rate" value={`${formatPeso(worker.hourlyRate)}/hr`} />
+          <StatCard label="Service rate" value={formatPeso(worker.hourlyRate)} />
           <StatCard label="Referral credits" value={worker.referralCredits} sublabel="Single tier, job-verified" />
         </div>
 
@@ -116,6 +134,7 @@ export default function WorkerProfilePage() {
               <p className="caption mt-0.5">
                 Households read this before sending a request
               </p>
+              <Notice>Public profile notice: your name, photo, service, service rate, work areas, experience, skills, and any enabled profile details can be seen by households. Your signup email, phone number, and verification documents remain private.</Notice>
             </div>
 
             {error ? <Notice tone="alert">{error}</Notice> : null}
@@ -140,10 +159,13 @@ export default function WorkerProfilePage() {
 
             <div>
               <label className="label" htmlFor="pf-rate">
-                Reference hourly rate (PHP)
+                Service rate (PHP) <span className="text-rose-700">*</span>
               </label>
               <input
                 id="pf-rate"
+                type="number"
+                min={1}
+                required
                 className="field"
                 inputMode="decimal"
                 value={hourly}
@@ -152,11 +174,30 @@ export default function WorkerProfilePage() {
             </div>
 
             <div>
+              <label className="label" htmlFor="pf-specialty">Specific expertise <span className="text-rose-700">*</span></label>
+              <input id="pf-specialty" className="field" value={specialty} onChange={(e) => setSpecialty(e.target.value)} placeholder="e.g. Tile installer, cabinet maker" maxLength={100} minLength={2} required />
+            </div>
+
+            <fieldset>
+              <legend className="label">Barangays you serve</legend>
+              <div className="grid max-h-48 gap-2 overflow-auto rounded-md border border-stone-200 p-3 sm:grid-cols-2">
+                {BARANGAYS.filter((area) => area !== worker.barangay).map((area) => (
+                  <label key={area} className="flex items-center gap-2 text-sm text-stone-700">
+                    <input type="checkbox" checked={serviceAreas.includes(area)} onChange={() => setServiceAreas((current) => current.includes(area) ? current.filter((value) => value !== area) : [...current, area])} className="accent-emerald-700" />
+                    {area}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <div>
               <label className="label" htmlFor="pf-bio">
-                About your work
+                About your work <span className="text-rose-700">*</span>
               </label>
               <textarea
                 id="pf-bio"
+                required
+                minLength={20}
                 className="field min-h-[120px] resize-y"
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
@@ -164,7 +205,7 @@ export default function WorkerProfilePage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <ActionButton onClick={save} busy={busy} disabled={bio.trim().length < 20}>
+              <ActionButton onClick={save} busy={busy} disabled={bio.trim().length < 20 || specialty.trim().length < 2 || Number(hourly) <= 0}>
                 Save changes
               </ActionButton>
               <a
@@ -180,6 +221,15 @@ export default function WorkerProfilePage() {
           </Card>
 
           <div className="flex flex-col gap-4">
+            <Card className="flex flex-col gap-3 p-5">
+              <div><h2 className="text-sm font-medium">What households can see</h2><p className="caption mt-1">Your name, photo, primary service and rating always appear. Choose whether to show these extra details.</p></div>
+              {visibilityFields.map(([key, label]) => {
+                const checked = worker.profileVisibility?.[key] !== false;
+                return <label key={key} className="flex items-center justify-between gap-3 rounded-md bg-stone-50 px-3 py-2 text-sm text-stone-700">
+                  {label}<input type="checkbox" checked={checked} onChange={(event) => setVisibility(key, event.target.checked).catch(() => setError("Could not update your public profile settings."))} className="accent-emerald-700" />
+                </label>;
+              })}
+            </Card>
             <Card className="flex flex-col gap-3 p-5">
               <p className="caption">Referral code</p>
               <p className="text-[28px] leading-none font-medium tracking-[0.12em] text-ink-black tabular-nums">

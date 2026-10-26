@@ -10,9 +10,9 @@ import {
   EmptyState,
   Notice,
 } from "@/components/ui";
-import { CATEGORY_MAP } from "@/lib/constants";
+import { CATEGORIES, CATEGORY_MAP } from "@/lib/constants";
 import { DOC_TYPES, type Job, type Worker } from "@/lib/types";
-import { checkEmailDiagnostics, decideTopUp, decideVerification, listAllJobs, listPendingTopUpRequests, listPendingWorkers, migrateLegacyWorkers, retryWorkerRequestEmail, type TopUpRequest } from "@/lib/data";
+import { checkEmailDiagnostics, decideTopUp, decideVerification, getDisabledServiceIds, listAllJobs, listPendingTopUpRequests, listPendingWorkers, migrateLegacyWorkers, retryWorkerRequestEmail, setServiceEnabled, type TopUpRequest } from "@/lib/data";
 import { computeTotals, formatPeso } from "@/lib/commission";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
@@ -40,7 +40,9 @@ function emailFailureMessage(reason?: string | null) {
 export default function AdminPage() {
   const { role, loading: authLoading } = useAuth();
   const { adminRevision, adminError, adminDisputes } = useActivity();
-  const [section, setSection] = useState<"workers" | "payments" | "oversight" | "alerts">("workers");
+  const [section, setSection] = useState<"workers" | "payments" | "oversight" | "alerts" | "services">("workers");
+  const [disabledServices, setDisabledServices] = useState<string[]>([]);
+  const [serviceBusy, setServiceBusy] = useState<string | null>(null);
 
   const [pending, setPending] = useState<Worker[] | null>(null);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -84,11 +86,30 @@ export default function AdminPage() {
       if (target === "payments") setSection("payments");
       if (target === "oversight") setSection("oversight");
       if (target === "alerts") setSection("alerts");
+      if (target === "services") setSection("services");
     };
     syncSection();
     window.addEventListener("hashchange", syncSection);
     return () => window.removeEventListener("hashchange", syncSection);
   }, []);
+
+  useEffect(() => {
+    if (role === "admin") getDisabledServiceIds().then(setDisabledServices).catch(() => undefined);
+  }, [role]);
+
+  async function toggleService(categoryId: string) {
+    const wasDisabled = disabledServices.includes(categoryId);
+    setServiceBusy(categoryId);
+    setDisabledServices((current) => wasDisabled ? current.filter((id) => id !== categoryId) : [...current, categoryId]);
+    try {
+      await setServiceEnabled(categoryId, wasDisabled);
+    } catch (err) {
+      setDisabledServices((current) => wasDisabled ? [...current, categoryId] : current.filter((id) => id !== categoryId));
+      setError(err instanceof Error ? err.message : "Could not update this service.");
+    } finally {
+      setServiceBusy(null);
+    }
+  }
 
   useEffect(() => {
     if (section !== "alerts" || role !== "admin") return;
@@ -228,6 +249,7 @@ export default function AdminPage() {
             { id: "payments", label: "Payment setup & top-ups", count: topUps.length },
             { id: "oversight", label: "Disputes & pricing", count: openDisputes.length },
             { id: "alerts", label: "Email alerts", count: jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).length },
+            { id: "services", label: "Home services", count: CATEGORIES.length - disabledServices.length },
           ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
             className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-ink-black bg-white font-semibold text-ink-black" : "border-stone-200 text-stone-700"}`}>
             {item.label}<CountBadge count={item.count} />
@@ -245,6 +267,22 @@ export default function AdminPage() {
           {jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).length === 0
             ? <p className="mt-2 text-sm text-stone-500">No unsent alerts for current requests.</p>
             : <ul className="mt-2 divide-y divide-stone-200">{jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).slice(0, 10).map((job) => <li key={job.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><span className="text-sm">{job.title} · {job.workerName}</span><ActionButton variant="neutral" busy={busyId === job.id} onClick={() => retryEmail(job)}>Retry email</ActionButton></li>)}</ul>}
+        </Card> : null}
+
+        {section === "services" ? <Card className="p-5">
+          <h2 className="text-[16px] font-medium">Service catalog</h2>
+          <p className="mt-1 text-sm text-stone-600">Enable services workers can select and households can filter. Related home services are grouped into broader categories.</p>
+          <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+            {CATEGORIES.map((category) => {
+              const enabled = !disabledServices.includes(category.id);
+              return <li key={category.id} className="flex items-center justify-between gap-3 rounded-lg border border-stone-200 p-3">
+                <div><p className="text-sm font-medium">{category.name}</p><p className="caption">{category.scope}</p></div>
+                <button type="button" role="switch" aria-checked={enabled} disabled={serviceBusy === category.id} onClick={() => toggleService(category.id)} className={`min-w-20 rounded-md px-3 py-2 text-xs font-medium ${enabled ? "bg-emerald-100 text-emerald-900" : "bg-stone-100 text-stone-600"}`}>
+                  {serviceBusy === category.id ? "Saving…" : enabled ? "Enabled" : "Disabled"}
+                </button>
+              </li>;
+            })}
+          </ul>
         </Card> : null}
 
         {section === "payments" ? <>
@@ -334,9 +372,9 @@ export default function AdminPage() {
                     </div>
 
                     <ul className="grid gap-1.5 sm:grid-cols-2">
-                      {worker.verificationDocs.map((doc) => (
+                      {worker.verificationDocs.map((doc, index) => (
                         <li
-                          key={doc.type}
+                          key={`${doc.type}-${index}`}
                           className="flex items-center justify-between gap-2 rounded-md border border-stone-200 bg-bone px-3 py-2"
                         >
                           <span className="truncate text-[12px] text-stone-700">
