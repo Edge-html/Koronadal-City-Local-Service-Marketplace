@@ -10,7 +10,18 @@ export function Hero() {
   useEffect(() => setMounted(true), []);
 
   return (
-    <section className="flex flex-col items-center px-6 pt-20 pb-6 text-center sm:pt-28">
+    <section className="relative isolate flex flex-col items-center overflow-hidden px-6 pt-20 pb-6 text-center sm:pt-28">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 hidden sm:block"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, #f8fafc 0%, rgba(248,250,252,.94) 34%, rgba(248,250,252,.58) 100%), linear-gradient(0deg, rgba(248,250,252,.5), rgba(248,250,252,.08)), url('/images/local-craft.webp')",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "100% 100%, 100% 100%, min(68vw, 920px) 100%",
+          backgroundPosition: "center, center, right 45%",
+        }}
+      />
       <LaunchPill mounted={mounted} />
 
       {/* Two lines: the statement lands in ink, the qualifier recedes. */}
