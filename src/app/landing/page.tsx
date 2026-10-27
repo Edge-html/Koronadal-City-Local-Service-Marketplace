@@ -30,8 +30,8 @@ export default function LandingPage() {
             backgroundImage:
               "linear-gradient(90deg, rgba(248,250,252,.82) 0%, rgba(248,250,252,.7) 42%, rgba(248,250,252,.48) 100%), linear-gradient(180deg, rgba(248,250,252,.04) 0%, rgba(248,250,252,.1) 60%, #f8fafc 100%), url('/images/local-craft.webp')",
             backgroundRepeat: "no-repeat",
-            backgroundSize: "100% 100%, 100% 100%, cover",
-            backgroundPosition: "center, center, center",
+            backgroundSize: "100% 100%, 100% 100%, 50% 100%",
+            backgroundPosition: "center, center, right center",
           }}
         />
         <Hero />
