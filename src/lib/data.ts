@@ -37,7 +37,41 @@ import { CATEGORIES } from "@/lib/constants";
 /** Resolved per call so an unconfigured environment fails at use, not import. */
 const db = getFirebaseDb;
 
-type MarketplaceActionResult = { error?: string; emailSent?: boolean; configured?: boolean; missingVariables?: string[]; reason?: string | null; recipient?: string };
+export interface ProPaymentSettings {
+  gcashAccountName: string;
+  gcashNumber: string;
+  gcashQrPath: string;
+  proFee: number;
+  updatedAt?: string;
+}
+
+export interface ProPaymentRequest {
+  id: string;
+  workerId: string;
+  workerUid: string;
+  workerName: string;
+  reference: string;
+  proofPath: string;
+  amount: number;
+  status: "pending" | "approved" | "rejected";
+  reviewNote?: string;
+  submittedAt: string;
+  reviewedAt?: string;
+}
+
+type MarketplaceActionResult = {
+  error?: string;
+  emailSent?: boolean;
+  configured?: boolean;
+  missingVariables?: string[];
+  reason?: string | null;
+  recipient?: string;
+  proPaymentSettings?: ProPaymentSettings | null;
+  proPaymentRequest?: ProPaymentRequest | null;
+  requests?: ProPaymentRequest[];
+  requestId?: string;
+  status?: ProPaymentRequest["status"];
+};
 
 async function marketplaceAction(payload: Record<string, unknown>): Promise<MarketplaceActionResult> {
   const token = await getFirebaseAuth().currentUser?.getIdToken();
@@ -298,8 +332,26 @@ export async function setWorkerServices(workerId: string, serviceIds: string[]) 
   await marketplaceAction({ operation: "setWorkerServices", workerId, serviceIds });
 }
 
-export async function setWorkerPro(workerId: string, enabled: boolean) {
-  await marketplaceAction({ operation: "setWorkerPro", workerId, isPro: enabled });
+export async function getProPaymentInfo() {
+  const result = await marketplaceAction({ operation: "getProPaymentInfo" });
+  return {
+    settings: result.proPaymentSettings ?? null,
+    request: result.proPaymentRequest ?? null,
+    requests: result.requests ?? [],
+  };
+}
+
+export async function saveProPaymentSettings(settings: ProPaymentSettings) {
+  await marketplaceAction({ operation: "saveProPaymentSettings", proPaymentSettings: settings });
+}
+
+export async function submitProPaymentRequest(workerId: string, proofPath: string, reference: string) {
+  const result = await marketplaceAction({ operation: "submitProPaymentRequest", workerId, proofPath, reference });
+  return result.requestId ?? "";
+}
+
+export async function reviewProPaymentRequest(requestId: string, approve: boolean, reviewNote = "") {
+  await marketplaceAction({ operation: "reviewProPaymentRequest", requestId, approve, reviewNote });
 }
 
 /**

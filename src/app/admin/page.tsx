@@ -18,6 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useActivity } from "@/context/ActivityContext";
 import { CountBadge, FlowGuide } from "@/components/FlowGuide";
 import { openCredential } from "@/lib/credentials";
+import { ProPaymentsAdminPanel } from "@/components/admin/ProPaymentsAdminPanel";
 
 function emailFailureMessage(reason?: string | null) {
   switch (reason) {
@@ -37,7 +38,7 @@ function emailFailureMessage(reason?: string | null) {
 export default function AdminPage() {
   const { role, loading: authLoading } = useAuth();
   const { adminRevision, adminError, adminDisputes } = useActivity();
-  const [section, setSection] = useState<"workers" | "oversight" | "alerts" | "services">("workers");
+  const [section, setSection] = useState<"workers" | "oversight" | "alerts" | "services" | "pro">("workers");
   const [disabledServices, setDisabledServices] = useState<string[]>([]);
   const [serviceBusy, setServiceBusy] = useState<string | null>(null);
   const [services, setServices] = useState<Category[]>([]);
@@ -86,6 +87,7 @@ export default function AdminPage() {
       if (target === "oversight") setSection("oversight");
       if (target === "alerts") setSection("alerts");
       if (target === "services") setSection("services");
+      if (target === "pro") setSection("pro");
     };
     syncSection();
     window.addEventListener("hashchange", syncSection);
@@ -226,7 +228,7 @@ export default function AdminPage() {
         <FlowGuide steps={[
           { title: "Choose a queue", detail: "Review worker applications, service options, reports, or email alerts." },
           { title: "Check the details", detail: "Open worker documents or review the job history before making a decision." },
-          { title: "Record the decision", detail: "Approve or reject worker applications, or update the service catalog." },
+          { title: "Record the decision", detail: "Approve or reject applications and payments, or update the service catalog." },
         ]} />
         <div id="admin-sections" className="flex flex-wrap gap-2 scroll-mt-24" aria-label="Review sections">
           {([
@@ -234,9 +236,10 @@ export default function AdminPage() {
             { id: "oversight", label: "Reports", count: openDisputes.length },
             { id: "alerts", label: "Email alerts", count: jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).length },
             { id: "services", label: "Home services", count: services.filter((item) => !disabledServices.includes(item.id)).length },
+            { id: "pro", label: "Pro payments" },
           ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
             className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-ink-black bg-white font-semibold text-ink-black" : "border-stone-200 text-stone-700"}`}>
-            {item.label}<CountBadge count={item.count} />
+            {item.label}{"count" in item ? <CountBadge count={item.count} /> : null}
           </button>)}
         </div>
         <p className="text-xs text-stone-500" role="status">{pending === null ? "Loading review queues…" : "Queue counts update automatically as requests arrive or are reviewed."}</p>
@@ -273,6 +276,8 @@ export default function AdminPage() {
             })}
           </ul>
         </Card> : null}
+
+        {section === "pro" ? <ProPaymentsAdminPanel /> : null}
 
         {/* Verification queue */}
         {section === "workers" ? <Card className="overflow-hidden p-0">

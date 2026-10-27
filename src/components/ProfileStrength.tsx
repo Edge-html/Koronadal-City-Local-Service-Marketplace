@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check, Circle, Sparkles } from "lucide-react";
+import { Check, Circle } from "lucide-react";
 import { Card } from "@/components/ui";
 import { getProfileStrength } from "@/lib/profile-strength";
 import type { Worker } from "@/lib/types";
@@ -14,7 +14,6 @@ export function ProfileStrength({ worker }: { worker: Worker }) {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <Sparkles size={16} strokeWidth={1.7} className="text-stone-500" aria-hidden="true" />
             <h2 className="text-[18px] font-medium tracking-[-0.36px] text-ink-black">Profile strength</h2>
           </div>
           <p className="mt-1 text-[13px] leading-[1.45] text-stone-600">

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Check, Sparkles } from "lucide-react";
+import { Check } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
+import { ProUpgradeCard } from "@/components/ProUpgradeCard";
 import { ActionButton, JobCard } from "@/components/JobCard";
 import { ProfileStrength } from "@/components/ProfileStrength";
 import { MyServices } from "@/components/MyServices";
@@ -21,7 +22,6 @@ import {
   declineJob,
   getOrCreateConversation,
   getWorkerByUid,
-  setWorkerPro,
 } from "@/lib/data";
 
 import { useActivity } from "@/context/ActivityContext";
@@ -42,7 +42,6 @@ export default function WorkerDashboardPage() {
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
-  const [proBusy, setProBusy] = useState(false);
   const [error, setError] = useState("");
 
   const refresh = async () => {
@@ -137,15 +136,7 @@ export default function WorkerDashboardPage() {
     >
       <div className="flex flex-col gap-4">
         {workerError ? <Notice tone="alert">{workerError}</Notice> : null}
-        <Card className="flex flex-wrap items-center justify-between gap-4 border-blue-200 bg-blue-50/50 p-5">
-          <div className="flex items-start gap-3"><span className="rounded-lg bg-blue-100 p-2 text-blue-800"><Sparkles size={16} /></span><div><h2 className="text-sm font-semibold">{worker.isPro ? "KoroHanap Pro is active" : "Try KoroHanap Pro"}</h2><p className="mt-1 max-w-[65ch] text-sm text-stone-600">Get a Pro badge, a highlighted profile card, and priority placement in the worker directory. Free during the pilot; no payment information is collected.</p></div></div>
-          <ActionButton variant={worker.isPro ? "neutral" : "primary"} busy={proBusy} onClick={async () => {
-            setProBusy(true); setError("");
-            try { await setWorkerPro(worker.id, !worker.isPro); setWorker({ ...worker, isPro: !worker.isPro }); }
-            catch (err) { setError(err instanceof Error ? err.message : "Could not update your Pro account."); }
-            finally { setProBusy(false); }
-          }}>{worker.isPro ? "Turn Pro off" : "Activate Pro"}</ActionButton>
-        </Card>
+        <ProUpgradeCard worker={worker} />
         {worker ? <ProfileStrength worker={worker} /> : null}
         <AttentionNotice count={workerCount}>{workerCount ? `${workerCount} job${workerCount === 1 ? " needs" : "s need"} your response or agreement confirmation. Choose “Needs your action” below.` : "New requests and customer chat confirmations appear here automatically."}</AttentionNotice>
         <FlowGuide steps={WORKER_STEPS} />

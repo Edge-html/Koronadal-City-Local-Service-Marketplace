@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { Copy, ExternalLink } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
+import { ProUpgradeCard } from "@/components/ProUpgradeCard";
 import { ActionButton } from "@/components/JobCard";
 import { Badge, Card, Notice, safeAsync, StarRating, StatCard } from "@/components/ui";
 import { BARANGAYS, CATEGORY_MAP } from "@/lib/constants";
 import { PortfolioForm } from "@/components/PortfolioForm";
 import { ResumeEditor } from "@/components/ResumeEditor";
-import { getWorkerByUid, listReviews, setWorkerPro, setWorkerServices, updateWorker } from "@/lib/data";
+import { getWorkerByUid, listReviews, setWorkerServices, updateWorker } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
 import { useAuth } from "@/context/AuthContext";
 import type { Review, Worker } from "@/lib/types";
@@ -232,7 +233,7 @@ export default function WorkerProfilePage() {
                 </label>;
               })}
             </Card>
-            <ProAccountCard worker={worker} onUpdated={(isPro) => setWorker({ ...worker, isPro })} />
+            <ProUpgradeCard worker={worker} />
             <Card className="flex flex-col gap-3 p-5">
               <p className="caption">Referral code</p>
               <p className="text-[28px] leading-none font-medium tracking-[0.12em] text-ink-black tabular-nums">
@@ -313,23 +314,4 @@ export default function WorkerProfilePage() {
       </div>
     </DashboardShell>
   );
-}
-
-function ProAccountCard({ worker, onUpdated }: { worker: Worker; onUpdated: (enabled: boolean) => void }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  async function toggle() {
-    setBusy(true); setError("");
-    try {
-      await setWorkerPro(worker.id, !worker.isPro);
-      onUpdated(!worker.isPro);
-    } catch (err) { setError(err instanceof Error ? err.message : "Could not update your account plan."); }
-    finally { setBusy(false); }
-  }
-  return <Card className="flex flex-col gap-3 p-5">
-    <div className="flex items-center justify-between gap-2"><h2 className="text-sm font-medium">KoroHanap Pro</h2>{worker.isPro ? <Badge tone="verified">PRO</Badge> : <Badge tone="muted">Standard</Badge>}</div>
-    <p className="text-sm leading-relaxed text-stone-600">Pro profiles get a highlighted card, a Pro badge, and priority placement in the worker directory. Pro is free during the pilot; no payment details are collected.</p>
-    {error ? <Notice tone="alert">{error}</Notice> : null}
-    <ActionButton variant={worker.isPro ? "neutral" : "primary"} busy={busy} onClick={toggle}>{worker.isPro ? "Switch to Standard" : "Activate Pro"}</ActionButton>
-  </Card>;
 }

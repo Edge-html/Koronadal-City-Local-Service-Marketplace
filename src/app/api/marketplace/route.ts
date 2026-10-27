@@ -3,11 +3,12 @@ import { adminServices } from "@/lib/firebase-admin";
 import { FieldValue } from "firebase-admin/firestore";
 import { emailRelayConfigured, emailRelayMissingVariables, escapeEmailHtml, sendTransactionalEmail, sendTransactionalEmailDetailed } from "@/lib/server-email";
 import { CATEGORIES, SKILLS_BY_CATEGORY } from "@/lib/constants";
+import { downloadPrivateFile } from "@/lib/supabase-storage";
 
 export const runtime = "nodejs";
 
 type JobEmailStage = "request_accepted" | "request_declined" | "quote_sent" | "quote_approved" | "agreement_confirmed" | "agreement_confirmed_customer" | "work_completed" | "payment_proof_submitted" | "payment_confirmed" | "review_received";
-type Operation = "emailDiagnostics" | "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "setWorkerServices" | "setWorkerPro" | "addService" | "acceptJob" | "confirmJobAgreement" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings" | "setServiceEnabled";
+type Operation = "emailDiagnostics" | "notifyWorkerNewRequest" | "notifyJobStage" | "notifyWorkerApproval" | "updateWorkerSkills" | "setWorkerServices" | "getProPaymentInfo" | "saveProPaymentSettings" | "submitProPaymentRequest" | "reviewProPaymentRequest" | "addService" | "acceptJob" | "confirmJobAgreement" | "approveQuote" | "completeJob" | "submitJobPayment" | "approveJobPayment" | "settleJob" | "submitReview" | "approveTopUp" | "rejectTopUp" | "migrateLegacyWorkers" | "resubmitCredentials" | "savePaymentSettings" | "setServiceEnabled";
 
 function money(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -188,15 +189,16 @@ export async function POST(request: NextRequest) {
       text?: string;
       credentials?: Array<{ type: string; fileName: string; fileUrl: string; uploadedAt: string; reviewState: string }>;
       paymentSettings?: { gcashAccountName?: string; gcashNumber?: string; gcashQrPath?: string };
+      proPaymentSettings?: { gcashAccountName?: string; gcashNumber?: string; gcashQrPath?: string; proFee?: number };
       payment?: { method?: string; instructions?: string; qrPath?: string };
       proofPath?: string;
       reference?: string;
+      approve?: boolean;
       sendTest?: boolean;
       categoryId?: string;
       enabled?: boolean;
       name?: string;
       scope?: string;
-      isPro?: boolean;
     };
     const operation = input.operation;
     if (!operation) return fail("Missing operation.");
@@ -221,6 +223,159 @@ export async function POST(request: NextRequest) {
         html: "<p>This test confirms that KoroHanap can send email alerts through your Google Apps Script relay.</p>",
       });
       return NextResponse.json({ ok: true, configured: emailRelayConfigured(), missingVariables: emailRelayMissingVariables(), emailSent: result.ok, reason: result.ok ? null : result.reason, recipient: to });
+    }
+
+    if (operation === "getProPaymentInfo") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "admin" && role !== "worker") return fail("Worker or administrator accounts only.", 403);
+      const settingsSnap = await db.collection("platformSettings").doc("proPayments").get();
+      const rawSettings = settingsSnap.data();
+      const proPaymentSettings = settingsSnap.exists ? {
+        gcashAccountName: String(rawSettings?.gcashAccountName ?? ""),
+        gcashNumber: String(rawSettings?.gcashNumber ?? ""),
+        gcashQrPath: String(rawSettings?.gcashQrPath ?? ""),
+        proFee: Number(rawSettings?.proFee ?? 0),
+        updatedAt: String(rawSettings?.updatedAt ?? ""),
+      } : null;
+      if (role === "admin") {
+        const pending = await db.collection("proPaymentRequests").where("status", "==", "pending").limit(100).get();
+        const requests = pending.docs.map((row) => ({ ...row.data(), id: row.id }));
+        return NextResponse.json({ ok: true, proPaymentSettings, requests });
+      }
+      const requestSnap = await db.collection("proPaymentRequests").doc(user.uid).get();
+      const proPaymentRequest = requestSnap.exists ? { ...requestSnap.data(), id: requestSnap.id } : null;
+      return NextResponse.json({ ok: true, proPaymentSettings, proPaymentRequest });
+    }
+
+    if (operation === "saveProPaymentSettings") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "admin") return fail("Administrators only.", 403);
+      const accountName = input.proPaymentSettings?.gcashAccountName?.trim() ?? "";
+      const gcashNumber = (input.proPaymentSettings?.gcashNumber ?? "").replace(/\s+/g, "");
+      const gcashQrPath = input.proPaymentSettings?.gcashQrPath?.trim() ?? "";
+      const proFee = Number(input.proPaymentSettings?.proFee);
+      if (!accountName || accountName.length > 100) return fail("Enter the GCash account name.");
+      if (!/^09\d{9}$/.test(gcashNumber)) return fail("Enter an 11-digit GCash number beginning with 09.");
+      if (!/^pro-payment-qr\/[A-Za-z0-9-]{16,80}$/.test(gcashQrPath)) return fail("Upload the GCash QR code.");
+      if (!Number.isInteger(proFee) || proFee < 1 || proFee > 100000) return fail("Set a Pro activation fee between ₱1 and ₱100,000.");
+      await db.collection("platformSettings").doc("proPayments").set({
+        gcashAccountName: accountName,
+        gcashNumber,
+        gcashQrPath,
+        proFee,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user.uid,
+      }, { merge: true });
+      return NextResponse.json({ ok: true });
+    }
+
+    if (operation === "submitProPaymentRequest") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "worker") return fail("Only workers can submit Pro payments.", 403);
+      const proofPath = input.proofPath ?? "";
+      if (!input.workerId || !/^pro-payment-receipts\/[A-Za-z0-9_-]{1,128}\/[A-Za-z0-9-]{16,80}$/.test(proofPath)) {
+        return fail("Upload a valid payment receipt.");
+      }
+      const reference = (input.reference ?? "").trim().replace(/\s+/g, "").toUpperCase();
+      if (reference.length < 4 || reference.length > 50 || !/^[A-Z0-9-]+$/.test(reference)) {
+        return fail("Enter a valid GCash reference number.");
+      }
+      if (!proofPath.startsWith(`pro-payment-receipts/${user.uid}/`)) return fail("That receipt does not belong to your account.", 403);
+      try {
+        await downloadPrivateFile(proofPath);
+      } catch {
+        return fail("The uploaded receipt could not be found. Upload it again.");
+      }
+      const workerRef = db.collection("workers").doc(input.workerId);
+      const settingsRef = db.collection("platformSettings").doc("proPayments");
+      const requestRef = db.collection("proPaymentRequests").doc(user.uid);
+      const [workerSnap, settingsSnap, matchingRefs] = await Promise.all([
+        workerRef.get(),
+        settingsRef.get(),
+        db.collection("proPaymentRequests").where("reference", "==", reference).limit(20).get(),
+      ]);
+      const worker = workerSnap.data();
+      const settings = settingsSnap.data();
+      if (!worker || worker.uid !== user.uid) return fail("This worker profile does not belong to you.", 403);
+      if (!worker.verified || worker.status !== "active") return fail("Your worker profile must be approved before activating Pro.");
+      if (worker.isPro === true) return fail("KoroHanap Pro is already active on your account.");
+      const amount = Number(settings?.proFee ?? 0);
+      if (!settingsSnap.exists || !settings?.gcashNumber || !settings?.gcashQrPath || !Number.isInteger(amount) || amount < 1) {
+        return fail("The administrator has not finished setting up Pro payments yet.");
+      }
+      if (matchingRefs.docs.some((row) => row.id !== user.uid && ["pending", "approved"].includes(String(row.data().status)))) {
+        return fail("That GCash reference number has already been submitted.");
+      }
+      const submittedAt = new Date().toISOString();
+      await db.runTransaction(async (tx) => {
+        const [requestSnap, currentWorkerSnap, currentSettingsSnap] = await Promise.all([
+          tx.get(requestRef), tx.get(workerRef), tx.get(settingsRef),
+        ]);
+        const previous = requestSnap.data();
+        if (previous?.status === "pending") throw new MarketplaceError("Your Pro payment is already waiting for admin review.");
+        if (previous?.status === "approved") throw new MarketplaceError("KoroHanap Pro is already approved on your account.");
+        const currentWorker = currentWorkerSnap.data();
+        const currentSettings = currentSettingsSnap.data();
+        if (!currentWorker || currentWorker.uid !== user.uid || !currentWorker.verified || currentWorker.status !== "active") {
+          throw new MarketplaceError("Your approved worker profile could not be verified.");
+        }
+        if (currentWorker.isPro === true) throw new MarketplaceError("KoroHanap Pro is already active on your account.");
+        if (Number(currentSettings?.proFee) !== amount || !currentSettings?.gcashNumber || !currentSettings?.gcashQrPath) {
+          throw new MarketplaceError("The Pro payment details changed. Refresh the page and try again.");
+        }
+        tx.set(requestRef, {
+          workerId: input.workerId,
+          workerUid: user.uid,
+          workerName: String(currentWorker.fullName ?? "Worker"),
+          reference,
+          proofPath,
+          amount,
+          status: "pending",
+          reviewNote: "",
+          submittedAt,
+          reviewedAt: "",
+          reviewedBy: "",
+        });
+      });
+      return NextResponse.json({ ok: true, requestId: user.uid, status: "pending" });
+    }
+
+    if (operation === "reviewProPaymentRequest") {
+      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
+      if (role !== "admin") return fail("Administrators only.", 403);
+      if (!input.requestId || !/^[A-Za-z0-9_-]{1,128}$/.test(input.requestId) || typeof input.approve !== "boolean") {
+        return fail("Choose a valid Pro payment request and decision.");
+      }
+      const reviewNote = (input.reviewNote ?? "").trim();
+      if (!input.approve && (reviewNote.length < 5 || reviewNote.length > 500)) {
+        return fail("Add a short reason when rejecting a payment.");
+      }
+      const requestRef = db.collection("proPaymentRequests").doc(input.requestId);
+      const reviewedAt = new Date().toISOString();
+      await db.runTransaction(async (tx) => {
+        const requestSnap = await tx.get(requestRef);
+        const paymentRequest = requestSnap.data();
+        if (!paymentRequest || paymentRequest.status !== "pending") throw new MarketplaceError("This Pro payment has already been reviewed.");
+        const expectedProof = new RegExp(`^pro-payment-receipts/${paymentRequest.workerUid}/[A-Za-z0-9-]{16,80}$`);
+        if (typeof paymentRequest.reference !== "string" || paymentRequest.reference.length < 4
+          || !Number.isInteger(Number(paymentRequest.amount)) || Number(paymentRequest.amount) < 1
+          || !expectedProof.test(String(paymentRequest.proofPath ?? ""))) {
+          throw new MarketplaceError("This payment request is missing valid reference, amount, or receipt details.");
+        }
+        const workerRef = db.collection("workers").doc(String(paymentRequest.workerId ?? ""));
+        const workerSnap = await tx.get(workerRef);
+        const worker = workerSnap.data();
+        if (!worker || worker.uid !== paymentRequest.workerUid) throw new MarketplaceError("Worker profile not found for this payment.");
+        if (input.approve && (!worker.verified || worker.status !== "active")) throw new MarketplaceError("This worker must be approved before Pro can be activated.");
+        tx.update(requestRef, {
+          status: input.approve ? "approved" : "rejected",
+          reviewNote: input.approve ? "" : reviewNote,
+          reviewedAt,
+          reviewedBy: user.uid,
+        });
+        if (input.approve) tx.update(workerRef, { isPro: true, proActivatedAt: reviewedAt, updatedAt: reviewedAt });
+      });
+      return NextResponse.json({ ok: true });
     }
 
     if (operation === "savePaymentSettings") {
@@ -284,17 +439,6 @@ export async function POST(request: NextRequest) {
       const worker = (await workerRef.get()).data();
       if (!worker || worker.uid !== user.uid) return fail("This worker profile does not belong to you.", 403);
       await workerRef.update({ serviceIds, categoryId: serviceIds[0], updatedAt: new Date().toISOString() });
-      return NextResponse.json({ ok: true });
-    }
-
-    if (operation === "setWorkerPro") {
-      const role = (await db.collection("users").doc(user.uid).get()).data()?.role;
-      if (role !== "worker") return fail("Only workers can update their account plan.", 403);
-      if (!input.workerId || typeof input.isPro !== "boolean") return fail("Choose a valid account plan.");
-      const workerRef = db.collection("workers").doc(input.workerId);
-      const worker = (await workerRef.get()).data();
-      if (!worker || worker.uid !== user.uid) return fail("This worker profile does not belong to you.", 403);
-      await workerRef.update({ isPro: input.isPro, updatedAt: new Date().toISOString() });
       return NextResponse.json({ ok: true });
     }
 

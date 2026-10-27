@@ -10,8 +10,8 @@ rules_version = '2';
 //    entries denormalise `workerUid` for the same reason: it lets these rules
 //    avoid a cross-document lookup on the hot read path.
 //  * Review signals — verified, rating, reviewCount, wallet, referralCredits,
-//    status — are not writable by the client. A worker cannot mark themselves
-//    approved or grant themselves wallet credit.
+//    isPro, status — are not writable by the client. A worker cannot mark
+//    themselves approved, grant themselves Pro, or credit their own wallet.
 //  * Reviews are immutable once written, so feedback cannot be rewritten to
 //    launder a rating. RA 7394 recourse depends on that immutability.
 
@@ -167,6 +167,7 @@ service cloud.firestore {
         && request.resource.data.reviewCount == 0
         && request.resource.data.jobsCompleted == 0
         && request.resource.data.referralCredits == 0
+        && (!('isPro' in request.resource.data) || request.resource.data.isPro == false)
         && !('phone' in request.resource.data)
         && !('email' in request.resource.data)
         && !('verificationDocs' in request.resource.data)
