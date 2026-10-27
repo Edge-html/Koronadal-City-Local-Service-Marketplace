@@ -30,6 +30,8 @@ import { visibleJobs, type JobFilter } from "@/lib/job-flow";
 import { useAuth } from "@/context/AuthContext";
 import type { Job, Worker } from "@/lib/types";
 
+const WORKER_BANNER_IMAGES = ["/images/local-craft.webp", "/images/metalwork.webp"] as const;
+
 export default function WorkerDashboardPage() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
@@ -86,7 +88,7 @@ export default function WorkerDashboardPage() {
   }
 
   // A worker who has not finished registration has nothing to act on yet.
-  if (profileLoaded && !worker) return <DashboardShell title="My jobs" subtitle="Set up your worker profile to receive requests.">
+  if (profileLoaded && !worker) return <DashboardShell title="My jobs" subtitle="Set up your worker profile to receive requests." bannerImages={WORKER_BANNER_IMAGES}>
     {error ? <Notice tone="alert">{error}</Notice> : <EmptyState title="Complete your worker profile" description="Add your service and verification documents to start receiving requests." action={{ label: "Set up profile", href: "/dashboard/worker/onboarding" }} />}
   </DashboardShell>;
 
@@ -96,6 +98,7 @@ export default function WorkerDashboardPage() {
         eyebrow="Worker dashboard"
         title="My jobs"
         subtitle="Accept requests, agree on details in chat, and track your work."
+        bannerImages={WORKER_BANNER_IMAGES}
       >
         {workerError ? <Notice tone="alert">{workerError}</Notice> : <p className="meta">Loading your jobs…</p>}
       </DashboardShell>
@@ -108,6 +111,7 @@ export default function WorkerDashboardPage() {
         eyebrow="Worker dashboard"
         title="Awaiting verification"
         subtitle="Your profile is in the admin review queue. Background checks clear within 24 to 48 hours."
+        bannerImages={WORKER_BANNER_IMAGES}
       >
         <div className="flex flex-col gap-4">
           <Notice>
@@ -129,6 +133,7 @@ export default function WorkerDashboardPage() {
       eyebrow="Worker dashboard"
       title="My jobs"
       subtitle="Accept requests, agree on scope and price in chat, and track completed work."
+      bannerImages={WORKER_BANNER_IMAGES}
     >
       <div className="flex flex-col gap-4">
         {workerError ? <Notice tone="alert">{workerError}</Notice> : null}

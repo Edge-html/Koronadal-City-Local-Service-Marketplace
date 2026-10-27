@@ -127,7 +127,18 @@ function BrowseInner() {
 
   return <section className="container-page py-8 sm:py-10">
     {!firebaseConfigured ? <FirebaseSetupNotice className="mt-8" /> : <>
-      <header className="mx-auto max-w-4xl text-center">
+      <header className="relative isolate mx-auto max-w-4xl overflow-hidden rounded-2xl px-3 py-5 text-center sm:px-6 sm:py-6">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage:
+              "linear-gradient(180deg, rgba(248,250,252,.12) 0%, rgba(248,250,252,.34) 52%, #f8fafc 100%), linear-gradient(90deg, rgba(248,250,252,.86), rgba(248,250,252,.62)), url('/images/service-sign.webp')",
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "100% 100%, 100% 100%, cover",
+            backgroundPosition: "center, center, center 42%",
+          }}
+        />
         <p className="text-xs font-semibold uppercase tracking-[0.12em] text-blue-700">Koronadal City services</p>
         <h1 className="mt-2 text-[30px] font-semibold leading-tight tracking-[-0.04em] text-ink-black sm:text-[36px]">Find the right local service provider</h1>
         <p className="mx-auto mt-2 max-w-[64ch] text-[15px] leading-relaxed text-stone-600">Search verified workers, compare service rates, and browse their service offers before you get in touch.</p>

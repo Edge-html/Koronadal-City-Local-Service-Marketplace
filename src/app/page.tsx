@@ -81,7 +81,18 @@ export default function HomePage() {
 function CustomerMasthead() {
   const { customerCount, customerError } = useActivity();
   return (
-    <section className="container-page pb-4 pt-14 sm:pb-6 sm:pt-20">
+    <section className="container-page relative isolate pb-4 pt-14 sm:pb-6 sm:pt-20">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute right-6 top-3 -z-10 hidden h-60 w-[42%] sm:block"
+        style={{
+          backgroundImage:
+            "linear-gradient(180deg, rgba(248,250,252,.22) 0%, rgba(248,250,252,.48) 62%, #f8fafc 100%), linear-gradient(90deg, rgba(248,250,252,.76), rgba(248,250,252,.58)), url('/images/community-hands.webp')",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "100% 100%, 100% 100%, cover",
+          backgroundPosition: "center, center, center 46%",
+        }}
+      />
       <p className="font-[family-name:var(--font-system-ui)] text-[10px] uppercase tracking-[-0.3px] text-stone-500">
         Finding a service
       </p>

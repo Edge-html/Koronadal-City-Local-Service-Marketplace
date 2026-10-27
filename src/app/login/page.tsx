@@ -41,6 +41,7 @@ function LoginForm() {
       eyebrow="Welcome back"
       title="Sign in to your account"
       description="Households find verified workers. Workers manage requests, chat agreements, and completed jobs."
+      imageSrc="/images/teamwork.webp"
     >
       <form onSubmit={onSubmit} className="flex flex-col gap-4" noValidate>
         {error ? <Notice tone="alert">{error}</Notice> : null}
