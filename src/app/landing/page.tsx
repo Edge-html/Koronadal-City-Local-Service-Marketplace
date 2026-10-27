@@ -22,8 +22,21 @@ import { ClosingCta } from "@/components/sections/ClosingCta";
 export default function LandingPage() {
   return (
     <>
-      <Hero />
-      <TrustBar />
+      <div className="relative isolate overflow-hidden">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage:
+              "linear-gradient(90deg, rgba(248,250,252,.97) 0%, rgba(248,250,252,.9) 42%, rgba(248,250,252,.66) 100%), linear-gradient(180deg, rgba(248,250,252,.06) 0%, rgba(248,250,252,.18) 60%, #f8fafc 100%), url('/images/local-craft.webp')",
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "100% 100%, 100% 100%, min(64vw, 980px) 100%",
+            backgroundPosition: "center, center, right center",
+          }}
+        />
+        <Hero />
+        <TrustBar />
+      </div>
       <Categories />
       <PlatformTeaser />
       <ClosingCta />
