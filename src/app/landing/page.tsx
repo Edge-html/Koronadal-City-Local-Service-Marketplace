@@ -28,10 +28,10 @@ export default function LandingPage() {
           className="pointer-events-none absolute inset-0 -z-10"
           style={{
             backgroundImage:
-              "linear-gradient(90deg, rgba(248,250,252,.82) 0%, rgba(248,250,252,.7) 42%, rgba(248,250,252,.48) 100%), linear-gradient(180deg, rgba(248,250,252,.04) 0%, rgba(248,250,252,.1) 60%, #f8fafc 100%), url('/images/local-craft.webp')",
+              "linear-gradient(rgba(248,250,252,.5), rgba(248,250,252,.5)), linear-gradient(180deg, rgba(248,250,252,.02) 0%, rgba(248,250,252,.08) 60%, #f8fafc 100%), url('/images/local-craft.webp')",
             backgroundRepeat: "no-repeat",
-            backgroundSize: "100% 100%, 100% 100%, 50% 100%",
-            backgroundPosition: "center, center, right center",
+            backgroundSize: "100% 100%, 100% 100%, cover",
+            backgroundPosition: "center, center, center",
           }}
         />
         <Hero />
