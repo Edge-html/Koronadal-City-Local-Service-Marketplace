@@ -51,19 +51,22 @@ export function AuthShell({
 
   if (imageSrc) {
     return (
-      <section className="container-page py-12 sm:py-16">
-        <div className="mx-auto grid max-w-6xl items-center gap-8 md:grid-cols-2 md:gap-12">
-          <div className="flex justify-center">{content}</div>
-          <div
-            aria-hidden="true"
-            className="relative hidden min-h-[560px] overflow-hidden rounded-2xl border border-stone-200 shadow-sm md:block"
-            style={{
-              backgroundImage: `linear-gradient(90deg, rgba(248,250,252,.78) 0%, rgba(248,250,252,.22) 48%, rgba(21,94,239,.16) 100%), linear-gradient(0deg, rgba(11,18,32,.24), transparent 58%), url('${imageSrc}')`,
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-            }}
-          />
+      <section className="relative isolate overflow-hidden py-12 sm:py-16">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            backgroundImage: `linear-gradient(90deg, rgba(248,250,252,.72) 0%, rgba(248,250,252,.55) 52%, rgba(248,250,252,.22) 100%), linear-gradient(0deg, rgba(248,250,252,.32), transparent 52%), url('${imageSrc}')`,
+            backgroundRepeat: "no-repeat",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        />
+        <div className="container-page">
+          <div className="mx-auto grid max-w-6xl items-center gap-8 md:grid-cols-2 md:gap-12">
+            <div className="flex justify-center">{content}</div>
+            <div aria-hidden="true" className="hidden min-h-[560px] md:block" />
+          </div>
         </div>
       </section>
     );
