@@ -137,6 +137,15 @@ export default function WorkerDashboardPage() {
     >
       <div className="flex flex-col gap-4">
         {workerError ? <Notice tone="alert">{workerError}</Notice> : null}
+        <Card className="flex flex-wrap items-center justify-between gap-4 border-blue-200 bg-blue-50/50 p-5">
+          <div className="flex items-start gap-3"><span className="rounded-lg bg-blue-100 p-2 text-blue-800"><Sparkles size={16} /></span><div><h2 className="text-sm font-semibold">{worker.isPro ? "KoroHanap Pro is active" : "Try KoroHanap Pro"}</h2><p className="mt-1 max-w-[65ch] text-sm text-stone-600">Get a Pro badge, a highlighted profile card, and priority placement in the worker directory. Free during the pilot; no payment information is collected.</p></div></div>
+          <ActionButton variant={worker.isPro ? "neutral" : "primary"} busy={proBusy} onClick={async () => {
+            setProBusy(true); setError("");
+            try { await setWorkerPro(worker.id, !worker.isPro); setWorker({ ...worker, isPro: !worker.isPro }); }
+            catch (err) { setError(err instanceof Error ? err.message : "Could not update your Pro account."); }
+            finally { setProBusy(false); }
+          }}>{worker.isPro ? "Turn Pro off" : "Activate Pro"}</ActionButton>
+        </Card>
         {worker ? <ProfileStrength worker={worker} /> : null}
         <AttentionNotice count={workerCount}>{workerCount ? `${workerCount} job${workerCount === 1 ? " needs" : "s need"} your response or agreement confirmation. Choose “Needs your action” below.` : "New requests and customer chat confirmations appear here automatically."}</AttentionNotice>
         <FlowGuide steps={WORKER_STEPS} />
@@ -155,16 +164,6 @@ export default function WorkerDashboardPage() {
             <p className="mt-1 max-w-[65ch] text-sm text-stone-600">Describe a service you provide and its starting rate. Open offers appear on your public profile for households to find.</p>
           </div>
           <a className="btn-neutral no-underline" href="#my-services">Post or manage offers</a>
-        </Card>
-
-        <Card className="flex flex-wrap items-center justify-between gap-4 border-blue-200 bg-blue-50/50 p-5">
-          <div className="flex items-start gap-3"><span className="rounded-lg bg-blue-100 p-2 text-blue-800"><Sparkles size={16} /></span><div><h2 className="text-sm font-semibold">{worker.isPro ? "KoroHanap Pro is active" : "Try KoroHanap Pro"}</h2><p className="mt-1 max-w-[65ch] text-sm text-stone-600">Get a Pro badge, a highlighted profile card, and priority placement in the worker directory. Free during the pilot; no payment information is collected.</p></div></div>
-          <ActionButton variant={worker.isPro ? "neutral" : "primary"} busy={proBusy} onClick={async () => {
-            setProBusy(true); setError("");
-            try { await setWorkerPro(worker.id, !worker.isPro); setWorker({ ...worker, isPro: !worker.isPro }); }
-            catch (err) { setError(err instanceof Error ? err.message : "Could not update your Pro account."); }
-            finally { setProBusy(false); }
-          }}>{worker.isPro ? "Turn Pro off" : "Activate Pro"}</ActionButton>
         </Card>
 
         <JobFilters jobs={jobs ?? []} view="worker" value={filter} onChange={setFilter} />
