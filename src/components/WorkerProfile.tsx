@@ -318,7 +318,7 @@ function describeRequestFailure(error: unknown): string {
     return "Your browser blocked this request before it left the page. This is almost always an ad blocker or privacy extension intercepting Firebase. Allow this site, or retry in a private window with extensions off.";
   }
   if (code === "permission-denied" || /permission/i.test(message)) {
-    return "The server rejected this request. The Firestore rules deployed for this project may not be the current version - check the browser console for the full error.";
+    return "The database blocked this request. Ask the site administrator to publish the current Firestore rules, then try again.";
   }
   if (code === "unavailable" || /network|failed to fetch/i.test(message)) {
     return "Could not reach the database. Check your connection and try again.";

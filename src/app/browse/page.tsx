@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { BadgeCheck, BriefcaseBusiness, MapPin, Search, SlidersHorizontal, Sparkles } from "lucide-react";
+import { BadgeCheck, BriefcaseBusiness, MapPin, Search, SlidersHorizontal, Sparkles, X } from "lucide-react";
 import { Avatar, Badge, Card, EmptyState, Skeleton, StarRating } from "@/components/ui";
 import { MessageWorkerButton } from "@/components/MessageWorkerButton";
 import { BARANGAYS } from "@/lib/constants";
@@ -54,6 +54,7 @@ function BrowseInner() {
   const [tesdaOnly, setTesdaOnly] = useState(false);
   const [sort, setSort] = useState<SortMode>("featured");
   const [selectedId, setSelectedId] = useState("");
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
   useEffect(() => setCategory(categoryParam), [categoryParam]);
 
@@ -114,6 +115,20 @@ function BrowseInner() {
   useEffect(() => {
     if (selected && selected.id !== selectedId) setSelectedId(selected.id);
   }, [selected, selectedId]);
+
+  useEffect(() => {
+    if (!mobilePreviewOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobilePreviewOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [mobilePreviewOpen]);
 
   function clearFilters() {
     setQuery("");
@@ -192,7 +207,7 @@ function BrowseInner() {
           {workers === null ? <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-xl" />)}</div>
             : filtered.length === 0 ? <Card className="p-6"><EmptyState title={loadError ? "Directory not readable" : workers.length === 0 ? "No workers listed yet" : "No matches"} description={loadError ? "The directory may need the updated Firestore rules. Check the Firebase project rules and reload." : workers.length === 0 ? "The directory is empty. Workers will appear after their applications are approved." : "Try a broader search or clear one of the filters."} action={workers.length === 0 && !loadError ? { label: "Join as a worker", href: "/signup?role=worker" } : undefined} /></Card>
               : <ul className="space-y-3">{filtered.map((worker) => <li key={worker.id} className={`overflow-hidden rounded-xl border bg-white shadow-sm transition hover:border-blue-400 hover:shadow-md ${selected?.id === worker.id ? "border-blue-600 ring-1 ring-blue-600/20" : "border-stone-200"}`}>
-                <button type="button" onClick={() => setSelectedId(worker.id)} aria-pressed={selected?.id === worker.id} className="w-full p-4 text-left">
+                <button type="button" onClick={() => { setSelectedId(worker.id); setMobilePreviewOpen(true); }} aria-pressed={selected?.id === worker.id} className="w-full p-4 text-left">
                   <div className="flex items-start gap-3">
                     <Avatar name={worker.fullName} size={48} photoUrl={worker.photoUrl} />
                     <div className="min-w-0 flex-1">
@@ -217,8 +232,15 @@ function BrowseInner() {
         <div className="hidden lg:block lg:sticky lg:top-20">
           {selected ? <WorkerPreview worker={selected} categories={categories} /> : <Card className="grid min-h-[480px] place-items-center p-8 text-center"><div><Sparkles className="mx-auto text-blue-700" /><h2 className="mt-3 font-semibold text-ink-black">Choose a worker to preview</h2><p className="mt-1 max-w-sm text-sm text-stone-600">Select someone from the results to see their services, experience, and profile link.</p></div></Card>}
         </div>
-        {selected ? <div className="lg:hidden"><WorkerPreview worker={selected} categories={categories} /></div> : null}
       </div>
+      {selected && mobilePreviewOpen ? <div className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/50 p-2 lg:hidden" onClick={() => setMobilePreviewOpen(false)}>
+        <section role="dialog" aria-modal="true" aria-label={`${selected.fullName}'s worker details`} onClick={(event) => event.stopPropagation()} className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white shadow-2xl">
+          <div className="sticky top-0 z-10 flex justify-end border-b border-stone-100 bg-white/95 px-3 py-2 backdrop-blur">
+            <button type="button" onClick={() => setMobilePreviewOpen(false)} className="btn-neutral min-h-9 px-3" aria-label="Close worker details"><X size={15} />Close</button>
+          </div>
+          <WorkerPreview worker={selected} categories={categories} />
+        </section>
+      </div> : null}
     </>}
   </section>;
 }

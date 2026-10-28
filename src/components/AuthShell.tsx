@@ -42,10 +42,6 @@ export function AuthShell({
         <FirebaseSetupNotice />
       )}
 
-      <p className="meta mt-6 text-center leading-[1.5]">
-        Contact details stay masked until a job request is formally accepted,
-        in line with the Data Privacy Act of 2012.
-      </p>
     </div>
   );
 

@@ -22,7 +22,13 @@ export function MessageWorkerButton({ worker }: { worker: Worker }) {
       try {
         const id = await getOrCreateConversation(worker, { id: user.uid, name: user.displayName || user.email || "Household" });
         router.push(`/dashboard/messages?conversation=${encodeURIComponent(id)}`);
-      } catch (err) { setError(err instanceof Error ? err.message : "Could not open a conversation."); }
+      } catch (err) {
+        const code = (err as { code?: string })?.code ?? "";
+        const message = err instanceof Error ? err.message : "";
+        setError(code === "permission-denied" || /permission/i.test(message)
+          ? "Messaging is blocked by the current database permissions. Ask the site administrator to publish the latest Firestore rules."
+          : message || "Could not open a conversation. Please try again.");
+      }
       finally { setBusy(false); }
     }}><MessageSquare size={14} />{busy ? "Opening…" : "Send a message"}</button>
     {error ? <p role="alert" className="mt-2 text-xs text-rose-700">{error}</p> : null}

@@ -515,22 +515,35 @@ export async function getOrCreateConversation(
   jobId?: string,
 ) {
   if (!consumer.id || consumer.id === worker.uid) throw new Error("You cannot message your own account.");
+  // Reading a deterministic document id that does not exist can still be
+  // denied by Firestore because its read rule needs `resource.data`. Find any
+  // existing thread through a query constrained to the signed-in participant,
+  // then create the deterministic document only when no thread exists.
+  const existingThreads = await getDocs(query(
+    conversationsCol(),
+    where("participants", "array-contains", consumer.id),
+  ));
+  const existingThread = existingThreads.docs
+    .map((item) => ({ id: item.id, ...item.data() } as DocumentData & { id: string }))
+    .filter((thread) => jobId
+      ? thread.jobId === jobId
+      : thread.consumerId === consumer.id && thread.workerUid === worker.uid)
+    .sort((a, b) => String(b.updatedAt ?? "").localeCompare(String(a.updatedAt ?? "")))[0];
+  if (existingThread) return existingThread.id;
+
   const id = jobId ? `job_${jobId}` : `${consumer.id.length}_${consumer.id}${worker.uid.length}_${worker.uid}`;
   const ref = doc(conversationsCol(), id);
-  const existing = await getDoc(ref);
-  if (!existing.exists()) {
-    await setDoc(ref, {
-      consumerId: consumer.id,
-      consumerName: consumer.name,
-      workerId: worker.id,
-      workerUid: worker.uid,
-      workerName: worker.fullName,
-      ...(jobId ? { jobId } : {}),
-      participants: [consumer.id, worker.uid],
-      lastMessage: "",
-      updatedAt: new Date().toISOString(),
-    });
-  }
+  await setDoc(ref, {
+    consumerId: consumer.id,
+    consumerName: consumer.name,
+    workerId: worker.id,
+    workerUid: worker.uid,
+    workerName: worker.fullName,
+    ...(jobId ? { jobId } : {}),
+    participants: [consumer.id, worker.uid],
+    lastMessage: "",
+    updatedAt: new Date().toISOString(),
+  });
   return id;
 }
 
