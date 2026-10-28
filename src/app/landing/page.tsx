@@ -4,6 +4,7 @@ import { Hero } from "@/components/sections/Hero";
 import { TrustBar } from "@/components/sections/TrustBar";
 import { Categories } from "@/components/sections/Categories";
 import { ClosingCta } from "@/components/sections/ClosingCta";
+import { ServiceOffersSection } from "@/components/home/ServiceOffersSection";
 
 /**
  * Landing page — the pitch.
@@ -16,7 +17,7 @@ import { ClosingCta } from "@/components/sections/ClosingCta";
  *
  * Scoped to the pitch: what this is, the services on offer, and the two ways in.
  * Operational detail — the six-stage lifecycle, worker
- * onboarding, referrals, and the legal framework — lives on /platform, so this
+ * onboarding, and the legal framework — lives on /platform, so this
  * page stays scannable instead of becoming a single endless scroll.
  */
 export default function LandingPage() {
@@ -37,6 +38,7 @@ export default function LandingPage() {
         <Hero />
         <TrustBar />
       </div>
+      <ServiceOffersSection />
       <Categories />
       <PlatformTeaser />
       <ClosingCta />

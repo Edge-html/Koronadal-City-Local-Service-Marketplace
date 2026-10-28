@@ -339,10 +339,6 @@ export const FAIR_COMPETITION_PRINCIPLES = [
     body: "Workers show a starting service rate. The worker and household agree on the final scope and price in chat.",
   },
   {
-    title: "Single-tier referrals only",
-    body: "Transparent referral systems prevent MLM-style structures, limiting rewards strictly to single-tier, job-verified invites.",
-  },
-  {
     title: "Reviews follow completed jobs",
     body: "Households can leave a rating and written review after the worker marks an agreed job complete.",
   },

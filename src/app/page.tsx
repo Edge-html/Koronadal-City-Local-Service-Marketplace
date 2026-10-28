@@ -5,7 +5,7 @@ import { AttentionNotice, FlowGuide, CUSTOMER_STEPS } from "@/components/FlowGui
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Categories } from "@/components/sections/Categories";
-import { FindWorkerSection } from "@/components/home/FindWorkerSection";
+import { ServiceOffersSection } from "@/components/home/ServiceOffersSection";
 import { WorkerHome } from "@/components/home/WorkerHome";
 import { useAuth } from "@/context/AuthContext";
 
@@ -14,7 +14,7 @@ import { useAuth } from "@/context/AuthContext";
  *
  * Two halves, chosen by the account role rather than a separate mode setting:
  *
- *   Finding a service  the worker finder, then the trade categories
+ *   Finding a service  live offers posted by local workers
  *   Working as a provider  incoming job requests
  *
  * The pitch lives at /landing. Putting a marketing hero here would mean
@@ -64,7 +64,7 @@ export default function HomePage() {
   return (
     <>
       <CustomerMasthead />
-      <FindWorkerSection />
+      <ServiceOffersSection />
       <Categories />
     </>
   );
@@ -94,17 +94,17 @@ function CustomerMasthead() {
         }}
       />
       <p className="font-[family-name:var(--font-system-ui)] text-[10px] uppercase tracking-[-0.3px] text-stone-500">
-        Finding a service
+        Services posted by local workers
       </p>
       <h1 className="mt-3 max-w-[18ch] font-[family-name:var(--font-display)] text-[44px] leading-[1.05] font-medium tracking-[-0.02em] text-ink-black sm:text-[56px]">
-        Find the right worker.
+        Find the service you need.
       </h1>
       <p className="mt-4 max-w-[54ch] text-[16px] leading-[1.5] text-stone-600">
-        Search verified local workers by name, service, or trade. Compare their
-        profiles and offers, then send a request when you find the right fit.
+        Browse real work offers posted by verified Koronadal workers. Open a
+        profile to see all of their services or send them a message.
       </p>
       <div className="mt-6 flex flex-col gap-3">
-        {customerError ? <p role="alert" className="attention text-sm">{customerError}</p> : <AttentionNotice count={customerCount} href="/dashboard/customer">{customerCount ? "You have job requests or completed work waiting for your response in My requests." : "Start by choosing a worker below. Track requests and chat agreements in My requests."}</AttentionNotice>}
+        {customerError ? <p role="alert" className="attention text-sm">{customerError}</p> : <AttentionNotice count={customerCount} href="/dashboard/customer">{customerCount ? "You have job requests or completed work waiting for your response in My requests." : "Choose a service below, then message the worker or open their profile."}</AttentionNotice>}
         <FlowGuide steps={CUSTOMER_STEPS} />
       </div>
     </section>

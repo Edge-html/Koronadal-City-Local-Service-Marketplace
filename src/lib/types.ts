@@ -93,8 +93,6 @@ export interface Worker {
   jobsCompleted: number;
   verified: boolean;
   tesdaCertified: boolean;
-  referralCode: string;
-  referralCredits: number;
   /** Legacy wallet fields are read only for old records; new jobs never use them. */
   walletBalance: number;
   walletLocked: number;
@@ -105,8 +103,6 @@ export interface Worker {
   serviceRate: number;
   /** Legacy field retained for old Firestore records. */
   hourlyRate?: number;
-  /** Code of the worker who referred this one, if any. */
-  referredBy?: string;
   resume?: Resume | null;
   /** Worker-selected services and skills shown on the public profile. */
   skills: string[];
@@ -281,7 +277,7 @@ export interface LedgerEntry {
   /** Auth uid of the worker, denormalised so rules avoid a cross-document get. */
   workerUid: string;
   jobId?: string;
-  kind: "top_up" | "commission_lock" | "commission_settle" | "referral_credit";
+  kind: "top_up" | "commission_lock" | "commission_settle";
   amount: number;
   balanceAfter: number;
   method?: "gcash" | "cliqq";

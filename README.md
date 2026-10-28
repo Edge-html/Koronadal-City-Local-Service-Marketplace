@@ -5,8 +5,7 @@ accountable blue-collar trade professionals across ten essential service
 categories.
 
 Built to the **Complete Platform Specification & Operational Framework**:
-non-custodial payment, a 10% commission on labor only, single-tier job-verified
-referrals, and a regulatory posture aligned with the Philippine Labor Code,
+non-custodial payment, a 10% commission on labor only, and a regulatory posture aligned with the Philippine Labor Code,
 DOLE guidelines, the Data Privacy Act of 2012 (RA 10173), and the Consumer
 Protection Act (RA 7394).
 
@@ -146,7 +145,7 @@ see "Two consoles" below.
 | `/dashboard/worker/onboarding` | Three-step digital self-registration |
 | `/dashboard/worker/credentials` | Replace expired or rejected verification files |
 | `/dashboard/wallet` | Prepaid balance, top-ups, ledger |
-| `/dashboard/worker/profile` | Public listing, resume editor, referral code |
+| `/dashboard/worker/profile` | Public listing and resume editor |
 | `/admin` | Credential review queue, disputes, price-floor monitoring |
 
 ---
@@ -229,14 +228,14 @@ would need a reason that survives greyscale printing.
 
 ```
 users/{uid}        role, fullName, email, phone
-workers/{id}       public profile, resume summary, rating, wallet, referralCode
+workers/{id}       public profile, resume summary, rating, wallet
 workerCredentials/{id} private verification documents and resume details
 topupRequests/{id} worker payment references awaiting admin verification
 offers/{id}        workerId, workerUid, title, categoryId, priceFrom, status
 inquiries/{id}     id = "{offerId}_{consumerId}", offerId, workerUid, consumerId, message
 jobs/{id}          consumer ⇄ worker, status, quote{ laborFee, materialsCost }
 reviews/{id}       jobId, workerId, rating, text
-ledger/{id}        top_up | commission_lock | commission_settle | referral_credit
+ledger/{id}        top_up | commission_lock | commission_settle
 disputes/{id}      RA 7394 recourse log
 ```
 
@@ -293,9 +292,8 @@ signed-out visitor to `/` is redirected there.
 - **Labor Code / DOLE** — the platform is an intermediary and establishes no
   employer-employee relationship. Workers retain full autonomy.
 - **Anti-exploitation** — per-trade price floors are monitored and surfaced in
-  the admin console; referrals are single-tier and disburse only after an
-  invitee's first job settles; ratings are recomputed from the full review set
-  rather than nudged incrementally.
+  the admin console; ratings are recomputed from the full review set rather
+  than nudged incrementally.
 
 ---
 

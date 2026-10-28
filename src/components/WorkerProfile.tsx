@@ -30,11 +30,11 @@ import { ResumeSummary } from "@/components/ResumeSummary";
 import { WorkerOffers } from "@/components/WorkerOffers";
 import { MessageWorkerButton } from "@/components/MessageWorkerButton";
 import { useAuth } from "@/context/AuthContext";
-import { createJobRequest, getWorker, listReviews } from "@/lib/data";
+import { createJobRequest, getWorker, listOpenOffersForWorker, listReviews } from "@/lib/data";
 import { formatPeso } from "@/lib/commission";
 import { timeAgo } from "@/lib/utils";
 import { uploadRequestPhoto } from "@/lib/request-files";
-import type { Review, Worker } from "@/lib/types";
+import type { Review, ServiceOffer, Worker } from "@/lib/types";
 import { useServiceCategories } from "@/hooks/useServiceCategories";
 
 export function WorkerProfile({ id }: { id: string }) {
@@ -170,6 +170,8 @@ export function WorkerProfile({ id }: { id: string }) {
             <p className="caption mt-4 border-t border-stone-100 pt-3">The worker’s name, photo, services, rate, and selected profile details are public. Email and phone stay private until the worker accepts a request.</p>
           </Card>
 
+          {worker.profileVisibility?.offers !== false ? <WorkerOffers worker={worker} /> : null}
+
           {worker.profileVisibility?.resume !== false ? <ResumeSummary worker={worker} /> : null}
 
           {worker.profileVisibility?.skills !== false && worker.skills?.length ? (
@@ -185,8 +187,6 @@ export function WorkerProfile({ id }: { id: string }) {
               </ul>
             </Card>
           ) : null}
-
-          {worker.profileVisibility?.offers !== false ? <WorkerOffers worker={worker} /> : null}
 
           {/* Portfolio */}
           {worker.profileVisibility?.portfolio !== false ? <Card className="overflow-hidden p-0">
@@ -333,6 +333,9 @@ function RequestPanel({ worker }: { worker: Worker }) {
 
   const [title, setTitle] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState(worker.categoryId);
+  const [offers, setOffers] = useState<ServiceOffer[]>([]);
+  const [offersLoaded, setOffersLoaded] = useState(false);
+  const [selectedOfferId, setSelectedOfferId] = useState("");
   const [description, setDescription] = useState("");
   const [barangay, setBarangay] = useState(worker.barangay);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
@@ -345,10 +348,27 @@ function RequestPanel({ worker }: { worker: Worker }) {
     .filter((category): category is NonNullable<typeof category> => Boolean(category)), [categories, worker.categoryId, worker.serviceIds]);
 
   useEffect(() => {
-    if (!offeredServices.some((service) => service.id === selectedServiceId) && offeredServices[0]) {
+    let cancelled = false;
+    listOpenOffersForWorker(worker.uid)
+      .then((rows) => {
+        if (cancelled) return;
+        const openRows = rows.filter((offer) => offer.status === "open");
+        setOffers(openRows);
+        setOffersLoaded(true);
+      })
+      .catch(() => { if (!cancelled) setOffersLoaded(true); });
+    return () => { cancelled = true; };
+  }, [worker.uid]);
+
+  useEffect(() => {
+    if (offersLoaded && offers.length) {
+      const selected = offers.find((offer) => offer.id === selectedOfferId) ?? offers[0];
+      if (selected.id !== selectedOfferId) setSelectedOfferId(selected.id);
+      if (selected.categoryId !== selectedServiceId) setSelectedServiceId(selected.categoryId);
+    } else if (offersLoaded && !offers.length && !offeredServices.some((service) => service.id === selectedServiceId) && offeredServices[0]) {
       setSelectedServiceId(offeredServices[0].id);
     }
-  }, [offeredServices, selectedServiceId]);
+  }, [offersLoaded, offers, selectedOfferId, offeredServices, selectedServiceId]);
 
   const submit = useCallback(async () => {
     setError("");
@@ -408,7 +428,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     );
   }
 
-  const valid = title.trim().length >= 3 && description.trim().length >= 10;
+  const valid = title.trim().length >= 3 && description.trim().length > 0 && description.trim().length <= 10;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -426,8 +446,16 @@ function RequestPanel({ worker }: { worker: Worker }) {
       <div className="flex flex-col gap-3">
         <div>
           <label className="label" htmlFor="req-service">Service needed <span className="text-rose-700">*</span></label>
-          <select id="req-service" className="field" value={selectedServiceId} onChange={(event) => setSelectedServiceId(event.target.value)}>
-            {offeredServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+          <select id="req-service" className="field" value={offersLoaded && offers.length ? selectedOfferId : selectedServiceId} onChange={(event) => {
+            if (offersLoaded && offers.length) {
+              const selected = offers.find((offer) => offer.id === event.target.value);
+              if (selected) { setSelectedOfferId(selected.id); setSelectedServiceId(selected.categoryId); }
+            } else setSelectedServiceId(event.target.value);
+          }}>
+            {offersLoaded && offers.length ? offers.map((offer) => {
+              const categoryName = categories.find((category) => category.id === offer.categoryId)?.name ?? "Home service";
+              return <option key={offer.id} value={offer.id}>{offer.title} · {categoryName}</option>;
+            }) : offeredServices.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
           </select>
         </div>
         <div>
@@ -454,15 +482,13 @@ function RequestPanel({ worker }: { worker: Worker }) {
             id="req-desc"
             className="field min-h-[96px] resize-y"
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Describe the issue, where it is, and when you are available."
+            onChange={(e) => setDescription(e.target.value.slice(0, 10))}
+            placeholder="Short job note"
             required
-            minLength={10}
-            maxLength={2000}
+            minLength={1}
+            maxLength={10}
           />
-          <p className="caption mt-1">
-            At least 10 characters. The worker assesses scope before quoting. ({description.length}/2,000)
-          </p>
+          <p className="caption mt-1">Maximum 10 characters ({description.length}/10). The worker discusses the full scope in chat before quoting.</p>
         </div>
 
         <div>

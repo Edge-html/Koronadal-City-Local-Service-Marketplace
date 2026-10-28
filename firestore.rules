@@ -9,7 +9,7 @@ rules_version = '2';
 //    comparing the document's `uid` field against the caller. Jobs and ledger
 //    entries denormalise `workerUid` for the same reason: it lets these rules
 //    avoid a cross-document lookup on the hot read path.
-//  * Review signals — verified, rating, reviewCount, wallet, referralCredits,
+//  * Review signals — verified, rating, reviewCount, wallet,
 //    isPro, status — are not writable by the client. A worker cannot mark
 //    themselves approved, grant themselves Pro, or credit their own wallet.
 //  * Reviews are immutable once written, so feedback cannot be rewritten to
@@ -166,6 +166,8 @@ service cloud.firestore {
         && request.resource.data.rating == 0
         && request.resource.data.reviewCount == 0
         && request.resource.data.jobsCompleted == 0
+        && !('referralCode' in request.resource.data)
+        && !('referredBy' in request.resource.data)
         && request.resource.data.referralCredits == 0
         && (!('isPro' in request.resource.data) || request.resource.data.isPro == false)
         && !('phone' in request.resource.data)
@@ -229,6 +231,8 @@ service cloud.firestore {
         && request.resource.data.title is string
         && request.resource.data.title.size() > 2
         && request.resource.data.title.size() <= 120
+        && request.resource.data.description is string
+        && request.resource.data.description.size() <= 10
         && request.resource.data.priceFrom is number
         && request.resource.data.priceFrom >= 0;
 
@@ -335,6 +339,12 @@ service cloud.firestore {
         && myRole() in ['customer', 'worker']
         && request.resource.data.consumerId == request.auth.uid
         && request.resource.data.status == 'requested'
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 90
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 10
         && request.resource.data.workerUid != request.auth.uid
         && request.resource.data.workerId is string
         && request.resource.data.workerUid is string

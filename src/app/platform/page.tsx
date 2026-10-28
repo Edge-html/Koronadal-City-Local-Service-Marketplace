@@ -4,7 +4,6 @@ import { Workflow } from "@/components/sections/Workflow";
 import { LiveProductCard } from "@/components/sections/ProductCard";
 import { Commission } from "@/components/sections/Commission";
 import { Onboarding } from "@/components/sections/Onboarding";
-import { Referrals } from "@/components/sections/Referrals";
 import { Compliance } from "@/components/sections/Compliance";
 import { ClosingCta } from "@/components/sections/ClosingCta";
 
@@ -18,7 +17,7 @@ export const metadata: Metadata = {
  * Platform detail page.
  *
  * Everything operational, split out of the landing page: the lifecycle, how
- * workers get onboarded, how referrals work, and the legal
+ * workers get onboarded, and the legal
  * posture. The landing page keeps the pitch; this page carries the specifics.
  */
 export default function PlatformPage() {
@@ -29,7 +28,6 @@ export default function PlatformPage() {
       <LiveProductCard />
       <Commission />
       <Onboarding />
-      <Referrals />
       <Compliance />
       <ClosingCta />
     </>
@@ -64,7 +62,6 @@ function PlatformHeader() {
             ["#workflow", "Workflow"],
             ["#commission", "Agree & pay"],
             ["#onboarding", "Onboarding"],
-            ["#referrals", "Referrals"],
             ["#compliance", "Compliance"],
           ].map(([href, label]) => (
             <a

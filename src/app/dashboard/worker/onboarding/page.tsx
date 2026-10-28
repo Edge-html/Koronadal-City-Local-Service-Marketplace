@@ -40,7 +40,7 @@ export default function WorkerOnboardingPage() {
   const [serviceRate, setServiceRate] = useState("");
   const [bio, setBio] = useState("");
   const [phone, setPhone] = useState("");
-  const [referral, setReferral] = useState("");
+  const [publicInfoAcknowledged, setPublicInfoAcknowledged] = useState(false);
 
   // [step 2]
   const [docs, setDocs] = useState<Record<string, { fileName: string; file: File }[]>>({});
@@ -68,7 +68,7 @@ export default function WorkerOnboardingPage() {
   }, [profile]);
 
   const step1Valid =
-    categoryId !== "" && barangay !== "" && years !== "" && Number(years) >= 0 && Number(serviceRate) > 0 && /^(09\d{9}|\+639\d{9})$/.test(phone.trim().replace(/[\s-]/g, "")) && bio.trim().length >= 20 && specialtyDescription.trim().length >= 2;
+    categoryId !== "" && barangay !== "" && years !== "" && Number(years) >= 0 && Number(serviceRate) > 0 && /^(09\d{9}|\+639\d{9})$/.test(phone.trim().replace(/[\s-]/g, "")) && bio.trim().length >= 20 && specialtyDescription.trim().length >= 2 && publicInfoAcknowledged;
 
   const mandatoryDocs: DocType[] = [
     "government_id",
@@ -116,7 +116,6 @@ export default function WorkerOnboardingPage() {
         yearsExperience: Number(years) || 0,
         serviceRate: Number(serviceRate) || 0,
         tesdaCertified: Boolean(docs.tesda_certificate?.length),
-        referredBy: referral.trim().toUpperCase(),
         verificationDocs: uploadedDocs,
       });
 
@@ -333,22 +332,10 @@ export default function WorkerOnboardingPage() {
                 </div>
               </fieldset>
 
-              <div>
-                <label className="label" htmlFor="ob-ref">
-                  Referral code (optional)
-                </label>
-                <input
-                  id="ob-ref"
-                  className="field uppercase"
-                  value={referral}
-                  onChange={(e) => setReferral(e.target.value)}
-                  placeholder="K7M2QP"
-                  maxLength={6}
-                />
-                <p className="caption mt-1">
-                  The referring worker earns a referral credit after your first completed job.
-                </p>
-              </div>
+              <label className="flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 p-3 text-[13px] leading-relaxed text-blue-950">
+                <input type="checkbox" checked={publicInfoAcknowledged} onChange={(event) => setPublicInfoAcknowledged(event.target.checked)} className="mt-1 accent-blue-700" />
+                <span><strong>Public profile notice:</strong> I understand that my name, photo, services, service rate, service areas, and profile details I choose to show will be visible to people browsing KoroHanap. My signup email, phone number, and verification documents remain private.</span>
+              </label>
 
               <div className="flex justify-end">
                 <button

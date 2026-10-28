@@ -365,18 +365,6 @@ const now = Date.now();
 const iso = (daysAgo, hours = 0) =>
   new Date(now - daysAgo * 86400000 - hours * 3600000).toISOString();
 
-/** Unambiguous alphabet, matching makeReferralCode in the app. */
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-function referralCode(seed) {
-  let out = "";
-  let x = seed;
-  for (let i = 0; i < 6; i++) {
-    x = (x * 1103515245 + 12345) & 0x7fffffff;
-    out += ALPHABET[x % ALPHABET.length];
-  }
-  return out;
-}
-
 const peso = (n) => Math.round(n * 100) / 100;
 
 /**
@@ -505,8 +493,6 @@ async function main() {
       jobsCompleted: w.jobs,
       verified: !pending,
       tesdaCertified: w.tesda,
-      referralCode: referralCode(seed),
-      referralCredits: 0,
       walletBalance: w.wallet,
       walletLocked: 0,
       status: w.status ?? "active",
@@ -564,7 +550,7 @@ async function main() {
       workerName: worker.name,
       categoryId: worker.trade,
       title: j.title,
-      description: j.description,
+      description: j.description.slice(0, 10),
       photoUrl: "",
       barangay: consumer.brgy,
       status: j.status,

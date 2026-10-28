@@ -53,17 +53,6 @@ export function maskPhone(phone: string): string {
   return `••• ••• ${tail}`;
 }
 
-/** Unambiguous alphabet for the 6-character referral code (no O/0, I/1). */
-const REFERRAL_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-export function makeReferralCode(len = 6): string {
-  let out = "";
-  for (let i = 0; i < len; i++) {
-    out += REFERRAL_ALPHABET[Math.floor(Math.random() * REFERRAL_ALPHABET.length)];
-  }
-  return out;
-}
-
 export function cx(...classes: Array<string | false | null | undefined>): string {
   return classes.filter(Boolean).join(" ");
 }

@@ -93,7 +93,6 @@ async function marketplaceAction(payload: Record<string, unknown>): Promise<Mark
 }
 
 import { computeTotals, pesos } from "@/lib/commission";
-import { makeReferralCode } from "@/lib/utils";
 import type {
   Inquiry,
   Conversation,
@@ -123,7 +122,7 @@ const byNewest = (a: string, b: string) =>
  *
  * Firestore rejects the entire write if any field is undefined ("Unsupported
  * field value: undefined"), and optional inputs are routinely passed as
- * undefined — a blank referral code, an absent phone number. Stripping here
+ * undefined — an absent phone number. Stripping here
  * means callers do not have to remember to.
  */
 function stripUndefined<T extends Record<string, unknown>>(draft: T) {
@@ -159,8 +158,6 @@ function toWorker(id: string, data: DocumentData): Worker {
     jobsCompleted: data.jobsCompleted ?? 0,
     verified: data.verified ?? false,
     tesdaCertified: data.tesdaCertified ?? false,
-    referralCode: data.referralCode ?? "",
-    referralCredits: data.referralCredits ?? 0,
     walletBalance: data.walletBalance ?? 0,
     walletLocked: data.walletLocked ?? 0,
     isPro: data.isPro === true,
@@ -169,7 +166,6 @@ function toWorker(id: string, data: DocumentData): Worker {
     status: data.status === "paused_wallet" ? "active" : (data.status ?? "pending_verification"),
     serviceRate: data.serviceRate ?? data.hourlyRate ?? 0,
     hourlyRate: data.hourlyRate,
-    referredBy: data.referredBy,
     resume: data.resume ?? null,
     skills: Array.isArray(data.skills) ? data.skills : [],
     portfolio: data.portfolio ?? [],
@@ -240,16 +236,10 @@ export interface WorkerDraft {
   serviceRate: number;
   verificationDocs: VerificationDoc[];
   tesdaCertified: boolean;
-  referredBy?: string;
 }
 
 /** Creates the worker profile at the end of the 3-step self-registration. */
 export async function createWorkerProfile(draft: WorkerDraft) {
-  // An empty referral code means "none entered", not "referrer is blank string".
-  if (typeof draft.referredBy === "string" && !draft.referredBy.trim()) {
-    draft = { ...draft, referredBy: undefined };
-  }
-
   const verificationDocs = draft.verificationDocs;
   const publicDraft = Object.fromEntries(
     Object.entries(draft).filter(([key]) => !["phone", "email", "verificationDocs"].includes(key)),
@@ -263,7 +253,8 @@ export async function createWorkerProfile(draft: WorkerDraft) {
     reviewCount: 0,
     jobsCompleted: 0,
     verified: false,
-    referralCode: makeReferralCode(),
+    // Keep this zero-valued legacy field while existing Firestore rules still
+    // require a clean referral-credit balance at worker registration.
     referralCredits: 0,
     status: "pending_verification",
     portfolio: [],
@@ -412,7 +403,7 @@ function toOffer(id: string, data: DocumentData): ServiceOffer {
     workerName: data.workerName ?? "",
     title: data.title ?? "",
     categoryId: data.categoryId ?? "",
-    description: data.description ?? "",
+    description: String(data.description ?? "").slice(0, 10),
     priceFrom: data.priceFrom ?? 0,
     barangay: data.barangay ?? "",
     status: data.status ?? "open",
@@ -430,9 +421,13 @@ export async function listOffersForWorker(workerUid: string) {
 
 /** Open offers in one trade, for the public "what is on offer" listing. */
 export async function listOpenOffers(categoryId?: string) {
-  const snap = await getDocs(query(offersCol(), where("status", "==", "open")));
+  const [snap, disabled] = await Promise.all([
+    getDocs(query(offersCol(), where("status", "==", "open"))),
+    getDisabledServiceIds(),
+  ]);
   return snap.docs
     .map((d) => toOffer(d.id, d.data()))
+    .filter((offer) => !disabled.includes(offer.categoryId))
     .filter((offer) => !categoryId || offer.categoryId === categoryId)
     .sort((a, b) => byNewest(a.createdAt, b.createdAt));
 }
@@ -454,6 +449,7 @@ export async function createOffer(
     barangay: string;
   },
 ) {
+  if (input.description.trim().length > 10) throw new Error("Service description must be 10 characters or fewer.");
   const ref = await addDoc(offersCol(), stripUndefined({
     workerId: worker.id,
     workerUid: worker.uid,
@@ -664,6 +660,9 @@ export interface NewJob {
 
 /** Stage 1 -> 2. Creates the request and reports whether the worker email was sent. */
 export async function createJobRequest(input: NewJob) {
+  const description = input.description.trim();
+  if (!description || description.length > 10) throw new Error("Job description must be between 1 and 10 characters.");
+  if (!input.title.trim() || input.title.trim().length > 90) throw new Error("Job title must be 1 to 90 characters.");
   const ref = doc(jobsCol());
   const conversationId = await getOrCreateConversation(input.worker, {
     id: input.consumerId,
@@ -680,7 +679,7 @@ export async function createJobRequest(input: NewJob) {
     workerPhotoUrl: input.worker.photoUrl ?? "",
     categoryId: input.categoryId,
     title: input.title,
-    description: input.description,
+    description,
     photoUrl: input.photoUrl ?? "",
     photoPath: input.photoPath ?? "",
     barangay: input.barangay,

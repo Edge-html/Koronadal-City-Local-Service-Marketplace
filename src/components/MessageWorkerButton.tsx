@@ -13,7 +13,7 @@ export function MessageWorkerButton({ worker }: { worker: Worker }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  if (!user) return <Link href={`/login?next=${encodeURIComponent(`/worker/${worker.id}`)}`} className="btn-neutral w-full no-underline"><MessageSquare size={14} />Sign in to message</Link>;
+  if (!user) return <Link href={`/login?next=${encodeURIComponent(`/worker/${worker.id}`)}`} className="btn-neutral w-full no-underline"><MessageSquare size={14} />Sign in to send a message</Link>;
   if (user.uid === worker.uid) return null;
 
   return <div>
@@ -24,7 +24,7 @@ export function MessageWorkerButton({ worker }: { worker: Worker }) {
         router.push(`/dashboard/messages?conversation=${encodeURIComponent(id)}`);
       } catch (err) { setError(err instanceof Error ? err.message : "Could not open a conversation."); }
       finally { setBusy(false); }
-    }}><MessageSquare size={14} />{busy ? "Opening…" : "Message this worker"}</button>
+    }}><MessageSquare size={14} />{busy ? "Opening…" : "Send a Message"}</button>
     {error ? <p role="alert" className="mt-2 text-xs text-rose-700">{error}</p> : null}
   </div>;
 }

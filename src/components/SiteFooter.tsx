@@ -17,7 +17,6 @@ const COLUMNS = [
       { href: "/signup?role=worker", label: "Create a profile" },
       { href: "/platform#onboarding", label: "Onboarding pathways" },
       { href: "/dashboard/worker", label: "Worker dashboard" },
-      { href: "/platform#referrals", label: "Referral program" },
     ],
   },
   {

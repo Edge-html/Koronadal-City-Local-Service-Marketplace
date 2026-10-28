@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { DashboardShell } from "@/components/DashboardShell";
 import { ProUpgradeCard } from "@/components/ProUpgradeCard";
 import { ActionButton } from "@/components/JobCard";
-import { Badge, Card, Notice, safeAsync, StarRating, StatCard } from "@/components/ui";
+import { Badge, Card, Notice, StarRating, StatCard } from "@/components/ui";
 import { BARANGAYS, CATEGORY_MAP } from "@/lib/constants";
 import { PortfolioForm } from "@/components/PortfolioForm";
 import { ResumeEditor } from "@/components/ResumeEditor";
@@ -29,7 +29,6 @@ export default function WorkerProfilePage() {
   const [serviceAreas, setServiceAreas] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
   const categories = useServiceCategories(true);
 
@@ -91,7 +90,7 @@ export default function WorkerProfilePage() {
       <DashboardShell
         eyebrow="Worker console"
         title="Profile"
-        subtitle="Your public listing and referral code."
+        subtitle="Your public listing and profile settings."
       >
         <p className="meta">{error || "Loading your profile"}</p>
       </DashboardShell>
@@ -116,7 +115,7 @@ export default function WorkerProfilePage() {
     <DashboardShell
       eyebrow="Worker console"
       title="Profile"
-      subtitle="Your public listing and referral code."
+      subtitle="Your public listing and profile settings."
     >
       <div className="flex flex-col gap-4">
         <ProfileStrength worker={worker} />
@@ -234,29 +233,6 @@ export default function WorkerProfilePage() {
               })}
             </Card>
             <ProUpgradeCard worker={worker} />
-            <Card className="flex flex-col gap-3 p-5">
-              <p className="caption">Referral code</p>
-              <p className="text-[28px] leading-none font-medium tracking-[0.12em] text-ink-black tabular-nums">
-                {worker.referralCode || "—"}
-              </p>
-              <p className="text-[13px] leading-[1.45] text-stone-600">
-                Credits post automatically when your invitee completes their
-                first job.
-              </p>
-              <button
-                type="button"
-                className="btn-neutral btn-sm self-start"
-                onClick={safeAsync(async () => {
-                  await navigator.clipboard.writeText(worker.referralCode);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                })}
-              >
-                <Copy size={13} strokeWidth={1.5} />
-                {copied ? "Copied" : "Copy code"}
-              </button>
-            </Card>
-
             <Card className="flex flex-col gap-3 p-5">
               <div>
                 <p className="caption">Verification status</p>

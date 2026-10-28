@@ -635,20 +635,11 @@ export async function POST(request: NextRequest) {
         const workerSnap = await tx.get(workerRef);
         const worker = workerSnap.data();
         if (!worker || worker.uid !== user.uid) throw new Error("Worker profile not found.");
-        const isFirstJob = Number(worker.jobsCompleted ?? 0) === 0;
-        const referrerQuery = isFirstJob && worker.referredBy
-          ? await tx.get(db.collection("workers").where("referralCode", "==", worker.referredBy).limit(1))
-          : null;
-        const referrerDoc = referrerQuery?.docs[0];
-        const referrer = referrerDoc?.data();
         tx.update(jobRef, {
           status: "completed",
           completedAt: new Date().toISOString(),
         });
         tx.update(workerRef, { jobsCompleted: Number(worker.jobsCompleted ?? 0) + 1 });
-        if (referrerDoc && referrer && referrerDoc.id !== job.workerId) {
-          tx.update(referrerDoc.ref, { referralCredits: Number(referrer.referralCredits ?? 0) + 1 });
-        }
       });
       await sendJobStageEmail(db, auth, input.jobId, "work_completed", request.nextUrl.origin);
       return NextResponse.json({ ok: true });
@@ -687,12 +678,6 @@ export async function POST(request: NextRequest) {
         const locked = Number(worker.walletLocked ?? 0);
         if (!Number.isFinite(commission) || commission < 0 || locked < commission) throw new Error("The commission lock is missing.");
         const balance = money(Number(worker.walletBalance ?? 0) - commission);
-        const isFirstJob = Number(worker.jobsCompleted ?? 0) === 0;
-        const referrerQuery = isFirstJob && worker.referredBy
-          ? await tx.get(db.collection("workers").where("referralCode", "==", worker.referredBy).limit(1))
-          : null;
-        const referrerDoc = referrerQuery?.docs[0];
-        const referrer = referrerDoc?.data();
         const now = new Date().toISOString();
         tx.update(workerRef, {
           walletBalance: balance,
@@ -706,15 +691,6 @@ export async function POST(request: NextRequest) {
           kind: "commission_settle", amount: -commission, balanceAfter: balance,
           note: "Commission settled after confirming finder payment for " + job.title, createdAt: now,
         });
-        if (referrerDoc && referrer && referrerDoc.id !== job.workerId) {
-          const credits = Number(referrer.referralCredits ?? 0) + 1;
-          tx.update(referrerDoc.ref, { referralCredits: credits });
-          tx.create(db.collection("ledger").doc(), {
-            workerId: referrerDoc.id, workerUid: referrer.uid, jobId: input.jobId,
-            kind: "referral_credit", amount: 1, balanceAfter: credits,
-            note: "First settled job referral: " + worker.fullName, createdAt: now,
-          });
-        }
         return { consumerId: String(job.consumerId ?? ""), optedIn: job.reviewEmailOptIn === true };
       });
       if (reviewRecipient.optedIn) {
@@ -743,12 +719,6 @@ export async function POST(request: NextRequest) {
         const locked = Number(worker.walletLocked ?? 0);
         if (locked < commission) throw new Error("The commission lock is missing.");
         const balance = money(Number(worker.walletBalance ?? 0) - commission);
-        const isFirstJob = Number(worker.jobsCompleted ?? 0) === 0;
-        const referrerQuery = isFirstJob && worker.referredBy
-          ? await tx.get(db.collection("workers").where("referralCode", "==", worker.referredBy).limit(1))
-          : null;
-        const referrerDoc = referrerQuery?.docs[0];
-        const referrer = referrerDoc?.data();
         tx.update(workerRef, {
           walletBalance: balance,
           walletLocked: money(locked - commission),
@@ -766,20 +736,6 @@ export async function POST(request: NextRequest) {
           note: "Commission settled for " + job.title,
           createdAt: new Date().toISOString(),
         });
-        if (referrerDoc && referrer && referrerDoc.id !== job.workerId) {
-          const credits = Number(referrer.referralCredits ?? 0) + 1;
-          tx.update(referrerDoc.ref, { referralCredits: credits });
-          tx.create(db.collection("ledger").doc(), {
-            workerId: referrerDoc.id,
-            workerUid: referrer.uid,
-            jobId: input.jobId,
-            kind: "referral_credit",
-            amount: 1,
-            balanceAfter: credits,
-            note: "First settled job referral: " + worker.fullName,
-            createdAt: new Date().toISOString(),
-          });
-        }
         return { consumerId: String(job.consumerId ?? ""), optedIn: job.reviewEmailOptIn === true };
       });
       if (reviewRecipient.optedIn) {
