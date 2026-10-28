@@ -11,10 +11,19 @@ import { useActivity } from "@/context/ActivityContext";
 import { firebaseConfigured } from "@/lib/firebase";
 import { ActionNotifications } from "@/components/ActionNotifications";
 import { Avatar } from "@/components/ui";
+import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
+
+function UnreadMessageBadge({ count }: { count: number }) {
+  if (count <= 0) return null;
+  return <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[11px] font-semibold leading-4 text-white tabular-nums" aria-label={`${count} unread conversations`} aria-live="polite">
+    {count > 99 ? "99+" : count}
+  </span>;
+}
 
 export function SiteNav() {
   const pathname = usePathname();
   const { user, role, loading, logout, profile } = useAuth();
+  const unreadMessageCount = useUnreadMessageCount(user?.uid ?? null);
   const { customerCount, workerCount, adminCount, customerJobs, workerJobs, admin } = useActivity();
   const [open, setOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
@@ -23,9 +32,9 @@ export function SiteNav() {
   const links = role === "admin"
     ? [{ href: "/admin", label: "Review queue", count: adminCount }, { href: "/browse", label: "Worker directory", count: 0 }]
     : role === "worker"
-      ? [{ href: "/", label: "Home", count: 0 }, { href: "/dashboard/worker", label: "My jobs", count: workerCount }, { href: "/dashboard/worker#my-services", label: "My service offers", count: 0 }, { href: "/dashboard/messages", label: "Messages", count: 0 }]
+      ? [{ href: "/", label: "Home", count: 0 }, { href: "/dashboard/worker", label: "My jobs", count: workerCount }, { href: "/dashboard/worker#my-services", label: "My service offers", count: 0 }, { href: "/dashboard/messages", label: "Messages", count: unreadMessageCount }]
       : role === "customer"
-        ? [{ href: "/", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/messages", label: "Messages", count: 0 }]
+        ? [{ href: "/", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/messages", label: "Messages", count: unreadMessageCount }]
         : [{ href: "/landing", label: "Home", count: 0 }, { href: "/browse", label: "Find a worker", count: 0 }, { href: "/platform", label: "How it works", count: 0 }];
   const accountName = user?.displayName?.trim() || user?.email?.split("@")[0] || "Account";
   const accountLinks = role === "worker" ? [
@@ -33,9 +42,9 @@ export function SiteNav() {
     { href: "/dashboard/worker/credentials", label: "Verification documents", count: 0 },
     { href: "/browse", label: "Hire a worker", count: 0 },
     { href: "/dashboard/customer", label: "My requests as a customer", count: customerCount },
-    { href: "/dashboard/messages", label: "Messages", count: 0 },
+    { href: "/dashboard/messages", label: "Messages", count: unreadMessageCount },
   ] : role === "admin" ? [{ href: "/admin", label: "Review queue", count: adminCount }]
-    : [{ href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/customer/profile", label: "My profile", count: 0 }, { href: "/dashboard/messages", label: "Messages", count: 0 }];
+    : [{ href: "/dashboard/customer", label: "My requests", count: customerCount }, { href: "/dashboard/customer/profile", label: "My profile", count: 0 }, { href: "/dashboard/messages", label: "Messages", count: unreadMessageCount }];
 
   useEffect(() => { setOpen(false); setAccountOpen(false); }, [pathname]);
   useEffect(() => {
@@ -54,7 +63,7 @@ export function SiteNav() {
   const renderLinks = (mobile = false) => links.map((link) => <Link key={link.href} href={link.href}
     onClick={() => setOpen(false)} aria-current={pathname === link.href ? "page" : undefined}
     className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm no-underline transition-colors ${mobile ? "justify-between" : ""} ${pathname === link.href ? "bg-ink-black font-medium text-newsprint" : "text-stone-700 hover:bg-bone"}`}>
-    {link.label}<CountBadge count={link.count} />
+    {link.label}{link.href === "/dashboard/messages" ? <UnreadMessageBadge count={link.count} /> : <CountBadge count={link.count} />}
   </Link>);
 
   return <>
@@ -75,7 +84,7 @@ export function SiteNav() {
               {accountOpen ? <div id="account-panel" className="absolute right-0 top-full mt-2 w-64 max-w-[85vw] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
                 <div className="border-b border-stone-100 px-3 py-3"><p className="truncate text-sm font-semibold">{accountName}</p><p className="mt-1 text-xs capitalize text-stone-500">{role === "customer" ? "Customer" : role} account</p></div>
                 <nav aria-label="Account">{accountLinks.map((link) => <Link key={link.href} href={link.href} onClick={() => { setAccountOpen(false); setOpen(false); }} className="flex min-h-11 items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-stone-800 no-underline hover:bg-stone-100">
-                  {link.label}<CountBadge count={link.count} />
+                  {link.label}{link.href === "/dashboard/messages" ? <UnreadMessageBadge count={link.count} /> : <CountBadge count={link.count} />}
                 </Link>)}</nav>
                 <button type="button" onClick={async () => { setAccountOpen(false); await logout(); }} className="mt-1 flex min-h-11 w-full items-center gap-2 rounded-lg border-t border-stone-100 px-3 py-2 text-sm hover:bg-stone-100"><LogOut size={14} />Sign out</button>
               </div> : null}

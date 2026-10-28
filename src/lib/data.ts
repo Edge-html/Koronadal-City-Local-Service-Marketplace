@@ -569,6 +569,20 @@ export function subscribeToMessages(
   }, (err) => onError?.(err));
 }
 
+export function subscribeToLatestMessage(
+  conversationId: string,
+  onMessage: (message: DirectMessage | null) => void,
+  onError?: (error: Error) => void,
+): Unsubscribe {
+  const messages = collection(doc(conversationsCol(), conversationId), "messages");
+  return onSnapshot(query(messages, orderBy("createdAt", "desc"), limit(1)), (snap) => {
+    const latest = snap.docs[0];
+    onMessage(latest
+      ? { ...(latest.data() as Omit<DirectMessage, "id">), id: latest.id }
+      : null);
+  }, (err) => onError?.(err));
+}
+
 export async function sendDirectMessage(
   conversationId: string,
   sender: { id: string; name: string },

@@ -11,6 +11,7 @@ import { Card, Notice } from "@/components/ui";
 import { useAuth } from "@/context/AuthContext";
 import { confirmJobAgreement, sendDirectMessage, subscribeToConversations, subscribeToMessages, toJob } from "@/lib/data";
 import { getFirebaseDb } from "@/lib/firebase";
+import { markConversationRead } from "@/lib/messageReadState";
 import type { Conversation, DirectMessage, Job } from "@/lib/types";
 
 function MessagesContent() {
@@ -37,9 +38,12 @@ function MessagesContent() {
   }, [user]);
   useEffect(() => {
     setMessages([]);
-    if (!selected) return;
-    return subscribeToMessages(selected, setMessages, () => setError("You do not have access to this conversation or its messages."));
-  }, [selected]);
+    if (!selected || !user) return;
+    return subscribeToMessages(selected, (rows) => {
+      setMessages(rows);
+      markConversationRead(user.uid, selected);
+    }, () => setError("You do not have access to this conversation or its messages."));
+  }, [selected, user]);
   useEffect(() => {
     setJob(null);
     if (!active?.jobId) return;
