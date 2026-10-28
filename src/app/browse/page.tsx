@@ -5,6 +5,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { BadgeCheck, BriefcaseBusiness, MapPin, Search, SlidersHorizontal, Sparkles } from "lucide-react";
 import { Avatar, Badge, Card, EmptyState, Skeleton, StarRating } from "@/components/ui";
+import { MessageWorkerButton } from "@/components/MessageWorkerButton";
 import { BARANGAYS } from "@/lib/constants";
 import { firebaseConfigured } from "@/lib/firebase";
 import { FirebaseSetupNotice } from "@/components/FirebaseSetupNotice";
@@ -190,8 +191,8 @@ function BrowseInner() {
 
           {workers === null ? <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-36 rounded-xl" />)}</div>
             : filtered.length === 0 ? <Card className="p-6"><EmptyState title={loadError ? "Directory not readable" : workers.length === 0 ? "No workers listed yet" : "No matches"} description={loadError ? "The directory may need the updated Firestore rules. Check the Firebase project rules and reload." : workers.length === 0 ? "The directory is empty. Workers will appear after their applications are approved." : "Try a broader search or clear one of the filters."} action={workers.length === 0 && !loadError ? { label: "Join as a worker", href: "/signup?role=worker" } : undefined} /></Card>
-              : <ul className="space-y-3">{filtered.map((worker) => <li key={worker.id}>
-                <button type="button" onClick={() => setSelectedId(worker.id)} aria-pressed={selected?.id === worker.id} className={`w-full rounded-xl border bg-white p-4 text-left shadow-sm transition hover:border-blue-400 hover:shadow-md ${selected?.id === worker.id ? "border-blue-600 ring-1 ring-blue-600/20" : "border-stone-200"}`}>
+              : <ul className="space-y-3">{filtered.map((worker) => <li key={worker.id} className={`overflow-hidden rounded-xl border bg-white shadow-sm transition hover:border-blue-400 hover:shadow-md ${selected?.id === worker.id ? "border-blue-600 ring-1 ring-blue-600/20" : "border-stone-200"}`}>
+                <button type="button" onClick={() => setSelectedId(worker.id)} aria-pressed={selected?.id === worker.id} className="w-full p-4 text-left">
                   <div className="flex items-start gap-3">
                     <Avatar name={worker.fullName} size={48} photoUrl={worker.photoUrl} />
                     <div className="min-w-0 flex-1">
@@ -207,6 +208,9 @@ function BrowseInner() {
                   </div>
                   {worker.bio && worker.profileVisibility?.bio !== false ? <p className="mt-3 line-clamp-2 text-[13px] leading-relaxed text-stone-600">{worker.bio}</p> : null}
                 </button>
+                <div className="px-4 pb-4">
+                  <MessageWorkerButton worker={worker} />
+                </div>
               </li>)}</ul>}
         </section>
 

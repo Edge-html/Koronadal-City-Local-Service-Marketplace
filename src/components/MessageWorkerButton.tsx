@@ -24,7 +24,7 @@ export function MessageWorkerButton({ worker }: { worker: Worker }) {
         router.push(`/dashboard/messages?conversation=${encodeURIComponent(id)}`);
       } catch (err) { setError(err instanceof Error ? err.message : "Could not open a conversation."); }
       finally { setBusy(false); }
-    }}><MessageSquare size={14} />{busy ? "Opening…" : "Send a Message"}</button>
+    }}><MessageSquare size={14} />{busy ? "Opening…" : "Send a message"}</button>
     {error ? <p role="alert" className="mt-2 text-xs text-rose-700">{error}</p> : null}
   </div>;
 }
