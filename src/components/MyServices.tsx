@@ -367,7 +367,8 @@ function OfferForm({
   const [error, setError] = useState("");
 
   const priceNum = Number(price) || 0;
-  const valid = title.trim().length >= 3 && description.trim().length <= 10 && priceNum > 0;
+  const descriptionLength = description.trim().length;
+  const valid = title.trim().length >= 3 && (descriptionLength === 0 || descriptionLength >= 10) && descriptionLength <= 2000 && priceNum > 0;
 
   async function run() {
     setBusy(true);
@@ -476,11 +477,12 @@ function OfferForm({
           id="of-desc"
           className="field min-h-[80px] resize-y"
           value={description}
-          onChange={(e) => setDescription(e.target.value.slice(0, 10))}
-          maxLength={10}
-          placeholder="Short service note"
+          onChange={(e) => setDescription(e.target.value)}
+          minLength={10}
+          maxLength={2000}
+          placeholder="Describe the service you provide"
         />
-        <p className="caption mt-1">Maximum 10 characters ({description.length}/10).</p>
+        <p className="caption mt-1">Optional. If provided, use at least 10 characters ({description.length}/2,000).</p>
       </div>
 
       <ActionButton onClick={run} busy={busy} disabled={!valid}>

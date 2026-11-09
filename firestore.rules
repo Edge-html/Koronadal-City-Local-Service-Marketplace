@@ -232,7 +232,8 @@ service cloud.firestore {
         && request.resource.data.title.size() > 2
         && request.resource.data.title.size() <= 120
         && request.resource.data.description is string
-        && request.resource.data.description.size() <= 10
+        && request.resource.data.description.size() <= 2000
+        && (request.resource.data.description.size() == 0 || request.resource.data.description.size() >= 10)
         && request.resource.data.priceFrom is number
         && request.resource.data.priceFrom >= 0;
 
@@ -344,7 +345,8 @@ service cloud.firestore {
         && request.resource.data.title.size() <= 90
         && request.resource.data.description is string
         && request.resource.data.description.size() > 0
-        && request.resource.data.description.size() <= 10
+        && request.resource.data.description.size() >= 10
+        && request.resource.data.description.size() <= 2000
         && request.resource.data.workerUid != request.auth.uid
         && request.resource.data.workerId is string
         && request.resource.data.workerUid is string

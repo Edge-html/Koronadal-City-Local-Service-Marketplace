@@ -428,7 +428,7 @@ function RequestPanel({ worker }: { worker: Worker }) {
     );
   }
 
-  const valid = title.trim().length >= 3 && description.trim().length > 0 && description.trim().length <= 10;
+  const valid = title.trim().length >= 3 && description.trim().length >= 10 && description.trim().length <= 2000;
 
   return (
     <Card className="flex flex-col gap-4 p-6">
@@ -482,13 +482,13 @@ function RequestPanel({ worker }: { worker: Worker }) {
             id="req-desc"
             className="field min-h-[96px] resize-y"
             value={description}
-            onChange={(e) => setDescription(e.target.value.slice(0, 10))}
+            onChange={(e) => setDescription(e.target.value)}
             placeholder="Short job note"
             required
-            minLength={1}
-            maxLength={10}
+            minLength={10}
+            maxLength={2000}
           />
-          <p className="caption mt-1">Maximum 10 characters ({description.length}/10). The worker discusses the full scope in chat before quoting.</p>
+          <p className="caption mt-1">At least 10 characters ({description.length}/2,000). The worker discusses the full scope in chat before quoting.</p>
         </div>
 
         <div>

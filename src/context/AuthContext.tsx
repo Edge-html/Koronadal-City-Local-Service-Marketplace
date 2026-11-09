@@ -28,6 +28,19 @@ import {
 } from "@/lib/firebase";
 import type { Role } from "@/lib/types";
 
+export function verificationEmailError(error: unknown) {
+  const code = (error as { code?: string })?.code ?? "";
+  if (!code && error instanceof Error) return error.message;
+  if (code === "auth/too-many-requests") return "Firebase temporarily limited verification emails. Wait a few minutes, then try again.";
+  if (code === "auth/network-request-failed") return "Could not reach Firebase. Check your internet connection and try again.";
+  if (code === "auth/operation-not-allowed") return "Email verification is unavailable because Email/Password sign-in is not enabled in Firebase Authentication.";
+  if (code === "auth/user-disabled") return "This account is disabled. Contact the site administrator.";
+  if (code === "auth/email-already-verified") return "This email is already verified. You can return to sign in.";
+  if (code === "auth/invalid-continue-uri" || code === "auth/unauthorized-continue-uri") return "Firebase rejected the verification link destination. Check the authorized domains in Firebase Authentication settings.";
+  if (code === "auth/user-token-expired") return "Your sign-in expired. Sign in again, then request a new verification link.";
+  return "Firebase could not send the verification email. Check the Firebase Authentication email template and try again.";
+}
+
 interface AuthContextValue {
   user: User | null;
   role: Role | null;
@@ -248,14 +261,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       });
       try {
-        await sendEmailVerification(cred.user, {
-          url: `${window.location.origin}/login?verified=1`,
-          handleCodeInApp: false,
-        });
+        // Use Firebase's default verification handler. A custom continue URL
+        // requires every production domain to be added to Firebase's
+        // authorized-domain list, which made resend fail after domain changes.
+        await sendEmailVerification(cred.user);
+        try { sessionStorage.removeItem("korohanap:verification-email-failed"); } catch { /* storage is optional */ }
       } catch (error) {
         // The account exists; keep the user in the verification flow so they
         // can request another link instead of treating registration as failed.
         console.warn("[auth] verification email could not be sent:", error);
+        try { sessionStorage.setItem("korohanap:verification-email-failed", "1"); } catch { /* storage is optional */ }
       }
       return cred.user;
     },
@@ -302,10 +317,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sendVerificationEmail = useCallback(async () => {
     const current = getFirebaseAuth().currentUser;
     if (!current) throw new Error("Sign in to request an email verification link.");
-    await sendEmailVerification(current, {
-      url: `${window.location.origin}/login?verified=1`,
-      handleCodeInApp: false,
-    });
+    await current.reload();
+    if (current.emailVerified) throw new Error("This email is already verified. You can return to sign in.");
+    await sendEmailVerification(current);
   }, []);
 
   const refreshProfile = useCallback(async () => {

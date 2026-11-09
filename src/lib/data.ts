@@ -45,6 +45,14 @@ export interface ProPaymentSettings {
   updatedAt?: string;
 }
 
+export interface AdminAccount {
+  uid: string;
+  email: string;
+  name: string;
+  role: string;
+  createdAt: string;
+}
+
 export interface ProPaymentRequest {
   id: string;
   workerId: string;
@@ -90,6 +98,36 @@ async function marketplaceAction(payload: Record<string, unknown>): Promise<Mark
   }
   if (!result) throw new Error("The server returned an unexpected response. Please try again.");
   return result;
+}
+
+async function adminAccountsRequest<T>(method: "GET" | "DELETE", uid?: string): Promise<T> {
+  const token = await getFirebaseAuth().currentUser?.getIdToken();
+  if (!token) throw new Error("Sign in to continue.");
+  const response = await fetch("/api/admin/accounts", {
+    method,
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer " + token,
+    },
+    ...(method === "DELETE" ? { body: JSON.stringify({ uid }) } : {}),
+  });
+  const result = await response.json().catch(() => null) as (T & {
+    error?: string;
+  }) | null;
+  if (!response.ok) {
+    throw new Error(result?.error || "The account action could not be completed. Refresh and try again.");
+  }
+  if (!result) throw new Error("The server returned an unexpected response. Please try again.");
+  return result;
+}
+
+export async function listAdminAccounts(): Promise<AdminAccount[]> {
+  const result = await adminAccountsRequest<{ accounts: AdminAccount[] }>("GET");
+  return result.accounts;
+}
+
+export async function deleteAdminAccount(uid: string): Promise<{ storageCleanupIncomplete: boolean }> {
+  return adminAccountsRequest<{ storageCleanupIncomplete: boolean }>("DELETE", uid);
 }
 
 import { computeTotals, pesos } from "@/lib/commission";
@@ -403,7 +441,7 @@ function toOffer(id: string, data: DocumentData): ServiceOffer {
     workerName: data.workerName ?? "",
     title: data.title ?? "",
     categoryId: data.categoryId ?? "",
-    description: String(data.description ?? "").slice(0, 10),
+    description: String(data.description ?? ""),
     priceFrom: data.priceFrom ?? 0,
     barangay: data.barangay ?? "",
     status: data.status ?? "open",
@@ -449,7 +487,10 @@ export async function createOffer(
     barangay: string;
   },
 ) {
-  if (input.description.trim().length > 10) throw new Error("Service description must be 10 characters or fewer.");
+  const descriptionLength = input.description.trim().length;
+  if (descriptionLength > 2000 || (descriptionLength > 0 && descriptionLength < 10)) {
+    throw new Error("If you add a service description, it must be at least 10 characters.");
+  }
   const ref = await addDoc(offersCol(), stripUndefined({
     workerId: worker.id,
     workerUid: worker.uid,
@@ -688,7 +729,7 @@ export interface NewJob {
 /** Stage 1 -> 2. Creates the request and reports whether the worker email was sent. */
 export async function createJobRequest(input: NewJob) {
   const description = input.description.trim();
-  if (!description || description.length > 10) throw new Error("Job description must be between 1 and 10 characters.");
+  if (description.length < 10 || description.length > 2000) throw new Error("Job description must be between 10 and 2,000 characters.");
   if (!input.title.trim() || input.title.trim().length > 90) throw new Error("Job title must be 1 to 90 characters.");
   const ref = doc(jobsCol());
   const conversationId = await getOrCreateConversation(input.worker, {

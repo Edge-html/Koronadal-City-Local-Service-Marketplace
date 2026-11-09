@@ -12,7 +12,7 @@ import {
 } from "@/components/ui";
 import { DOC_TYPES, type Job, type Worker } from "@/lib/types";
 import type { Category } from "@/lib/constants";
-import { addService, checkEmailDiagnostics, decideVerification, getDisabledServiceIds, getServiceCatalog, listAllJobs, listPendingWorkers, migrateLegacyWorkers, retryWorkerRequestEmail, setServiceEnabled } from "@/lib/data";
+import { addService, checkEmailDiagnostics, decideVerification, deleteAdminAccount, getDisabledServiceIds, getServiceCatalog, listAdminAccounts, listAllJobs, listPendingWorkers, migrateLegacyWorkers, retryWorkerRequestEmail, setServiceEnabled, type AdminAccount } from "@/lib/data";
 import { formatDate } from "@/lib/utils";
 import { useAuth } from "@/context/AuthContext";
 import { useActivity } from "@/context/ActivityContext";
@@ -36,9 +36,9 @@ function emailFailureMessage(reason?: string | null) {
 }
 
 export default function AdminPage() {
-  const { role, loading: authLoading } = useAuth();
+  const { role, user, loading: authLoading } = useAuth();
   const { adminRevision, adminError, adminDisputes } = useActivity();
-  const [section, setSection] = useState<"workers" | "oversight" | "alerts" | "services" | "pro">("workers");
+  const [section, setSection] = useState<"workers" | "oversight" | "alerts" | "services" | "pro" | "accounts">("workers");
   const [disabledServices, setDisabledServices] = useState<string[]>([]);
   const [serviceBusy, setServiceBusy] = useState<string | null>(null);
   const [services, setServices] = useState<Category[]>([]);
@@ -57,6 +57,10 @@ export default function AdminPage() {
   const [missingEmailVariables, setMissingEmailVariables] = useState<string[]>([]);
   const [emailBusy, setEmailBusy] = useState(false);
   const [emailResult, setEmailResult] = useState("");
+  const [accounts, setAccounts] = useState<AdminAccount[] | null>(null);
+  const [accountsError, setAccountsError] = useState("");
+  const [accountsMessage, setAccountsMessage] = useState("");
+  const [accountBusy, setAccountBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     const [workers, allJobs] = await Promise.all([listPendingWorkers(), listAllJobs()]);
@@ -88,6 +92,7 @@ export default function AdminPage() {
       if (target === "alerts") setSection("alerts");
       if (target === "services") setSection("services");
       if (target === "pro") setSection("pro");
+      if (target === "accounts") setSection("accounts");
     };
     syncSection();
     window.addEventListener("hashchange", syncSection);
@@ -131,6 +136,41 @@ export default function AdminPage() {
     })
       .catch(() => setEmailResult("Could not check the email relay. Refresh and try again."));
   }, [section, role]);
+
+  useEffect(() => {
+    if (section !== "accounts" || role !== "admin") return;
+    let cancelled = false;
+    setAccounts(null);
+    setAccountsError("");
+    listAdminAccounts().then((result) => {
+      if (!cancelled) setAccounts(result);
+    }).catch((err) => {
+      if (!cancelled) {
+        setAccounts([]);
+        setAccountsError(err instanceof Error ? err.message : "Could not load accounts.");
+      }
+    });
+    return () => { cancelled = true; };
+  }, [section, role]);
+
+  async function removeAccount(account: AdminAccount) {
+    const accountLabel = account.name || account.email || "this account";
+    if (!window.confirm(`Delete ${accountLabel}${account.email ? ` (${account.email})` : ""}? Their sign-in, profile, and private files will be removed. Completed job history will be anonymized. Active jobs must be resolved first.`)) return;
+    setAccountBusy(account.uid);
+    setAccountsError("");
+    setAccountsMessage("");
+    try {
+      const result = await deleteAdminAccount(account.uid);
+      setAccounts((current) => (current ?? []).filter((item) => item.uid !== account.uid));
+      setAccountsMessage(result.storageCleanupIncomplete
+        ? `Deleted ${accountLabel}. Some private files could not be removed; check the server logs.`
+        : `Deleted ${accountLabel} and removed their account data.`);
+    } catch (err) {
+      setAccountsError(err instanceof Error ? err.message : "Could not delete this account.");
+    } finally {
+      setAccountBusy(null);
+    }
+  }
 
   async function testEmail() {
     setEmailBusy(true);
@@ -237,6 +277,7 @@ export default function AdminPage() {
             { id: "alerts", label: "Email alerts", count: jobs.filter((job) => job.status === "requested" && !job.workerRequestEmailSentAt).length },
             { id: "services", label: "Home services", count: services.filter((item) => !disabledServices.includes(item.id)).length },
             { id: "pro", label: "Pro payments" },
+            { id: "accounts", label: "Accounts" },
           ] as const).map((item) => <button type="button" key={item.id} onClick={() => setSection(item.id)} aria-pressed={section === item.id}
             className={`flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 text-sm ${section === item.id ? "border-ink-black bg-white font-semibold text-ink-black" : "border-stone-200 text-stone-700"}`}>
             {item.label}{"count" in item ? <CountBadge count={item.count} /> : null}
@@ -278,6 +319,27 @@ export default function AdminPage() {
         </Card> : null}
 
         {section === "pro" ? <ProPaymentsAdminPanel /> : null}
+
+        {section === "accounts" ? <Card className="overflow-hidden p-0">
+          <div className="border-b border-stone-200 px-5 py-4">
+            <h2 className="text-[16px] font-medium">Account management</h2>
+            <p className="caption mt-1">Delete sign-in accounts and their private data. Completed jobs are retained with personal details anonymized; active jobs must be resolved first.</p>
+          </div>
+          {accountsError ? <div className="px-5 pt-4"><Notice tone="alert">{accountsError}</Notice></div> : null}
+          {accountsMessage ? <div className="px-5 pt-4"><Notice>{accountsMessage}</Notice></div> : null}
+          {accounts === null ? <p className="px-5 py-8 text-sm text-stone-500">Loading accounts…</p>
+            : accounts.length === 0 ? <p className="px-5 py-8 text-sm text-stone-500">No accounts found.</p>
+            : <ul className="divide-y divide-stone-200">{accounts.map((account) => <li key={account.uid} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-ink-black">{account.name || "Unnamed account"}</p>
+                <p className="truncate text-sm text-stone-600">{account.email || "No email"}</p>
+                <p className="caption mt-1 capitalize">{account.role} · Joined {formatDate(account.createdAt)}</p>
+              </div>
+              <button type="button" className="btn-neutral border-red-200 text-red-700 hover:bg-red-50" disabled={accountBusy !== null || account.uid === user?.uid || account.role === "admin"} onClick={() => removeAccount(account)}>
+                {accountBusy === account.uid ? "Deleting…" : account.uid === user?.uid ? "Current account" : account.role === "admin" ? "Admin protected" : "Delete account"}
+              </button>
+            </li>)}</ul>}
+        </Card> : null}
 
         {/* Verification queue */}
         {section === "workers" ? <Card className="overflow-hidden p-0">

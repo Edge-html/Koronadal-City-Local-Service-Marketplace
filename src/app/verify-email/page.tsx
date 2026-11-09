@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthShell } from "@/components/AuthShell";
 import { Card, Notice } from "@/components/ui";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, verificationEmailError } from "@/context/AuthContext";
 
 function VerifyEmailContent() {
   const { user, sendVerificationEmail, logout } = useAuth();
@@ -16,10 +16,19 @@ function VerifyEmailContent() {
   const [busy, setBusy] = useState(false);
   const next = params.get("next")?.startsWith("/") && !params.get("next")?.startsWith("//") ? params.get("next")! : "/dashboard";
 
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("korohanap:verification-email-failed")) {
+        sessionStorage.removeItem("korohanap:verification-email-failed");
+        setError("Your account was created, but Firebase could not send the first email. Try resending the verification link.");
+      }
+    } catch { /* session storage is optional */ }
+  }, []);
+
   async function resend() {
     setBusy(true); setError(""); setMessage("");
     try { await sendVerificationEmail(); setMessage(`A new verification link was sent to ${user?.email ?? "your email"}.`); }
-    catch (err) { setError(err instanceof Error ? err.message : "Could not send the verification link."); }
+    catch (err) { setError(verificationEmailError(err)); }
     finally { setBusy(false); }
   }
 
@@ -33,7 +42,7 @@ function VerifyEmailContent() {
     finally { setBusy(false); }
   }
 
-  return <AuthShell eyebrow="Verify your email" title="Check your inbox" description="We sent a verification link to the email address you registered with.">
+  return <AuthShell eyebrow="Verify your email" title="Check your inbox" description="Open the verification link sent to your registered email. If it did not arrive, you can request another link below.">
     <Card className="flex flex-col gap-4 p-6">
       {error ? <Notice tone="alert">{error}</Notice> : null}
       {message ? <Notice>{message}</Notice> : null}

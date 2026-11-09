@@ -11,10 +11,10 @@
   --color-stone-600: #4b5b70;
   --color-stone-700: #344256;
   --color-stone-800: #1d2939;
-  --color-ink-black: #101828;
-  --color-char: #0b1220;
-  --color-accent: #155eef;
-  --color-accent-strong: #004EEB;
+  --color-ink-black: #102b56;
+  --color-char: #0b3673;
+  --color-accent: #0b63ce;
+  --color-accent-strong: #084fa8;
 
   /* Typography.
      Face variables are injected by next/font in the root layout:

@@ -41,9 +41,9 @@ export function ActionNotifications({
     ? admin.workers + admin.disputes
     : actions.reduce((total, item) => total + item.count, 0);
 
-  return <div className="relative">
-    <button type="button" className="btn-ghost relative px-2" aria-label={`Notifications${count ? `, ${count} need attention` : ""}`} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
-      <Bell size={17} strokeWidth={1.6} />
+  return <div className="relative shrink-0">
+    <button type="button" className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-blue-100 bg-blue-50 text-blue-800 transition-colors hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600" aria-label={`Notifications${count ? `, ${count} need attention` : ""}`} aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <Bell size={20} strokeWidth={1.8} />
       {count > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border border-white bg-red-600 px-1 text-[10px] font-semibold text-white shadow-sm">{count > 99 ? "99+" : count}</span> : null}
     </button>
     {open ? <div className="absolute right-0 top-full z-50 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-xl border border-stone-200 bg-white shadow-lg">

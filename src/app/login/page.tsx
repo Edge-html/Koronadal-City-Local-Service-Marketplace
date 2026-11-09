@@ -28,7 +28,11 @@ function LoginForm() {
     setError("");
     setBusy(true);
     try {
-      await signIn(email, password);
+      const signedInUser = await signIn(email, password);
+      if (!signedInUser.emailVerified) {
+        router.replace(`/verify-email?next=${encodeURIComponent(next)}`);
+        return;
+      }
       router.push(next);
     } catch (err) {
       setError(friendlyAuthError(err));

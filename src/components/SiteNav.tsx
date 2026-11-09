@@ -69,17 +69,17 @@ export function SiteNav() {
   return <>
     {!firebaseConfigured ? <div className="border-b border-stone-200 bg-bone py-2"><p className="container-page text-xs text-stone-700">Preview mode — accounts and live data are unavailable.</p></div> : null}
     <header className="sticky top-0 z-50 border-b border-stone-200 bg-newsprint/95 backdrop-blur-sm">
-      <div className="container-page flex h-16 items-center justify-between gap-3">
-        <div className="flex items-center gap-6"><Wordmark href={user ? "/" : "/landing"} /><nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">{renderLinks()}</nav></div>
-        <div className="flex items-center gap-2">
-          {user && role ? <ActionNotifications role={role} customerJobs={customerJobs} workerJobs={workerJobs} admin={admin} /> : null}
+      <div className="container-page flex h-16 items-center justify-between gap-2 px-3 sm:gap-3 sm:px-6">
+        <div className="flex min-w-0 shrink-0 items-center gap-2 sm:gap-6"><Wordmark href={user ? "/" : "/landing"} /><nav className="hidden items-center gap-1 lg:flex" aria-label="Primary">{renderLinks()}</nav></div>
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          {user ? <ActionNotifications role={role ?? "customer"} customerJobs={customerJobs} workerJobs={workerJobs} admin={admin} /> : null}
           {loading ? <span className="h-9 w-20 animate-pulse rounded bg-stone-200" /> : user ? (
             <div className="relative" ref={account} onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false); }}>
-              <button type="button" ref={accountButton} className="btn-ghost gap-2" aria-expanded={accountOpen} aria-controls="account-panel" aria-label={`Open account menu for ${accountName}`} onClick={() => setAccountOpen((v) => !v)}>
+              <button type="button" ref={accountButton} className="btn-ghost shrink-0 gap-1 px-1.5 sm:gap-2 sm:px-3" aria-expanded={accountOpen} aria-controls="account-panel" aria-label={`Open account menu for ${accountName}`} onClick={() => setAccountOpen((v) => !v)}>
                 <Avatar name={accountName} size={28} photoUrl={typeof profile?.photoUrl === "string" ? profile.photoUrl : undefined} className="border-0 bg-white text-xs" />
                 <span className="hidden max-w-[14ch] truncate text-sm sm:inline">{accountName}</span>
                 {role === "worker" ? <CountBadge count={customerCount} /> : null}
-                <ChevronDown size={14} />
+                <ChevronDown className="hidden sm:block" size={14} />
               </button>
               {accountOpen ? <div id="account-panel" className="absolute right-0 top-full mt-2 w-64 max-w-[85vw] rounded-xl border border-stone-200 bg-white p-2 shadow-lg">
                 <div className="border-b border-stone-100 px-3 py-3"><p className="truncate text-sm font-semibold">{accountName}</p><p className="mt-1 text-xs capitalize text-stone-500">{role === "customer" ? "Customer" : role} account</p></div>
@@ -90,7 +90,7 @@ export function SiteNav() {
               </div> : null}
             </div>
           ) : <div className="hidden items-center gap-2 sm:flex"><Link href="/login" className="btn-ghost">Sign in</Link><Link href="/signup" className="btn-primary">Create account</Link></div>}
-          <button type="button" className="btn-ghost px-2 lg:hidden" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="mobile-nav" aria-label={open ? "Close navigation" : "Open navigation"}>
+          <button type="button" className="btn-ghost min-h-10 min-w-10 shrink-0 px-2 lg:hidden" onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-controls="mobile-nav" aria-label={open ? "Close navigation" : "Open navigation"}>
             {open ? <X size={20} /> : <Menu size={20} />}<CountBadge count={role === "worker" ? workerCount : role === "admin" ? adminCount : customerCount} />
           </button>
         </div>
