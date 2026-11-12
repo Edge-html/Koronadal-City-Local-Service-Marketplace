@@ -75,7 +75,7 @@ export function WorkerCard({ worker }: { worker: Worker }) {
           {worker.tesdaCertified ? (
             <Badge tone="neutral">TESDA Certified</Badge>
           ) : null}
-          {worker.isPro ? <span className="text-xs font-medium text-blue-800">Featured Pro profile</span> : null}
+          {worker.isPro ? <span className="rounded-full bg-gold-100 px-2 py-1 text-xs font-semibold text-navy">Featured Pro profile</span> : null}
         </div>
       </Link>
     </li>

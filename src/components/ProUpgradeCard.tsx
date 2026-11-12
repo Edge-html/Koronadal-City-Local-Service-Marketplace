@@ -64,7 +64,7 @@ export function ProUpgradeCard({ worker }: { worker: Worker }) {
   }
 
   return <>
-    <Card className="flex flex-wrap items-center justify-between gap-4 border-blue-200 bg-blue-50/50 p-5">
+    <Card className="flex flex-wrap items-center justify-between gap-4 border-gold-200 bg-gold-100/45 p-5">
       <div className="flex items-start gap-3">
         <div>
           <h2 className="text-sm font-semibold text-ink-black">
@@ -87,7 +87,7 @@ export function ProUpgradeCard({ worker }: { worker: Worker }) {
         </div>
       </div>
       {proActive ? (
-        <span className="rounded-lg bg-blue-100 px-4 py-2 text-sm font-semibold text-blue-900">Pro active</span>
+        <span className="rounded-lg bg-gold-100 px-4 py-2 text-sm font-semibold text-navy">Pro active</span>
       ) : (
         <ActionButton variant="primary" busy={loading} disabled={pending || !eligible} onClick={() => { setError(""); setOpen(true); }}>
           {pending ? "Payment under review" : !eligible ? "Available after verification" : paymentRequest?.status === "rejected" ? "Resubmit payment" : "Activate Pro"}

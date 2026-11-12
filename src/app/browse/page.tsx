@@ -149,7 +149,7 @@ function BrowseInner() {
           className="pointer-events-none absolute inset-0 -z-10"
           style={{
             backgroundImage:
-              "linear-gradient(180deg, rgba(248,250,252,.12) 0%, rgba(248,250,252,.34) 52%, #f8fafc 100%), linear-gradient(90deg, rgba(248,250,252,.86), rgba(248,250,252,.62)), url('/images/service-sign.webp')",
+              "linear-gradient(180deg, rgba(245,245,242,.12) 0%, rgba(245,245,242,.34) 52%, #f5f5f2 100%), linear-gradient(90deg, rgba(245,245,242,.86), rgba(245,245,242,.62)), url('/images/service-sign.webp')",
             backgroundRepeat: "no-repeat",
             backgroundSize: "100% 100%, 100% 100%, cover",
             backgroundPosition: "center, center, center 42%",
@@ -211,7 +211,7 @@ function BrowseInner() {
                   <div className="flex items-start gap-3">
                     <Avatar name={worker.fullName} size={48} photoUrl={worker.photoUrl} />
                     <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5"><h3 className="font-semibold text-ink-black">{worker.fullName}</h3>{worker.verified ? <Badge tone="verified">Verified</Badge> : null}{worker.isPro ? <Badge className="bg-blue-100 text-blue-900">Pro</Badge> : null}</div>
+                      <div className="flex flex-wrap items-center gap-1.5"><h3 className="font-semibold text-ink-black">{worker.fullName}</h3>{worker.verified ? <Badge tone="verified">Verified</Badge> : null}{worker.isPro ? <Badge className="bg-gold-100 text-navy">Pro</Badge> : null}</div>
                       <p className="mt-1 line-clamp-1 text-[13px] font-medium text-stone-700">{serviceNames(worker, categories).join(" · ") || "Local service provider"}</p>
                       <p className="mt-1 flex items-center gap-1 text-xs text-stone-500"><MapPin size={12} />{worker.barangay}{worker.serviceAreas?.length ? ` + ${worker.serviceAreas.length} areas` : ""}</p>
                     </div>
@@ -257,7 +257,7 @@ function WorkerPreview({ worker, categories }: { worker: Worker; categories: Ret
       <div className="flex flex-wrap items-start gap-4">
         <Avatar name={worker.fullName} size={68} photoUrl={worker.photoUrl} />
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2"><h2 className="text-[22px] font-semibold tracking-[-0.03em] text-ink-black">{worker.fullName}</h2>{worker.verified ? <Badge tone="verified"><BadgeCheck size={11} />Verified</Badge> : null}{worker.isPro ? <Badge className="bg-blue-100 text-blue-900"><Sparkles size={10} />Pro</Badge> : null}</div>
+          <div className="flex flex-wrap items-center gap-2"><h2 className="text-[22px] font-semibold tracking-[-0.03em] text-ink-black">{worker.fullName}</h2>{worker.verified ? <Badge tone="verified"><BadgeCheck size={11} />Verified</Badge> : null}{worker.isPro ? <Badge className="bg-gold-100 text-navy"><Sparkles size={10} />Pro</Badge> : null}</div>
           <p className="mt-1 text-sm text-stone-600">{names.join(" · ") || "Local service provider"}</p>
           <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-600"><StarRating value={worker.rating} count={worker.reviewCount} />{worker.tesdaCertified ? <span className="font-medium text-blue-800">TESDA certified</span> : null}</div>
         </div>

@@ -1,20 +1,40 @@
 @import "tailwindcss";
 
 @theme {
-  /* Clean white surfaces, inky text, and clear blue marketplace actions. */
-  --color-newsprint: #f8fafc;
+  /* KoroHanap palette: deep navy, calm periwinkle, warm white, and gold. */
+  --color-newsprint: #f5f5f2;
   --color-bright-white: #ffffff;
-  --color-bone: #f1f5f9;
-  --color-stone-200: #d8e0ea;
-  --color-stone-400: #98a5b5;
-  --color-stone-500: #68778a;
-  --color-stone-600: #4b5b70;
-  --color-stone-700: #344256;
-  --color-stone-800: #1d2939;
-  --color-ink-black: #102b56;
-  --color-char: #0b3673;
-  --color-accent: #0b63ce;
-  --color-accent-strong: #084fa8;
+  --color-bone: #eef1f7;
+  --color-stone-200: #d9dfeb;
+  --color-stone-400: #8999bc;
+  --color-stone-500: #687a9d;
+  --color-stone-600: #4a5c7e;
+  --color-stone-700: #304365;
+  --color-stone-800: #1a315d;
+  --color-ink-black: #09265f;
+  --color-char: #0b2d70;
+  --color-accent: #123b89;
+  --color-accent-strong: #082258;
+  --color-navy: #09265f;
+  --color-periwinkle: #748dc9;
+  --color-gold: #f4b400;
+  --color-gold-100: #fff1bf;
+  --color-gold-200: #ffe18a;
+
+  /* Existing Tailwind blue utilities now use the reference palette. */
+  --color-blue-50: #f0f3fa;
+  --color-blue-100: #e2e8f6;
+  --color-blue-200: #cad5ed;
+  --color-blue-300: #adbee3;
+  --color-blue-400: #91a6d6;
+  --color-blue-500: #748dc9;
+  --color-blue-600: #5a76b2;
+  --color-blue-700: #3b5a97;
+  --color-blue-800: #25447e;
+  --color-blue-900: #12356f;
+  --color-blue-950: #09265f;
+  --color-amber-100: #fff1bf;
+  --color-amber-900: #654c00;
 
   /* Typography.
      Face variables are injected by next/font in the root layout:
@@ -84,13 +104,13 @@
     --radius-buttons: 6px;
 
     /* Surfaces */
-    --surface-canvas: #f8fafc;
-    --surface-subtle-wash: #f1f5f9;
+    --surface-canvas: #f5f5f2;
+    --surface-subtle-wash: #eef1f7;
     --surface-card: #ffffff;
     --surface-elevated: #ffffff;
 
     /* Hairline */
-    --border-hairline: 1px solid #d8e0ea;
+    --border-hairline: 1px solid var(--color-stone-200);
 
     /* Diagonal hatch. The print convention for "this needs attention", and the
        reason the urgent badge still reads as urgent in a monochrome UI: colour
@@ -130,8 +150,8 @@
   }
 
   ::selection {
-    background: var(--color-accent);
-    color: var(--color-newsprint);
+      background: var(--color-gold-100);
+      color: var(--color-ink-black);
   }
 
   input,
@@ -289,14 +309,8 @@
 
   /* ---- Badges ----------------------------------------------------- */
 
-  /* Status used to be encoded by hue alone: amber for new, coral for attention,
-     ember for "you must act", violet for in progress. Removing the hues without
-     replacing the encoding would have made every job stage look identical, so
-     the ladder below trades hue for four independent achromatic channels —
-     fill weight, border weight, border style, and texture — which between them
-     give seven distinguishable tiers. Read it as a ladder of emphasis:
-     verified is loudest, then action, alert, active, new, and the two quiet
-     ones at the bottom. */
+  /* Status badges use the navy and periwinkle palette with distinct borders,
+     fills, and textures so each job stage remains easy to scan. */
   .badge {
     display: inline-flex;
     align-items: center;

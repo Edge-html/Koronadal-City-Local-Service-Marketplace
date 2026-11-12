@@ -26,7 +26,7 @@ export function Hero() {
       </p>
 
       <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row">
-        <Link href="/browse" className="btn-primary w-full sm:w-auto">
+        <Link href="/browse" className="btn-primary w-full border-gold bg-gold text-navy hover:border-gold-200 hover:bg-gold-200 sm:w-auto">
           Browse verified workers
           <ArrowRight size={15} strokeWidth={1.5} />
         </Link>
@@ -60,8 +60,8 @@ function LaunchPill({ mounted }: { mounted: boolean }) {
       href="/platform"
       className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white py-1.5 pr-3 pl-3 text-[12px] font-medium tracking-[-0.02em] text-ink-black no-underline transition-colors hover:bg-bone"
     >
-      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-bone">
-        <CirclePlay size={11} strokeWidth={1.5} className="text-stone-700" />
+      <span className="flex h-4 w-4 items-center justify-center rounded-full bg-gold">
+        <CirclePlay size={11} strokeWidth={1.5} className="text-navy" />
       </span>
       <span className={mounted ? "animate-in" : undefined}>
         Local providers &middot; Koronadal City

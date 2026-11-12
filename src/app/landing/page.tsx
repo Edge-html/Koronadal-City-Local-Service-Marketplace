@@ -23,18 +23,7 @@ import { ServiceOffersSection } from "@/components/home/ServiceOffersSection";
 export default function LandingPage() {
   return (
     <>
-      <div className="relative isolate overflow-hidden">
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(248,250,252,.5), rgba(248,250,252,.5)), linear-gradient(180deg, rgba(248,250,252,.02) 0%, rgba(248,250,252,.08) 60%, #f8fafc 100%), url('/images/local-craft.webp')",
-            backgroundRepeat: "no-repeat",
-            backgroundSize: "100% 100%, 100% 100%, cover",
-            backgroundPosition: "center, center, center",
-          }}
-        />
+      <div className="bg-newsprint">
         <Hero />
         <TrustBar />
       </div>

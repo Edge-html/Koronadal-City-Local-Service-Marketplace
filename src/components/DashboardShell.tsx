@@ -25,7 +25,7 @@ export function DashboardShell({ title, subtitle, eyebrow, bannerImages, childre
       className={bannerImages
         ? "relative isolate -mx-6 -mt-8 mb-6 overflow-hidden border-b border-stone-200 px-6 py-8 sm:-mt-10 sm:py-10"
         : "border-b border-stone-200 pb-6"}
-      style={bannerImages ? { backgroundColor: "#f8fafc" } : undefined}
+      style={bannerImages ? { backgroundColor: "var(--color-newsprint)" } : undefined}
     >
       {bannerImages ? <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div
@@ -38,7 +38,7 @@ export function DashboardShell({ title, subtitle, eyebrow, bannerImages, childre
         />
         <div
           className="absolute inset-0"
-          style={{ backgroundImage: "linear-gradient(90deg, rgba(248,250,252,.98) 0%, rgba(248,250,252,.86) 38%, rgba(248,250,252,.36) 100%)" }}
+          style={{ backgroundImage: "linear-gradient(90deg, rgba(245,245,242,.98) 0%, rgba(245,245,242,.86) 38%, rgba(245,245,242,.36) 100%)" }}
         />
       </div> : null}
       <div className={bannerImages ? "relative z-10" : undefined}>

@@ -52,7 +52,7 @@ export function AuthShell({
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 -z-10"
           style={{
-            backgroundImage: `linear-gradient(90deg, rgba(248,250,252,.72) 0%, rgba(248,250,252,.55) 52%, rgba(248,250,252,.22) 100%), linear-gradient(0deg, rgba(248,250,252,.32), transparent 52%), url('${imageSrc}')`,
+            backgroundImage: `linear-gradient(90deg, rgba(245,245,242,.72) 0%, rgba(245,245,242,.55) 52%, rgba(245,245,242,.22) 100%), linear-gradient(0deg, rgba(245,245,242,.32), transparent 52%), url('${imageSrc}')`,
             backgroundRepeat: "no-repeat",
             backgroundSize: "cover",
             backgroundPosition: "center",
