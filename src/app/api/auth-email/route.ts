@@ -10,6 +10,7 @@ const RESET_GENERIC_RESPONSE = {
   message: "If an account exists for that email, a password reset link will be sent.",
 };
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const KOROHANAP_ORIGIN = (process.env.NEXT_PUBLIC_APP_URL || "https://kclsm.vercel.app").replace(/\/$/, "");
 
 function response(value: unknown, status = 200) {
   return NextResponse.json(value, { status, headers: { "cache-control": "no-store" } });
@@ -44,6 +45,30 @@ function requestIp(request: NextRequest) {
   return request.headers.get("x-real-ip")
     || request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
     || "unknown";
+}
+
+/**
+ * Firebase's default action page is hosted on the Firebase project's
+ * firebaseapp.com domain. Point the one-time action code at our own handler so
+ * verification and password reset still work when that hosted page is not
+ * reachable.
+ */
+function korohanapActionLink(firebaseLink: string, expectedMode: "verifyEmail" | "resetPassword") {
+  const generated = new URL(firebaseLink);
+  const mode = generated.searchParams.get("mode");
+  const oobCode = generated.searchParams.get("oobCode");
+  const apiKey = generated.searchParams.get("apiKey");
+  if (mode !== expectedMode || !oobCode || !apiKey) {
+    throw new Error("Firebase generated an invalid email action link.");
+  }
+
+  const action = new URL("/auth/action", `${KOROHANAP_ORIGIN}/`);
+  action.searchParams.set("mode", mode);
+  action.searchParams.set("oobCode", oobCode);
+  action.searchParams.set("apiKey", apiKey);
+  const lang = generated.searchParams.get("lang");
+  if (lang) action.searchParams.set("lang", lang);
+  return action.toString();
 }
 
 function authEmailHtml(input: {
@@ -91,7 +116,8 @@ async function sendPasswordReset(request: NextRequest, rawEmail: string) {
     }
     if (user.disabled) return response(RESET_GENERIC_RESPONSE);
 
-    const actionLink = await auth.generatePasswordResetLink(user.email ?? email);
+    const firebaseLink = await auth.generatePasswordResetLink(user.email ?? email);
+    const actionLink = korohanapActionLink(firebaseLink, "resetPassword");
     const name = user.displayName?.trim() || "there";
     const detail = "We received a request to reset your KoroHanap password. Use the secure link below to choose a new password.";
     const html = authEmailHtml({
@@ -132,7 +158,8 @@ async function sendVerification(request: NextRequest) {
     ]);
     if (!userAllowed || !ipAllowed) return response({ error: "Please wait a minute before requesting another verification email." }, 429);
 
-    const actionLink = await auth.generateEmailVerificationLink(user.email);
+    const firebaseLink = await auth.generateEmailVerificationLink(user.email);
+    const actionLink = korohanapActionLink(firebaseLink, "verifyEmail");
     const name = user.displayName?.trim() || "there";
     const detail = "Confirm your email address to finish setting up your KoroHanap account.";
     const html = authEmailHtml({
