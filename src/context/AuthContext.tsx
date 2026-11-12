@@ -3,8 +3,6 @@
 import {
   createUserWithEmailAndPassword,
   onAuthStateChanged,
-  sendPasswordResetEmail,
-  sendEmailVerification,
   signInWithEmailAndPassword,
   signOut,
   updateProfile,
@@ -39,6 +37,22 @@ export function verificationEmailError(error: unknown) {
   if (code === "auth/invalid-continue-uri" || code === "auth/unauthorized-continue-uri") return "Firebase rejected the verification link destination. Check the authorized domains in Firebase Authentication settings.";
   if (code === "auth/user-token-expired") return "Your sign-in expired. Sign in again, then request a new verification link.";
   return "Firebase could not send the verification email. Check the Firebase Authentication email template and try again.";
+}
+
+async function requestCustomAuthEmail(
+  operation: "verification" | "passwordReset",
+  options: { email?: string; token?: string } = {},
+) {
+  const response = await fetch("/api/auth-email", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...(options.token ? { authorization: "Bearer " + options.token } : {}),
+    },
+    body: JSON.stringify({ operation, email: options.email }),
+  });
+  const result = await response.json().catch(() => null) as { error?: string } | null;
+  if (!response.ok) throw new Error(result?.error || "Could not send the email. Please try again.");
 }
 
 interface AuthContextValue {
@@ -261,10 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       });
       try {
-        // Use Firebase's default verification handler. A custom continue URL
-        // requires every production domain to be added to Firebase's
-        // authorized-domain list, which made resend fail after domain changes.
-        await sendEmailVerification(cred.user);
+        await requestCustomAuthEmail("verification", { token: await cred.user.getIdToken() });
         try { sessionStorage.removeItem("korohanap:verification-email-failed"); } catch { /* storage is optional */ }
       } catch (error) {
         // The account exists; keep the user in the verification flow so they
@@ -311,7 +322,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [router]);
 
   const resetPassword = useCallback(async (email: string) => {
-    await sendPasswordResetEmail(getFirebaseAuth(), email);
+    await requestCustomAuthEmail("passwordReset", { email });
   }, []);
 
   const sendVerificationEmail = useCallback(async () => {
@@ -319,7 +330,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!current) throw new Error("Sign in to request an email verification link.");
     await current.reload();
     if (current.emailVerified) throw new Error("This email is already verified. You can return to sign in.");
-    await sendEmailVerification(current);
+    await requestCustomAuthEmail("verification", { token: await current.getIdToken() });
   }, []);
 
   const refreshProfile = useCallback(async () => {

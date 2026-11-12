@@ -97,7 +97,7 @@ function LoginForm() {
         <div className="-mt-2 flex justify-end">
           <button type="button" className="text-xs text-stone-700 underline underline-offset-2" disabled={resetBusy || !email.trim()} onClick={async () => {
             setResetBusy(true); setResetMessage(""); setError("");
-            try { await resetPassword(email.trim()); setResetMessage("If an account exists for this email, Firebase sent a password reset link. Check your inbox and Spam folder."); }
+            try { await resetPassword(email.trim()); setResetMessage("If an account exists for this email, a KoroHanap password reset link will arrive by email. Check your inbox and Spam folder."); }
             catch (err) { setError(err instanceof Error ? err.message : "Could not send a password reset link."); }
             finally { setResetBusy(false); }
           }}>{resetBusy ? "Sending reset link…" : "Forgot password?"}</button>

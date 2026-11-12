@@ -20,7 +20,7 @@ function VerifyEmailContent() {
     try {
       if (sessionStorage.getItem("korohanap:verification-email-failed")) {
         sessionStorage.removeItem("korohanap:verification-email-failed");
-        setError("Your account was created, but Firebase could not send the first email. Try resending the verification link.");
+        setError("Your account was created, but KoroHanap could not send the first verification email. Try resending the link.");
       }
     } catch { /* session storage is optional */ }
   }, []);
